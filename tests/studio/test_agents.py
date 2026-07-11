@@ -54,3 +54,23 @@ class AgentValidationTests(unittest.TestCase):
             by_model.setdefault(data["model"], set()).add(data["name"])
         self.assertEqual({"creative-director", "technical-director", "producer"}, by_model["gpt-5.6"])
         self.assertEqual({"community-manager", "qa-tester"}, by_model["gpt-5.6-luna"])
+
+    def test_unconfigured_template_has_core_and_packed_roster(self):
+        import tomllib
+
+        core = sorted((ROOT / ".codex/agents").glob("*.toml"))
+        packed = sorted((ROOT / ".codex/agent-packs").glob("*/*.toml"))
+        self.assertEqual(34, len(core))
+        self.assertEqual(15, len(packed))
+        self.assertEqual(
+            {"godot": 5, "unity": 5, "unreal": 5},
+            {
+                engine: len(list((ROOT / ".codex/agent-packs" / engine).glob("*.toml")))
+                for engine in ("godot", "unity", "unreal")
+            },
+        )
+        devops = tomllib.loads(
+            (ROOT / ".codex/agents/devops-engineer.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual("gpt-5.6-terra", devops["model"])
+        self.assertEqual("high", devops["model_reasoning_effort"])

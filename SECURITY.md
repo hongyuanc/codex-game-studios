@@ -11,7 +11,7 @@ not supported.
 
 Use GitHub's private vulnerability reporting instead:
 
-**[Report a vulnerability →](https://github.com/Donchitos/Claude-Code-Game-Studios/security/advisories/new)**
+**[Report a vulnerability →](https://github.com/Donchitos/Codex-Code-Game-Studios/security/advisories/new)**
 
 Include as much detail as possible:
 - Description of the vulnerability and what it affects
@@ -31,10 +31,10 @@ AI agents that run directly on your machine. Security issues are primarily about
 contributed code that executes in users' environments without their awareness.
 
 ### High Severity
-- Hooks (`.claude/hooks/*.sh`) that execute malicious or undisclosed shell
+- Hooks (`.codex/hooks/*.sh`) that execute malicious or undisclosed shell
   commands on user machines
 - Skills or agents that exfiltrate environment variables, API keys, or secrets
-- Prompt injection via skill or agent definitions that causes Claude to bypass
+- Prompt injection via skill or agent definitions that causes Codex to bypass
   safety measures or take unauthorized destructive actions
 - Contributions that silently alter behavior in ways users cannot audit
 
@@ -46,9 +46,9 @@ contributed code that executes in users' environments without their awareness.
   approval step
 
 ### Out of Scope
-- The behavior of Claude or the Claude Code CLI itself
+- The behavior of Codex or the Codex CLI itself
   (report to [Anthropic](https://www.anthropic.com/security))
-- Bugs in the user's Claude Code installation or editor extension
+- Bugs in the user's Codex installation or editor extension
 - Theoretical vulnerabilities with no realistic attack path
 - Issues requiring physical access to the user's machine
 

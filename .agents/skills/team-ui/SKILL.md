@@ -141,7 +141,7 @@ All three review streams must report before proceeding to Phase 5.
 
 - `$ux-design` — Author a new UX spec for a screen, flow, or HUD from scratch
 - `$ux-review` — Validate a completed UX spec before implementation
-- `$team-ui [feature]` — Full pipeline from concept through polish (calls `$ux-design` and `$ux-review` internally)
+- `$team-ui [feature]` — Full pipeline that drafts, approves, and uses an approved UX spec before implementation and polish
 - `$quick-design` — Small UI changes that don't need a full new UX spec
 
 ## Error Recovery Protocol

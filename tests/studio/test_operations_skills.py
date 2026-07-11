@@ -376,11 +376,17 @@ class OperationsSkillTests(unittest.TestCase):
         ):
             self.assertIn(phrase, improve)
 
-    def test_skill_test_defers_only_staged_framework_modes(self):
+    def test_skill_test_uses_native_testing_framework(self):
         text = self.skill_text("skill-test")
-        self.assertIn("Staged dependency: Codex Studio Testing Framework is not migrated yet", text)
-        self.assertIn("Static mode remains available", text)
-        self.assertIn("do not fall back to a legacy framework", text)
+        self.assertIn("Codex Studio Testing Framework/catalog.yaml", text)
+        self.assertIn("Codex Studio Testing Framework/skills/", text)
+        self.assertNotIn("not migrated yet", text)
+        self.assertNotIn("staged dependency", text.lower())
+
+    def test_team_ui_quick_reference_matches_preflight_contract(self):
+        text = self.skill_text("team-ui")
+        self.assertIn("uses an approved UX spec", text)
+        self.assertNotIn("calls `$ux-design` and `$ux-review` internally", text)
 
     def test_skill_maintenance_uses_only_native_paths(self):
         for name in ("skill-test", "skill-improve"):

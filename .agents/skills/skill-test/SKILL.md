@@ -46,7 +46,7 @@ Determine mode from the first argument:
 
 If the argument is unrecognized, output usage and stop. A missing argument is not an error; it selects `audit`.
 
-For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet`; do not fall back to a legacy framework. Static mode remains available because it uses `.agents/skills/` and `tools/codex_studio/validate.py` directly.
+For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses `.agents/skills/` and `tools/codex_studio/validate.py` directly.
 
 ---
 

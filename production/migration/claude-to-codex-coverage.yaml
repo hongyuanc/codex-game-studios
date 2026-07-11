@@ -1,0 +1,814 @@
+version: 1
+entries:
+  - source: .claude/agent-memory/lead-programmer/MEMORY.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The artifact has no Codex runtime role and is intentionally retired.
+  - source: .claude/agents/accessibility-specialist.md
+    destination: .codex/agents/accessibility-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ai-programmer.md
+    destination: .codex/agents/ai-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/analytics-engineer.md
+    destination: .codex/agents/analytics-engineer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/art-director.md
+    destination: .codex/agents/art-director.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/audio-director.md
+    destination: .codex/agents/audio-director.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/community-manager.md
+    destination: .codex/agents/community-manager.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/creative-director.md
+    destination: .codex/agents/creative-director.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/devops-engineer.md
+    destination: .codex/agents/devops-engineer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/economy-designer.md
+    destination: .codex/agents/economy-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/engine-programmer.md
+    destination: .codex/agents/engine-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/game-designer.md
+    destination: .codex/agents/game-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/gameplay-programmer.md
+    destination: .codex/agents/gameplay-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/godot-csharp-specialist.md
+    destination: .codex/agent-packs/godot/godot-csharp-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/godot-gdextension-specialist.md
+    destination: .codex/agent-packs/godot/godot-gdextension-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/godot-gdscript-specialist.md
+    destination: .codex/agent-packs/godot/godot-gdscript-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/godot-shader-specialist.md
+    destination: .codex/agent-packs/godot/godot-shader-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/godot-specialist.md
+    destination: .codex/agent-packs/godot/godot-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/lead-programmer.md
+    destination: .codex/agents/lead-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/level-designer.md
+    destination: .codex/agents/level-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/live-ops-designer.md
+    destination: .codex/agents/live-ops-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/localization-lead.md
+    destination: .codex/agents/localization-lead.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/narrative-director.md
+    destination: .codex/agents/narrative-director.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/network-programmer.md
+    destination: .codex/agents/network-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/performance-analyst.md
+    destination: .codex/agents/performance-analyst.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/producer.md
+    destination: .codex/agents/producer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/prototyper.md
+    destination: .codex/agents/prototyper.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/qa-lead.md
+    destination: .codex/agents/qa-lead.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/qa-tester.md
+    destination: .codex/agents/qa-tester.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/release-manager.md
+    destination: .codex/agents/release-manager.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/security-engineer.md
+    destination: .codex/agents/security-engineer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/sound-designer.md
+    destination: .codex/agents/sound-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/systems-designer.md
+    destination: .codex/agents/systems-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/technical-artist.md
+    destination: .codex/agents/technical-artist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/technical-director.md
+    destination: .codex/agents/technical-director.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/tools-programmer.md
+    destination: .codex/agents/tools-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ue-blueprint-specialist.md
+    destination: .codex/agent-packs/unreal/ue-blueprint-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ue-gas-specialist.md
+    destination: .codex/agent-packs/unreal/ue-gas-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ue-replication-specialist.md
+    destination: .codex/agent-packs/unreal/ue-replication-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ue-umg-specialist.md
+    destination: .codex/agent-packs/unreal/ue-umg-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ui-programmer.md
+    destination: .codex/agents/ui-programmer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unity-addressables-specialist.md
+    destination: .codex/agent-packs/unity/unity-addressables-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unity-dots-specialist.md
+    destination: .codex/agent-packs/unity/unity-dots-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unity-shader-specialist.md
+    destination: .codex/agent-packs/unity/unity-shader-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unity-specialist.md
+    destination: .codex/agent-packs/unity/unity-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unity-ui-specialist.md
+    destination: .codex/agent-packs/unity/unity-ui-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/unreal-specialist.md
+    destination: .codex/agent-packs/unreal/unreal-specialist.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/ux-designer.md
+    destination: .codex/agents/ux-designer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/world-builder.md
+    destination: .codex/agents/world-builder.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/agents/writer.md
+    destination: .codex/agents/writer.toml
+    action: migrate
+    reason: The role is represented by a native Codex custom-agent profile.
+  - source: .claude/docs/CLAUDE-local-template.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The artifact has no Codex runtime role and is intentionally retired.
+  - source: .claude/docs/agent-coordination-map.md
+    destination: .codex/docs/agent-coordination-map.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/agent-roster.md
+    destination: .codex/docs/agent-roster.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/coding-standards.md
+    destination: .codex/docs/coding-standards.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/context-management.md
+    destination: .codex/docs/context-management.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/coordination-rules.md
+    destination: .codex/docs/coordination-rules.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/director-gates.md
+    destination: .codex/docs/director-gates.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/directory-structure.md
+    destination: .codex/docs/directory-structure.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/hooks-reference.md
+    destination: .codex/docs/hooks-reference.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/hooks-reference/hook-input-schemas.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/hooks-reference/post-merge-asset-validation.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/hooks-reference/post-sprint-retrospective.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/hooks-reference/pre-commit-code-quality.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/hooks-reference/pre-commit-design-check.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/hooks-reference/pre-push-test-gate.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The native hooks reference and executable hook tests supersede this legacy fragment.
+  - source: .claude/docs/quick-start.md
+    destination: .codex/docs/quick-start.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/review-workflow.md
+    destination: .codex/docs/review-workflow.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/rules-reference.md
+    destination: .codex/docs/rules-reference.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/settings-local-template.md
+    destination: remove-without-replacement
+    action: remove
+    reason: The artifact has no Codex runtime role and is intentionally retired.
+  - source: .claude/docs/setup-requirements.md
+    destination: .codex/docs/setup-requirements.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/skills-reference.md
+    destination: .codex/docs/skills-reference.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/technical-preferences.md
+    destination: .codex/docs/technical-preferences.md
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/docs/templates/accessibility-requirements.md
+    destination: .codex/docs/templates/accessibility-requirements.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/architecture-decision-record.md
+    destination: .codex/docs/templates/architecture-decision-record.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/architecture-doc-from-code.md
+    destination: .codex/docs/templates/architecture-doc-from-code.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/architecture-traceability.md
+    destination: .codex/docs/templates/architecture-traceability.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/art-bible.md
+    destination: .codex/docs/templates/art-bible.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/changelog-template.md
+    destination: .codex/docs/templates/changelog-template.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/collaborative-protocols/design-agent-protocol.md
+    destination: .codex/docs/templates/collaborative-protocols/design-agent-protocol.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/collaborative-protocols/implementation-agent-protocol.md
+    destination: .codex/docs/templates/collaborative-protocols/implementation-agent-protocol.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/collaborative-protocols/leadership-agent-protocol.md
+    destination: .codex/docs/templates/collaborative-protocols/leadership-agent-protocol.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/concept-doc-from-prototype.md
+    destination: .codex/docs/templates/concept-doc-from-prototype.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/design-doc-from-implementation.md
+    destination: .codex/docs/templates/design-doc-from-implementation.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/difficulty-curve.md
+    destination: .codex/docs/templates/difficulty-curve.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/economy-model.md
+    destination: .codex/docs/templates/economy-model.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/faction-design.md
+    destination: .codex/docs/templates/faction-design.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/game-concept.md
+    destination: .codex/docs/templates/game-concept.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/game-design-document.md
+    destination: .codex/docs/templates/game-design-document.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/game-pillars.md
+    destination: .codex/docs/templates/game-pillars.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/hud-design.md
+    destination: .codex/docs/templates/hud-design.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/incident-response.md
+    destination: .codex/docs/templates/incident-response.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/interaction-pattern-library.md
+    destination: .codex/docs/templates/interaction-pattern-library.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/level-design-document.md
+    destination: .codex/docs/templates/level-design-document.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/milestone-definition.md
+    destination: .codex/docs/templates/milestone-definition.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/narrative-character-sheet.md
+    destination: .codex/docs/templates/narrative-character-sheet.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/pitch-document.md
+    destination: .codex/docs/templates/pitch-document.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/player-journey.md
+    destination: .codex/docs/templates/player-journey.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/post-mortem.md
+    destination: .codex/docs/templates/post-mortem.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/project-stage-report.md
+    destination: .codex/docs/templates/project-stage-report.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/prototype-report.md
+    destination: .codex/docs/templates/prototype-report.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/release-checklist-template.md
+    destination: .codex/docs/templates/release-checklist-template.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/release-notes.md
+    destination: .codex/docs/templates/release-notes.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/risk-register-entry.md
+    destination: .codex/docs/templates/risk-register-entry.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/skill-test-spec.md
+    destination: .codex/docs/templates/skill-test-spec.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/sound-bible.md
+    destination: .codex/docs/templates/sound-bible.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/sprint-plan.md
+    destination: .codex/docs/templates/sprint-plan.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/systems-index.md
+    destination: .codex/docs/templates/systems-index.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/technical-design-document.md
+    destination: .codex/docs/templates/technical-design-document.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/test-evidence.md
+    destination: .codex/docs/templates/test-evidence.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/test-plan.md
+    destination: .codex/docs/templates/test-plan.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/ux-spec.md
+    destination: .codex/docs/templates/ux-spec.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/templates/vertical-slice-report.md
+    destination: .codex/docs/templates/vertical-slice-report.md
+    action: migrate
+    reason: The document template is preserved in the native Codex reference tree.
+  - source: .claude/docs/workflow-catalog.yaml
+    destination: .codex/docs/workflow-catalog.yaml
+    action: migrate
+    reason: The studio reference is preserved in the native Codex documentation tree.
+  - source: .claude/rules/ai-code.md
+    destination: src/ai/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/data-files.md
+    destination: assets/data/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/design-docs.md
+    destination: design/gdd/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/engine-code.md
+    destination: src/core/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/gameplay-code.md
+    destination: src/gameplay/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/narrative.md
+    destination: design/narrative/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/network-code.md
+    destination: src/networking/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/prototype-code.md
+    destination: prototypes/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/shader-code.md
+    destination: assets/shaders/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/test-standards.md
+    destination: tests/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/rules/ui-code.md
+    destination: src/ui/AGENTS.md
+    action: migrate
+    reason: The rule is enforced by a native directory-scoped AGENTS.md boundary.
+  - source: .claude/skills/adopt/SKILL.md
+    destination: .agents/skills/adopt/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/architecture-decision/SKILL.md
+    destination: .agents/skills/architecture-decision/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/architecture-review/SKILL.md
+    destination: .agents/skills/architecture-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/art-bible/SKILL.md
+    destination: .agents/skills/art-bible/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/asset-audit/SKILL.md
+    destination: .agents/skills/asset-audit/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/asset-spec/SKILL.md
+    destination: .agents/skills/asset-spec/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/balance-check/SKILL.md
+    destination: .agents/skills/balance-check/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/brainstorm/SKILL.md
+    destination: .agents/skills/brainstorm/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/bug-report/SKILL.md
+    destination: .agents/skills/bug-report/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/bug-triage/SKILL.md
+    destination: .agents/skills/bug-triage/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/changelog/SKILL.md
+    destination: .agents/skills/changelog/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/code-review/SKILL.md
+    destination: .agents/skills/code-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/consistency-check/SKILL.md
+    destination: .agents/skills/consistency-check/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/content-audit/SKILL.md
+    destination: .agents/skills/content-audit/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/create-architecture/SKILL.md
+    destination: .agents/skills/create-architecture/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/create-control-manifest/SKILL.md
+    destination: .agents/skills/create-control-manifest/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/create-epics/SKILL.md
+    destination: .agents/skills/create-epics/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/create-stories/SKILL.md
+    destination: .agents/skills/create-stories/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/day-one-patch/SKILL.md
+    destination: .agents/skills/day-one-patch/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/design-review/SKILL.md
+    destination: .agents/skills/design-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/design-system/SKILL.md
+    destination: .agents/skills/design-system/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/dev-story/SKILL.md
+    destination: .agents/skills/dev-story/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/estimate/SKILL.md
+    destination: .agents/skills/estimate/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/gate-check/SKILL.md
+    destination: .agents/skills/gate-check/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/help/SKILL.md
+    destination: .agents/skills/help/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/hotfix/SKILL.md
+    destination: .agents/skills/hotfix/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/launch-checklist/SKILL.md
+    destination: .agents/skills/launch-checklist/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/localize/SKILL.md
+    destination: .agents/skills/localize/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/map-systems/SKILL.md
+    destination: .agents/skills/map-systems/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/milestone-review/SKILL.md
+    destination: .agents/skills/milestone-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/onboard/SKILL.md
+    destination: .agents/skills/onboard/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/patch-notes/SKILL.md
+    destination: .agents/skills/patch-notes/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/perf-profile/SKILL.md
+    destination: .agents/skills/perf-profile/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/playtest-report/SKILL.md
+    destination: .agents/skills/playtest-report/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/project-stage-detect/SKILL.md
+    destination: .agents/skills/project-stage-detect/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/propagate-design-change/SKILL.md
+    destination: .agents/skills/propagate-design-change/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/prototype/SKILL.md
+    destination: .agents/skills/prototype/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/qa-plan/SKILL.md
+    destination: .agents/skills/qa-plan/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/quick-design/SKILL.md
+    destination: .agents/skills/quick-design/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/regression-suite/SKILL.md
+    destination: .agents/skills/regression-suite/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/release-checklist/SKILL.md
+    destination: .agents/skills/release-checklist/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/retrospective/SKILL.md
+    destination: .agents/skills/retrospective/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/reverse-document/SKILL.md
+    destination: .agents/skills/reverse-document/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/review-all-gdds/SKILL.md
+    destination: .agents/skills/review-all-gdds/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/scope-check/SKILL.md
+    destination: .agents/skills/scope-check/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/security-audit/SKILL.md
+    destination: .agents/skills/security-audit/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/setup-engine/SKILL.md
+    destination: .agents/skills/setup-engine/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/skill-improve/SKILL.md
+    destination: .agents/skills/skill-improve/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/skill-test/SKILL.md
+    destination: .agents/skills/skill-test/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/smoke-check/SKILL.md
+    destination: .agents/skills/smoke-check/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/soak-test/SKILL.md
+    destination: .agents/skills/soak-test/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/sprint-plan/SKILL.md
+    destination: .agents/skills/sprint-plan/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/sprint-status/SKILL.md
+    destination: .agents/skills/sprint-status/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/start/SKILL.md
+    destination: .agents/skills/start/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/story-done/SKILL.md
+    destination: .agents/skills/story-done/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/story-readiness/SKILL.md
+    destination: .agents/skills/story-readiness/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-audio/SKILL.md
+    destination: .agents/skills/team-audio/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-combat/SKILL.md
+    destination: .agents/skills/team-combat/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-level/SKILL.md
+    destination: .agents/skills/team-level/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-live-ops/SKILL.md
+    destination: .agents/skills/team-live-ops/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-narrative/SKILL.md
+    destination: .agents/skills/team-narrative/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-polish/SKILL.md
+    destination: .agents/skills/team-polish/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-qa/SKILL.md
+    destination: .agents/skills/team-qa/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-release/SKILL.md
+    destination: .agents/skills/team-release/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/team-ui/SKILL.md
+    destination: .agents/skills/team-ui/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/tech-debt/SKILL.md
+    destination: .agents/skills/tech-debt/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/test-evidence-review/SKILL.md
+    destination: .agents/skills/test-evidence-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/test-flakiness/SKILL.md
+    destination: .agents/skills/test-flakiness/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/test-helpers/SKILL.md
+    destination: .agents/skills/test-helpers/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/test-setup/SKILL.md
+    destination: .agents/skills/test-setup/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/ux-design/SKILL.md
+    destination: .agents/skills/ux-design/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/ux-review/SKILL.md
+    destination: .agents/skills/ux-review/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/skills/vertical-slice/SKILL.md
+    destination: .agents/skills/vertical-slice/SKILL.md
+    action: migrate
+    reason: The workflow is implemented as a native Codex skill.
+  - source: .claude/statusline.sh
+    destination: remove-without-replacement
+    action: remove
+    reason: The artifact has no Codex runtime role and is intentionally retired.
+  - source: CCGS Skill Testing Framework/CLAUDE.md
+    destination: Codex Studio Testing Framework/AGENTS.md
+    action: migrate
+    reason: The native testing framework uses durable Codex instructions.
+  - source: CLAUDE.md
+    destination: AGENTS.md
+    action: migrate
+    reason: Root durable guidance is implemented by Codex AGENTS.md.
+  - source: design/CLAUDE.md
+    destination: design/gdd/AGENTS.md
+    action: migrate
+    reason: Design guidance is split across native scoped AGENTS.md boundaries.
+  - source: docs/CLAUDE.md
+    destination: remove-without-replacement
+    action: remove
+    reason: Root guidance and native studio references cover documentation work.
+  - source: src/CLAUDE.md
+    destination: src/core/AGENTS.md
+    action: migrate
+    reason: Source guidance is split across native scoped AGENTS.md boundaries.

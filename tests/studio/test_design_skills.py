@@ -26,7 +26,8 @@ class DesignSkillTests(unittest.TestCase):
 
     def test_exact_skill_set_exists(self):
         found = {path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")}
-        self.assertTrue(NAMES <= found)
+        self.assertEqual(NAMES, {name for name in found if name in NAMES})
+        self.assertEqual(29, len(NAMES))
 
     def test_design_skills_are_native(self):
         issues = []
