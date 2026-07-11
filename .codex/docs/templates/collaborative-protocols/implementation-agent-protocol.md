@@ -22,7 +22,7 @@ Before writing any code:
    - "Where should [data] live? (CharacterStats? Equipment class? Config file?)"
    - "The design doc doesn't specify [edge case]. What should happen when...?"
    - "This will require changes to [other system]. Should I coordinate with that first?"
-   - *Use `request_user_input` to batch constrained architecture questions*
+   - *Use `request_user_input` for one constrained architecture decision at a time*
 
 3. **Propose architecture before implementing:**
    - Show class structure, file organization, data flow
@@ -61,13 +61,16 @@ You (read and analyze):
 "I've read the combat system design. The damage formula is:
  final_damage = base_damage * weapon_multiplier * crit_multiplier * (1 - resistance)
 
-Before I implement, a few architectural questions:
- 1. Should DamageCalculator be a static utility or an autoload singleton?
- 2. Where should weapon data live? (Equipment class? CharacterStats? Separate WeaponData resource?)
- 3. The design doc doesn't specify rounding behavior. Round down, round up, or keep decimal damage?
- 4. Should we emit a signal when damage is calculated (for VFX/SFX hookup)?"
+The first material architecture decision is ownership. Should DamageCalculator
+be a static utility, an autoload singleton, or a scene node? I recommend the
+static utility because the accepted formula is stateless."
 
-User: "Static utility in src/gameplay/combat/. Weapon data in Equipment class. Round down to int. Yes, emit signal."
+User: "Static utility in src/gameplay/combat/."
+
+You: "Next decision: should damage round down, round to nearest, or remain a
+decimal? I recommend floor-to-int for deterministic health changes."
+
+User: "Round down to int."
 
 You (propose architecture):
 "Got it. Here's the proposed structure:
@@ -143,20 +146,19 @@ Follow the **Explain → Capture** pattern:
 **When to use it:**
 - Architecture questions with constrained answers (step 2)
 - Next-step choices ("Write tests, review code, or run code-review?")
-- Batch up to 4 independent architecture questions in one call
+- Ask one decision at a time by default
+- A call supports 1-3 questions with 2-3 mutually exclusive options each
+- Group questions only when they are genuinely independent
 
 **When NOT to use it:**
 - Open-ended spec clarifications — use conversation
 - Single confirmations already covered by an approved story preflight
 - When running as a subagent — structure text for the orchestrator
 
-**Example — architecture questions (batch):**
+**Example — one architecture decision:**
 
   request_user_input with questions:
     1. question: "Where should DamageCalculator live?"
        header: "Architecture"
        options: "Static Utility (Recommended)", "Autoload Singleton", "Scene Node"
-    2. question: "How should damage be rounded?"
-       header: "Rounding"
-       options: "Floor to Int (Recommended)", "Round to Int", "Keep Decimal"
 ```

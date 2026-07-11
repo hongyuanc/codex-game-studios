@@ -3,7 +3,7 @@
 > **How to go from zero to a shipped game using the Agent Architecture.**
 >
 > This guide walks you through every phase of game development using the
-> 49-agent system, 73 slash commands, and 12 automated hooks. It assumes you
+> 49-agent system, 73 skills, and 10 Python hook actions. It assumes you
 > have Codex installed and are working from the project root.
 >
 > The pipeline has 7 phases. Each phase has a formal gate (`$gate-check`)
@@ -24,7 +24,7 @@
 8. [Phase 7: Release](#phase-7-release)
 9. [Cross-Cutting Concerns](#cross-cutting-concerns)
 10. [Appendix A: Agent Quick-Reference](#appendix-a-agent-quick-reference)
-11. [Appendix B: Slash Command Quick-Reference](#appendix-b-slash-command-quick-reference)
+11. [Appendix B: Skill Quick-Reference](#appendix-b-skill-quick-reference)
 12. [Appendix C: Common Workflows](#appendix-c-common-workflows)
 
 ---
@@ -36,9 +36,8 @@
 Before you start, make sure you have:
 
 - **Codex** installed and working
-- **Git** with Git Bash (Windows) or standard terminal (Mac/Linux)
-- **jq** (optional but recommended -- hooks fall back to `grep` if missing)
-- **Python 3** (optional -- some hooks use it for JSON validation)
+- **Git** for version control
+- **Python 3** for the 10 cross-platform hook actions and studio validator
 
 ### Step 1: Clone and Open
 
@@ -66,8 +65,8 @@ This guided onboarding asks where you are and routes you to the right phase:
 
 ### Step 3: Verify Hooks Are Working
 
-Start a new Codex session. You should see output from the
-`session-start.sh` hook:
+Start a new Codex session. You should see output from the `session-start`
+action in `.codex/hooks/hook_runner.py`:
 
 ```
 === Codex Game Studios -- Session Context ===
@@ -328,7 +327,8 @@ $design-system combat-system
 2. Runs a Technical Feasibility Pre-Check (domain mapping + feasibility brief)
 3. Walks you through each of the 8 required GDD sections one at a time
 4. Each section follows: Context > Questions > Options > Decision > Draft > Approval > Write
-5. Each section is written to file immediately after approval (survives crashes)
+5. After one GDD changeset preflight, resolved sections are written incrementally
+   inside the approved phase (survives crashes)
 6. Flags conflicts with existing approved GDDs
 7. Routes to specialist agents per category (systems-designer for math,
    economy-designer for economy, narrative-director for story systems)
@@ -1156,7 +1156,8 @@ These topics apply across all phases.
 Director gates are specialist agents that review your work at key workflow steps.
 By default they run at every checkpoint. You can control how much review you get.
 
-**Set your review intensity once during `$start`.** Saved to `production/review-mode.txt`.
+**Set your review intensity once during `$start`.** Saved as `review_mode` in
+`.codex/studio.toml`.
 
 | Mode | What runs | Best for |
 |------|-----------|----------|
@@ -1172,7 +1173,7 @@ $architecture-decision --review solo
 ```
 
 The `--review` flag works on all gate-using skills. Change the global mode at any
-time by editing `production/review-mode.txt` directly or re-running `$start`.
+time by editing `review_mode` in `.codex/studio.toml` or re-running `$start`.
 
 Full gate definitions and check pattern: `.codex/docs/director-gates.md`
 
@@ -1184,13 +1185,13 @@ This system is **user-driven collaborative**, not autonomous.
 
 **Pattern:** Question > Options > Decision > Draft > Approval
 
-Every agent interaction follows this pattern:
-1. Agent asks clarifying questions
-2. Agent presents 2-4 options with trade-offs and reasoning
-3. You decide
-4. Agent drafts based on your decision
-5. You review and refine
-6. Agent asks "May I write this to [filepath]?" before writing
+Every material decision follows this pattern:
+1. Codex identifies the single decision blocking progress.
+2. Codex presents 2-3 mutually exclusive options with trade-offs.
+3. You decide.
+4. Codex drafts the bounded phase or story changeset.
+5. You review and approve that complete boundary.
+6. Codex edits and tests autonomously inside the approved boundary.
 
 See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for the full protocol with
 examples.
@@ -1200,8 +1201,9 @@ examples.
 Agents use the `request_user_input` tool for structured option presentation.
 The pattern is Explain then Capture: full analysis in conversation text first,
 then a clean UI picker for the decision. Use it for design choices,
-architecture decisions, and strategic questions. Do not use it for open-ended
-discovery questions or simple yes/no confirmations.
+architecture decisions, and strategic questions. A call supports 1-3 questions
+with 2-3 mutually exclusive options each; ask one decision at a time unless the
+questions are genuinely independent. Do not use it for open-ended discovery.
 
 ### Agent Coordination (3-Tier Hierarchy)
 
@@ -1239,39 +1241,38 @@ Tier 3 (Specialists):  gameplay-programmer, engine-programmer,
   conflicts go to `technical-director`. Scope conflicts go to `producer`.
 - No unilateral cross-domain changes.
 
-### Automated Hooks (Safety Net)
+### Python Hook Actions (Safety Net)
 
-The system has 12 hooks that run automatically:
+`.codex/hooks.json` registers Codex events and dispatches 10 actions through
+`.codex/hooks/hook_runner.py`:
 
-| Hook | Trigger | What It Does |
+| Action | Trigger | What It Does |
 |------|---------|-------------|
-| `session-start.sh` | Session start | Shows branch, recent commits, detects active.md for recovery |
-| `detect-gaps.sh` | Session start | Detects fresh projects (no engine, no concept) and suggests `$start` |
-| `pre-compact.sh` | Before compaction | Dumps session state into conversation for auto-recovery |
-| `post-compact.sh` | After compaction | Reminds Codex to restore session state from `active.md` |
-| `notify.sh` | Notification event | Shows Windows toast notification via PowerShell |
-| `validate-commit.sh` | Before commit | Checks for design doc references, valid JSON, no hardcoded values |
-| `validate-push.sh` | Before push | Warns on pushes to main/develop |
-| `validate-assets.sh` | Before commit | Checks asset naming and size |
-| `validate-skill-change.sh` | Skill file written | Advises running `$skill-test` after `.agents/skills/` changes |
-| `log-agent.sh` | Agent start | Logs agent invocations for audit trail |
-| `log-agent-stop.sh` | Agent stop | Completes agent audit trail (start + stop) |
-| `session-stop.sh` | Session end | Final session logging |
+| `session-start` | Session start | Shows repository and recoverable session context |
+| `detect-gaps` | Session start | Suggests `$start` or an adoption workflow when prerequisites are absent |
+| `validate-command` | Before command execution | Blocks unsafe or unauthorized Git command forms |
+| `validate-assets` | After an edit | Checks changed assets and data when relevant |
+| `validate-skill-change` | After a skill edit | Advises running `$skill-test` |
+| `pre-compact` | Before compaction | Checkpoints active work |
+| `post-compact` | After compaction | Restores attention to the checkpoint |
+| `subagent-start` | Agent start | Opens a bounded delegation audit record |
+| `subagent-stop` | Agent stop | Completes the delegation audit record |
+| `session-stop` | Session end | Summarizes the session state |
 
 ### Context Resilience
 
 **Session state file:** `production/session-state/active.md` is a living
 checkpoint. Update it after each significant milestone. After any disruption
-(compaction, crash, `/clear`), read this file first.
+or compaction, read this file first.
 
 **Incremental writing:** When creating multi-section documents, write each
 section to file immediately after approval. This means completed sections
 survive crashes and context compactions. Previous discussion about written
 sections can be safely compacted.
 
-**Automatic recovery:** The `session-start.sh` hook detects and previews
-`active.md` automatically. The `pre-compact.sh` hook dumps state into the
-conversation before compaction.
+**Automatic recovery:** The `session-start` action detects and previews
+`active.md` automatically. The `pre-compact` action checkpoints state before
+compaction.
 
 **Sprint status tracking:** `production/sprint-status.yaml` is the
 machine-readable story tracker. Written by `$sprint-plan` (init) and
@@ -1420,7 +1421,7 @@ conflicts go to `producer`.
 
 ---
 
-## Appendix B: Slash Command Quick-Reference
+## Appendix B: Skill Quick-Reference
 
 ### All 73 Commands by Category
 
@@ -1668,9 +1669,9 @@ conflicts go to `producer`.
    it. The rules encode hard-won game development wisdom (data-driven values,
    delta time, accessibility, etc.).
 
-4. **Compact proactively.** At ~65-70% context usage, compact or `/clear`.
-   The pre-compact hook saves your progress. Do not wait until you are at the
-   limit.
+4. **Compact proactively.** At ~65-70% context usage, checkpoint active work and
+   compact. The `pre-compact` hook action saves progress; do not wait for the
+   context limit.
 
 5. **Use the right tier of agent.** Do not ask `creative-director` to write a
    shader. Do not ask `qa-tester` to make design decisions. The hierarchy

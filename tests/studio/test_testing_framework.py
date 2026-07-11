@@ -1,5 +1,7 @@
 from pathlib import Path
+import json
 import re
+import tomllib
 import unittest
 
 
@@ -21,14 +23,16 @@ class TestingFrameworkTests(unittest.TestCase):
         self.assertTrue((NEW / "README.md").is_file())
         self.assertTrue((NEW / "AGENTS.md").is_file())
 
-    def test_migrated_tree_has_source_parity_before_cleanup(self):
-        if not OLD.exists() or not any(path.is_file() for path in OLD.rglob("*")):
-            self.skipTest("legacy tree already removed after recorded parity gate")
+    def test_migrated_tree_has_durable_source_parity(self):
+        evidence = json.loads(
+            (ROOT / "production/migration/testing-framework-parity.json").read_text(encoding="utf-8")
+        )
+        sources = {entry["source"] for entry in evidence["entries"]}
         for directory in ("agents", "skills", "templates"):
             old_files = {
-                path.relative_to(OLD / directory)
-                for path in (OLD / directory).rglob("*")
-                if path.is_file()
+                Path(source).relative_to(directory)
+                for source in sources
+                if source.startswith(f"{directory}/")
             }
             new_files = {
                 path.relative_to(NEW / directory)
@@ -61,16 +65,127 @@ class TestingFrameworkTests(unittest.TestCase):
     def test_framework_is_codex_native(self):
         forbidden = (
             "Claude Code", "AskUserQuestion", "Task tool", "subagent_type",
-            "model: opus", "model: sonnet", "model: haiku", ".claude/",
+            "Task call", "Task invocation", "model: opus", "model: sonnet",
+            "model: haiku", "claude-opus", "claude-sonnet", "claude-haiku",
+            "Opus model", "Sonnet model", "Haiku model", "Opus", "Sonnet",
+            "Haiku", "CLAUDE.md", "parallel Task protocol", ".claude/",
+            "allowed-tools", "argument-hint", "user-invocable",
+            "May I apply the proposed changeset", "May I ",
         )
         failures = []
         for path in NEW.rglob("*"):
             if path.is_file():
-                text = path.read_text(encoding="utf-8", errors="ignore")
+                text = path.read_text(encoding="utf-8")
                 for token in forbidden:
                     if token in text:
                         failures.append(f"{path.relative_to(ROOT)}: {token}")
         self.assertEqual([], failures)
+
+    def test_all_agent_specs_match_their_runtime_toml_contract(self):
+        runtime = {}
+        for path in [
+            *sorted((ROOT / ".codex/agents").glob("*.toml")),
+            *sorted((ROOT / ".codex/agent-packs").glob("*/*.toml")),
+        ]:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            runtime[data["name"]] = (path.relative_to(ROOT), data)
+
+        specs = {path.stem: path for path in (NEW / "agents").rglob("*.md")}
+        self.assertEqual(set(runtime), set(specs))
+        self.assertEqual(49, len(specs))
+
+        labels = {
+            "gpt-5.6": "Sol",
+            "gpt-5.6-terra": "Terra",
+            "gpt-5.6-luna": "Luna",
+        }
+        required_keys = {
+            "name", "description", "model", "model_reasoning_effort",
+            "developer_instructions",
+        }
+        for name, spec_path in specs.items():
+            runtime_path, data = runtime[name]
+            text = spec_path.read_text(encoding="utf-8")
+            self.assertEqual(required_keys, set(data), runtime_path)
+            self.assertIn(f"Runtime profile: `{runtime_path}`", text, spec_path)
+            self.assertIn(
+                "Required TOML keys: `name`, `description`, `model`, "
+                "`model_reasoning_effort`, `developer_instructions`",
+                text,
+                spec_path,
+            )
+            self.assertIn(
+                f"Model route: **{labels[data['model']]}** (`{data['model']}`)",
+                text,
+                spec_path,
+            )
+            self.assertNotRegex(text, r"\.codex/(?:agents|agent-packs)/[^`\s]+\.md")
+            self.assertNotRegex(text, r"(?i)Verified.*frontmatter|runtime capabilities.*list")
+
+    def test_all_skill_specs_match_runtime_discovery_and_interaction_contracts(self):
+        runtime = {
+            path.parent.name: path
+            for path in (ROOT / ".agents/skills").glob("*/SKILL.md")
+        }
+        specs = {path.stem: path for path in (NEW / "skills").rglob("*.md")}
+        self.assertEqual(set(runtime), set(specs))
+        self.assertEqual(73, len(specs))
+
+        for name, spec_path in specs.items():
+            skill_text = runtime[name].read_text(encoding="utf-8")
+            frontmatter = skill_text.split("---", 2)[1]
+            runtime_name = re.search(r"^name:\s*(.+)$", frontmatter, re.MULTILINE)
+            description = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
+            self.assertIsNotNone(runtime_name, runtime[name])
+            self.assertIsNotNone(description, runtime[name])
+
+            text = spec_path.read_text(encoding="utf-8")
+            self.assertIn(f"# Skill Test Spec: ${name}", text, spec_path)
+            self.assertIn(f"Runtime skill: `.agents/skills/{name}/SKILL.md`", text, spec_path)
+            self.assertIn(f"Runtime name: `{runtime_name.group(1).strip()}`", text, spec_path)
+            self.assertIn(
+                f"Runtime trigger description: `{description.group(1).strip()}`",
+                text,
+                spec_path,
+            )
+            self.assertIn(f"Native invocation: `${name}`", text, spec_path)
+            self.assertIn("1–3 questions", text, spec_path)
+            self.assertIn("2–3 options", text, spec_path)
+            self.assertIn("one decision per turn", text, spec_path)
+            self.assertIn("maximum delegation depth is 1", text, spec_path)
+            self.assertIn("parent agent synthesizes", text, spec_path)
+            self.assertNotIn("Has required frontmatter fields", text, spec_path)
+            for case in range(1, 6):
+                self.assertRegex(text, rf"(?m)^### Case {case}:", spec_path)
+
+    def test_framework_core_documents_define_codex_native_protocol(self):
+        combined = "\n".join(
+            (NEW / name).read_text(encoding="utf-8")
+            for name in ("README.md", "AGENTS.md", "quality-rubric.md")
+        )
+        self.assertIn("Sol (`gpt-5.6`)", combined)
+        self.assertIn("Terra (`gpt-5.6-terra`)", combined)
+        self.assertIn("Luna (`gpt-5.6-luna`)", combined)
+        self.assertIn("maximum delegation depth is 1", combined)
+        self.assertIn("parent agent synthesizes", combined)
+        self.assertIn("1–3 questions", combined)
+        self.assertIn("2–3 options", combined)
+
+    def test_vertical_slice_and_skill_test_have_complete_native_cases(self):
+        vertical = (NEW / "skills/utility/vertical-slice.md").read_text(encoding="utf-8")
+        self.assertIn("### Case 1: Happy Path", vertical)
+        self.assertIn("### Case 2: Blocked Preconditions", vertical)
+        self.assertIn("### Case 3: Scope Boundary", vertical)
+        self.assertIn("### Case 4: Evidence Failure", vertical)
+        self.assertIn("### Case 5: Final Gate", vertical)
+        self.assertIn("PROCEED", vertical)
+        self.assertIn("PIVOT", vertical)
+        self.assertIn("KILL", vertical)
+
+        skill_test = (NEW / "skills/utility/skill-test.md").read_text(encoding="utf-8")
+        self.assertIn("exactly 73 runtime skills", skill_test)
+        self.assertIn("exactly 49 runtime agents", skill_test)
+        self.assertIn("optionally offers one complete approved changeset", skill_test)
 
 
 if __name__ == "__main__":

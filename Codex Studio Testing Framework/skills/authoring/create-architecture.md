@@ -1,17 +1,29 @@
 # Skill Test Spec: $create-architecture
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/create-architecture/SKILL.md`
+- Runtime name: `create-architecture`
+- Runtime trigger description: `Author the master technical architecture from approved design requirements and engine constraints.`
+- Native invocation: `$create-architecture`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$create-architecture` guides the user through section-by-section authoring of a
-technical architecture document. It uses a skeleton-first approach — the file is
-created with all required section headers before any content is filled. Each
-section is discussed, drafted, and written individually after user approval. If an
-architecture document already exists, the skill offers retrofit mode to update
-specific sections.
+`$create-architecture` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-In `full` review mode, TD-ARCHITECTURE (technical-director) and LP-FEASIBILITY
-(lead-programmer) spawn after the complete draft is finished. In `lean` or `solo`
-mode, both gates are skipped. The skill writes to `docs/architecture/architecture.md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ mode, both gates are skipped. The skill writes to `docs/architecture/architectur
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION NEEDED
-- [ ] Contains "May I write" collaborative protocol language (per-section approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$architecture-review` or `$create-control-manifest`)
 - [ ] Documents skeleton-first approach
 - [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in lean/solo
@@ -56,15 +68,15 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Expected behavior:**
 1. Skill creates skeleton `docs/architecture/architecture.md` with all required section headers
-2. For each section: drafts content, shows draft, asks "May I write [section]?", writes after approval
+2. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 3. After all sections are drafted: TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel
 4. Both gates return APPROVED
-5. Final "May I confirm architecture is complete?" asked
+5. The parent asks one explicit completion decision in its own turn.
 6. Session state updated
 
 **Assertions:**
 - [ ] Skeleton file is created with all section headers before any content is written
-- [ ] "May I write [section]?" asked per section during authoring
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel (not sequentially)
 - [ ] Both gates complete before the final completion confirmation
 - [ ] Verdict is APPROVED when both gates return APPROVED
@@ -130,7 +142,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 1. Skill detects existing architecture doc and reads its current content
 2. Skill offers retrofit mode: "Architecture doc already exists. Which section would you like to update?"
 3. User selects a section
-4. Skill authors only that section, asks "May I write [section]?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Only the selected section is updated — other sections unchanged
 
 **Assertions:**
@@ -168,7 +180,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 ## Protocol Compliance
 
 - [ ] Skeleton file created with all section headers before any content is written
-- [ ] "May I write [section]?" asked per section during authoring
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel in full mode
 - [ ] Skipped gates noted by name and mode in lean/solo output
 - [ ] Proposed ADR references flagged as risks in the document

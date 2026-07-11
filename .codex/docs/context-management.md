@@ -38,30 +38,31 @@ Task: Implement hitbox detection
 - The status line displays it as a breadcrumb: `Combat System > Melee Combat > Hitboxes`
 - Remove or empty the block when no active work focus exists
 
-After any disruption (compaction, crash, `/clear`), read the state file first.
+After any disruption, crash, or compaction, read the state file first.
 
-### Incremental File Writing
+### Incremental File Writing Inside an Approved Phase
 
 When creating multi-section documents (design docs, architecture docs, lore entries):
 
-1. Create the file immediately with a skeleton (all section headers, empty bodies)
-2. Discuss and draft one section at a time in conversation
-3. Write each section to the file as soon as it's approved
+1. Present the complete document changeset and receive phase approval
+2. Create the agreed file with a skeleton (all section headers, empty bodies)
+3. Discuss material decisions one at a time, then write each resolved section
 4. Update the session state file after each section
 5. After writing a section, previous discussion about that section can be safely
    compacted — the decisions are in the file
 
-This keeps the context window holding only the *current* section's discussion
+This is one phase gate, not a separate permission prompt for every section. It
+keeps the context window holding only the *current* section's discussion
 (~3-5k tokens) instead of the entire document's conversation history (~30-50k tokens).
 
 ## Proactive Compaction
 
 - **Compact proactively** at ~60-70% context usage, not reactively at the limit
-- **Use `/clear`** between unrelated tasks, or after 2+ failed correction attempts
+- **Start a fresh task** between unrelated workstreams after checkpointing active state
 - **Natural compaction points:** after writing a section to file, after committing,
   after completing a task, before starting a new topic
-- **Focused compaction:** `/compact Focus on [current task] — sections 1-3 are
-  written to file, working on section 4`
+- **Focused compaction:** preserve the current task, written sections, next
+  incomplete section, tests, and blockers in the compaction summary
 
 ## Context Budgets by Task Type
 
@@ -101,7 +102,7 @@ conversation history is secondary.
 
 If a session dies ("prompt too long") or you start a new session to continue work:
 
-1. The `session-start.sh` hook will detect and preview `active.md` automatically
+1. The `session-start` Python hook action detects and previews `active.md`
 2. Read the full state file for context
 3. Read the partially-completed file(s) listed in the state
 4. Continue from the next incomplete section or task

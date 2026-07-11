@@ -15,13 +15,13 @@
 #   - When a new GDD references an existing entry, append its path to
 #     referenced_by. Do not create a duplicate entry.
 #
-# WRITTEN BY: /design-system (Phase 5 — after GDD sections are approved)
-#             /consistency-check (when resolving conflicts)
-# READ BY:    /design-system (Phase 2 — before authoring begins, and after
+# WRITTEN BY: $design-system (Phase 5 — after GDD sections are approved)
+#             $consistency-check (when resolving conflicts)
+# READ BY:    $design-system (Phase 2 — before authoring begins, and after
 #               Section C/D writes to conflict-check new entities/formulas)
-#             /consistency-check (primary input — grep-first, GDD-second)
-#             /review-all-gdds (Phase 1 — baseline for Phase 2 checks)
-#             /architecture-review (data structure and interface validation)
+#             $consistency-check (primary input — grep-first, GDD-second)
+#             $review-all-gdds (Phase 1 — baseline for Phase 2 checks)
+#             $architecture-review (data structure and interface validation)
 #
 # SEARCH PATTERNS (for skills using Grep):
 #   All entity names:        Grep pattern="^  - name:" path="design/registry/entities.yaml"

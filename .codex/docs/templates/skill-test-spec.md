@@ -1,96 +1,82 @@
-# Skill Test Spec: /[skill-name]
+# Skill Test Spec: $[skill-name]
 
-## Skill Summary
+## Skill summary
 
-[One paragraph: what this skill does, when to use it, what it produces. Include
-the primary output artifact, the verdict format it uses, and which pipeline stage
-it belongs to.]
+[Describe the skill's trigger, workflow, primary artifact, verdict format, and
+pipeline stage.]
 
----
+## Static assertions
 
-## Static Assertions (Structural)
+Verified automatically by `$skill-test static`:
 
-Verified automatically by `$skill-test static` — no fixture needed.
+- [ ] Frontmatter has `name` and an accurate trigger `description`.
+- [ ] The skill has at least two meaningful phase headings.
+- [ ] Expected verdict keywords are present.
+- [ ] Write-capable work documents a phase-gated preflight.
+- [ ] The last phase provides an appropriate `$skill-name` handoff.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
-- [ ] Has ≥2 phase headings (## Phase N or numbered ## sections)
-- [ ] Contains verdict keywords: [list the ones expected, e.g., PASS, FAIL, CONCERNS]
-- [ ] Contains "May I write" collaborative protocol language (if skill writes files)
-- [ ] Has a next-step handoff at the end
+## Case 1: Happy path
 
----
+**Fixture:** [List existing artifacts and relevant project state.]
 
-## Test Cases
-
-### Case 1: Happy Path — [short description]
-
-**Fixture:** [Describe the assumed project state. Which files exist? What do they
-contain? E.g., "game-concept.md exists with all 8 required sections complete.
-systems-index.md exists. All MVP GDDs are present and individually reviewed."]
-
-**Input:** `/[skill-name] [args]`
+**Input:** `$[skill-name] [arguments]`
 
 **Expected behavior:**
-1. [Phase 1 action — what the skill should read or check]
-2. [Phase 2 action — what the skill should evaluate]
-3. [Phase N action — what the skill should output]
+
+1. Reads the required evidence before deciding.
+2. Evaluates the stated acceptance criteria.
+3. Produces the documented artifact or verdict.
 
 **Assertions:**
-- [ ] Skill reads [specific file] before producing output
-- [ ] Output includes verdict keyword [PASS/FAIL/etc.]
-- [ ] Output lists [specific content] from the fixture
-- [ ] Skill asks for approval before writing any file
 
----
+- [ ] Reads [specific file] before producing output.
+- [ ] Includes [expected verdict].
+- [ ] Grounds findings in fixture evidence.
+- [ ] If writes are required, presents one complete bounded changeset for approval.
+- [ ] After approval, iterates inside that boundary without repetitive edit prompts.
 
-### Case 2: Failure Path — [short description, e.g., "Missing required artifact"]
+## Case 2: Failure path
 
-**Fixture:** [Describe the failure state. E.g., "game-concept.md is missing.
-No files exist in design/gdd/."]
+**Fixture:** [Describe the missing, invalid, or conflicting state.]
 
-**Input:** `/[skill-name] [args]`
+**Input:** `$[skill-name] [arguments]`
 
 **Expected behavior:**
-1. [Phase 1: skill detects missing file]
-2. [Phase 2: skill surfaces the gap rather than assuming OK]
-3. [Output: FAIL or BLOCKED verdict with specific blocker named]
+
+1. Detects the specific gap.
+2. Returns `FAIL` or `BLOCKED` rather than inventing evidence.
+3. Names the smallest remediation or next skill.
 
 **Assertions:**
-- [ ] Skill does NOT output PASS when the fixture is incomplete
-- [ ] Skill names the specific missing artifact
-- [ ] Skill suggests a remediation action (e.g., "Run /[other-skill]")
-- [ ] Skill does not create files to fill in the gap without asking
 
----
+- [ ] Does not return a passing verdict for incomplete evidence.
+- [ ] Names the missing or conflicting artifact.
+- [ ] Does not expand scope to manufacture prerequisites.
 
-### Case 3: Edge Case — [short description, e.g., "No argument provided"]
+## Case 3: Boundary change
 
-**Fixture:** [State of project files for this case]
+**Fixture:** [Describe a valid approved phase with a newly discovered ambiguity,
+ADR conflict, out-of-scope file, or scope expansion.]
 
-**Input:** `/[skill-name]` (no argument)
-
-**Expected behavior:**
-1. [What the skill should do when invoked without arguments]
+**Input:** `$[skill-name] [arguments]`
 
 **Assertions:**
-- [ ] [assertion]
 
----
+- [ ] Pauses work and explains the evidence.
+- [ ] Presents one decision at a time with 2-3 mutually exclusive options.
+- [ ] Does not treat prior phase approval as authority for the expanded boundary.
+- [ ] Keeps commits, pushes, releases, destructive operations, and publication gated.
 
-## Protocol Compliance
+## Protocol compliance
 
-- [ ] Uses "May I write" before all file writes
-- [ ] Presents findings or report before asking for write approval
-- [ ] Ends with a recommended next step or follow-up skill
-- [ ] Never auto-creates files without explicit user approval
-- [ ] Does not skip phases or jump straight to a verdict without checking
+- [ ] Uses phase-gated autonomy.
+- [ ] Separates material decisions from routine in-boundary execution.
+- [ ] Uses `request_user_input` only for constrained choices: 1-3 questions per
+  call and 2-3 mutually exclusive options per question.
+- [ ] Uses one decision at a time unless questions are genuinely independent.
+- [ ] Returns test, review, or inspection evidence.
 
----
+## Coverage notes
 
-## Coverage Notes
-
-[Document what is intentionally NOT tested in this spec and why. Examples:
-- "Case 3 (all-mode) is not covered because it runs too many checks to evaluate
-  in a single spec — test each sub-mode individually."
-- "The database integration path is not covered as it requires a live environment."
-- "Edge cases involving corrupted YAML files are deferred to a future spec."]
+[Document intentionally uncovered modes and why, including external services,
+engine installations, or scenarios reserved for manual validation.]

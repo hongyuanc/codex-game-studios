@@ -1,24 +1,38 @@
 # Skill Test Spec: $team-combat
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-combat/SKILL.md`
+- Runtime name: `team-combat`
+- Runtime trigger description: `"Use when a combat feature needs coordinated design, implementation, integration, and QA validation."`
+- Native invocation: `$team-combat`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the full combat team pipeline end-to-end for a single combat feature.
-Coordinates game-designer, gameplay-programmer, ai-programmer, technical-artist,
-sound-designer, the primary engine specialist, and qa-tester through six structured
-phases: Design → Architecture (with engine specialist validation) → Implementation
-(parallel) → Integration → Validation → Sign-off. Uses `request_user_input` at each
-phase transition. Delegates all file writes to sub-agents. Produces a summary report
-with verdict COMPLETE / NEEDS WORK / BLOCKED and handoffs to `$code-review`,
-`$balance-check`, and `$team-polish`.
+`$team-combat` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings (Phase 1 through Phase 6 are all present)
 - [ ] Contains verdict keywords: COMPLETE, NEEDS WORK, BLOCKED
-- [ ] Contains "May I write" or "File Write Protocol" — writes delegated to sub-agents, orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$code-review`, `$balance-check`, `$team-polish`)
 - [ ] Error Recovery Protocol section is present with all four recovery steps
 - [ ] Uses `request_user_input` at phase transitions for user approval before proceeding
@@ -52,7 +66,7 @@ with verdict COMPLETE / NEEDS WORK / BLOCKED and handoffs to `$code-review`,
 - [ ] `request_user_input` called at each phase gate (at minimum before Phase 3 and before Phase 5)
 - [ ] Phase 3 agents launched simultaneously — no sequential dependency between gameplay-programmer, ai-programmer, technical-artist, sound-designer
 - [ ] Engine specialist runs in Phase 2 before Phase 3 begins (output incorporated into architecture)
-- [ ] All file writes delegated to sub-agents (orchestrator never calls Write/Edit directly)
+- [ ] All file writes delegated to child custom agents (orchestrator never calls Write/Edit directly)
 - [ ] Verdict COMPLETE present in final report
 - [ ] Next steps include `$code-review`, `$balance-check`, `$team-polish`
 - [ ] Design doc covers all 8 required GDD sections
@@ -100,7 +114,7 @@ with verdict COMPLETE / NEEDS WORK / BLOCKED and handoffs to `$code-review`,
 
 **Assertions:**
 - [ ] Skill does NOT spawn any subagents when no argument is given
-- [ ] Usage message includes the argument-hint format from frontmatter
+- [ ] Usage message includes the invocation arguments format from frontmatter
 - [ ] Error message includes at least one example of a valid invocation
 - [ ] No file reads beyond what is needed to detect the missing argument
 - [ ] Verdict is NOT shown (pipeline never runs)
@@ -118,12 +132,12 @@ with verdict COMPLETE / NEEDS WORK / BLOCKED and handoffs to `$code-review`,
 
 **Expected behavior:**
 1. Phase 3 begins after architecture approval
-2. All four Task calls — gameplay-programmer, ai-programmer, technical-artist, sound-designer — are issued before any result is awaited
+2. All four child-agent delegations — gameplay-programmer, ai-programmer, technical-artist, sound-designer — are issued before any result is awaited
 3. Skill waits for all four agents to complete before proceeding to Phase 4
 4. If any single agent completes early, skill does not begin Phase 4 until all four have returned
 
 **Assertions:**
-- [ ] Four Task calls issued in a single batch (no sequential waiting between them)
+- [ ] Four child-agent delegations issued in a single batch (no sequential waiting between them)
 - [ ] Phase 4 does not begin until all four Phase 3 agents have returned results
 - [ ] Skill does not pass one Phase 3 agent's output as input to another Phase 3 agent (they are independent)
 - [ ] All four Phase 3 agent results referenced in the Phase 4 integration step
@@ -159,7 +173,7 @@ with verdict COMPLETE / NEEDS WORK / BLOCKED and handoffs to `$code-review`,
 ## Protocol Compliance
 
 - [ ] `request_user_input` used at each phase transition — user approves before pipeline advances
-- [ ] All file writes delegated to sub-agents via Task — orchestrator does not call Write or Edit directly
+- [ ] Any delegated file write is bounded to a direct child custom agent; the orchestrator remains responsible for synthesis and scope
 - [ ] Error Recovery Protocol followed: surface → assess → offer options → partial report
 - [ ] Phase 3 agents launched in parallel per skill spec
 - [ ] Partial report always produced even when agents are BLOCKED

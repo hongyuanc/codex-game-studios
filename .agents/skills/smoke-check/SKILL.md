@@ -12,7 +12,7 @@ description: "Use when an implemented sprint or build needs a critical-path PASS
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
 
 # Smoke Check
 

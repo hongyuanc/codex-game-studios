@@ -1,16 +1,29 @@
 # Skill Test Spec: $create-epics
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/create-epics/SKILL.md`
+- Runtime name: `create-epics`
+- Runtime trigger description: `"Use when approved GDDs and architecture need translation into bounded, traceable implementation epics."`
+- Native invocation: `$create-epics`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$create-epics` reads all approved GDDs and translates them into EPIC.md files,
-one per system. Epics are organized by layer (Foundation → Core → Feature →
-Presentation) and processed in priority order within each layer. Each EPIC.md
-includes scope, governing ADRs, GDD requirements, engine risk level, and a
-Definition of Done. The skill asks "May I write" before creating each EPIC file.
+`$create-epics` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-In `full` review mode, a PR-EPIC gate (producer) runs after drafting epics and
-before writing any files. In `lean` or `solo` mode, PR-EPIC is skipped and noted.
-Epics are written to `production/epics/[layer]/EPIC-[name].md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -18,10 +31,10 @@ Epics are written to `production/epics/[layer]/EPIC-[name].md`.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: CREATED, BLOCKED
-- [ ] Contains "May I write" collaborative protocol language (per-epic approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$create-stories`)
 - [ ] Documents PR-EPIC gate behavior: runs in full mode; skipped in lean/solo
 
@@ -31,7 +44,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 In `full` mode: PR-EPIC (producer) gate runs after epics are drafted and before
 any epic file is written. If PR-EPIC returns CONCERNS, epics are revised before
-the "May I write" ask.
+the parent presents the complete EPIC-file changeset for approval.
 
 In `lean` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — lean mode".
 
@@ -56,17 +69,17 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 1. Skill reads systems index and both GDDs
 2. Drafts 2 EPIC definitions (layer, GDD path, ADRs, requirements, engine risk)
 3. PR-EPIC gate is skipped (lean mode) — noted in output
-4. For each epic: asks "May I write `production/epics/[layer]/EPIC-[name].md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. After approval: writes both EPIC files
 6. Creates or updates `production/epics/index.md`
 
 **Assertions:**
 - [ ] Epic summary is shown before any write ask
-- [ ] "May I write" is asked per-epic (not once for all epics together)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Each EPIC.md contains: layer, GDD path, governing ADRs, requirements table, Definition of Done
 - [ ] PR-EPIC skip is noted in output
 - [ ] `production/epics/index.md` is updated after writing
-- [ ] Skill does NOT write EPIC files without per-epic approval
+- [ ] Skill writes no EPIC until one complete proposed changeset lists every EPIC path and material edit and is approved
 
 ---
 
@@ -102,12 +115,12 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 **Full mode expected behavior:**
 1. Skill drafts both epics
 2. PR-EPIC gate spawns and reviews the epic drafts
-3. If PR-EPIC returns APPROVED: "May I write" ask proceeds normally
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 4. Epic files are written after approval
 
 **Assertions (full mode):**
 - [ ] PR-EPIC gate appears in output as an active gate
-- [ ] PR-EPIC runs before any "May I write" ask
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Epic files are NOT written before PR-EPIC completes
 
 **Fixture (lean mode):**
@@ -117,11 +130,11 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 **Lean mode expected behavior:**
 1. Epics are drafted
 2. PR-EPIC is skipped — noted in output
-3. "May I write" ask proceeds directly
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions (lean mode):**
 - [ ] "PR-EPIC skipped — lean mode" appears in output
-- [ ] Skill proceeds to "May I write" without waiting for PR-EPIC
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -136,7 +149,7 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 **Expected behavior:**
 1. Skill detects the existing EPIC file for the first system
 2. Skill offers to update rather than overwrite: "EPIC-[name].md already exists. Update it, or skip?"
-3. For the second system (no existing file): proceeds normally with "May I write"
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill detects existing EPIC files before writing
@@ -158,7 +171,7 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 1. PR-EPIC gate spawns and returns CONCERNS with specific feedback
 2. Skill surfaces the concerns to the user before any write ask
 3. User is given options: revise epics, accept concerns and proceed, or stop
-4. If user revises: updated epic drafts are shown before the "May I write" ask
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Skill does NOT write epics while CONCERNS are unaddressed
 
 **Assertions:**
@@ -171,8 +184,8 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 
 ## Protocol Compliance
 
-- [ ] Epic drafts shown to user before any "May I write" ask
-- [ ] "May I write" asked per-epic, not once for the entire batch
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] PR-EPIC gate (if active) runs before write asks — not after
 - [ ] Skipped gates noted by name and mode in output
 - [ ] EPIC.md content sourced only from GDDs, ADRs, and architecture docs — nothing invented
@@ -182,7 +195,7 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 
 ## Coverage Notes
 
-- Processing of Core, Feature, and Presentation layers follows the same per-epic
+- Processing of Core, Feature, and Presentation layers follows the same complete-changeset
   pattern as Foundation — layer-specific ordering is not independently tested.
 - Engine risk level assignment (LOW/MEDIUM/HIGH) from governing ADRs is
   validated implicitly via Case 1's fixture structure.

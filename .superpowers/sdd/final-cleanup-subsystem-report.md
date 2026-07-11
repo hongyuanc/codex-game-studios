@@ -23,6 +23,11 @@ dependency checks.
   skill metadata, an exact 29-skill design inventory assertion, native
   `$skill-test` framework behavior, and corrected `$team-ui` quick-reference
   wording.
+- Final-review tests failed first on public/runtime prose that still described
+  the legacy host, mechanically renamed framework contracts, mutable coverage
+  evidence, replacement-name inventory bypasses, permissive file reads,
+  symlinked destinations, and alternate-root hook validation. The remediated
+  gate rejects each case and passes without skips.
 
 ## Pre-cleanup evidence
 
@@ -383,6 +388,31 @@ same filenames.
 | `CCGS Skill Testing Framework/templates/agent-test-spec.md` | `Codex Studio Testing Framework/templates/agent-test-spec.md` |
 | `CCGS Skill Testing Framework/templates/skill-test-spec.md` | `Codex Studio Testing Framework/templates/skill-test-spec.md` |
 
+## Final-review remediation
+
+- Public documentation, contribution/security guidance, GitHub templates,
+  examples, runtime docs, and the upgrade guide now describe Codex-native
+  components and dollar-prefixed skill invocation. The upgrade guide retains a
+  complete preserve/merge/verify/rollback method while confining legacy names
+  to historical migration context.
+- All 49 agent specifications now assert their exact TOML path, schema, and
+  Sol/Terra/Luna route. All 73 skill specifications now assert runtime
+  discovery, `$skill` invocation, one decision per turn, native question
+  cardinality, bounded delegation, parent synthesis, and five behavioral cases.
+  The `vertical-slice` extension contains the same complete protocol.
+- The final validator now reads UTF-8 strictly, rejects NUL data, unreadable and
+  non-regular files, symlinks, unsafe relative paths, alternate-root leakage,
+  legacy directories even when empty, and any identity substitution in the
+  agent, skill, instruction, document, or template inventories.
+- Coverage is pinned to the exact 203-entry source set and full mapping digest.
+  Testing-framework parity is durably recorded in
+  `production/migration/testing-framework-parity.json` with 127 source object
+  hashes, exact native mappings, a contract digest, and the deliberate native
+  `vertical-slice` extension.
+- `$start` has a dedicated executable contract test for fresh-project routing,
+  `.codex/studio.toml`, sequential two-option questions, and valid native
+  question schema.
+
 ## Known limitation
 
 The hook runner defends repository boundaries with reviewed path checks and
@@ -393,16 +423,17 @@ reparse-point cases.
 
 ## Final automated gate
 
-- `python3 -m unittest discover -s tests/studio -v`: **202 tests, OK
-  (2 expected post-cleanup skips for source-parity checks already evidenced
-  before deletion)**.
+- `python3 -m unittest discover -s tests/studio -p 'test_*.py' -v`:
+  **227 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,
   **11 nested instruction boundaries**, **3×5 engine packs**, **40 document
   templates**, **49 framework agent specs**, and **73 framework skill specs**.
-- Runtime/public forbidden-reference and machine-path searches: clean. The only
-  matches in tooling are the validator's own forbidden-token definitions.
+- Operational runtime/public forbidden-reference and machine-path searches are
+  clean after excluding exactly the retained historical evidence directories
+  (`.superpowers/sdd/`, `docs/superpowers/`, and `production/migration/`) and
+  the validator/test literal definitions that enforce the prohibition.
 - Root README links and `AGENTS.md` imports resolve.
 - Python compilation, JSON parsing, TOML parsing, deterministic catalog/coverage
   parsing, and `git diff --check`: pass.
@@ -417,7 +448,7 @@ reparse-point cases.
 | All 73 skills appear in the selector | Runtime inventory and exact framework catalog are 73/73 | UI NOT EXERCISED |
 | 34 core agents are available before engine selection | Native profile count and unconfigured studio tests | UI NOT EXERCISED |
 | Hooks appear in the review screen with relative commands | Native hook JSON, command-template, and portability tests | UI NOT EXERCISED |
-| `$start` identifies a fresh project | Native skill validation and fresh-project contracts | UI NOT EXERCISED |
+| `$start` identifies a fresh project | Dedicated fresh-project routing and native-question contract tests | VERIFIED STATICALLY; UI NOT EXERCISED |
 | `$setup-engine` dry-run lists five profiles | Automated dry-run and pack-count tests | VERIFIED AUTOMATICALLY |
 | Test activation reports the correct roster | Automated activation/manifest/studio/rollback tests | VERIFIED AUTOMATICALLY |
 | Team skills delegate only to direct children and synthesize at parent | Static contracts for depth, bounded work, and parent synthesis | VERIFIED STATICALLY |

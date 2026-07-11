@@ -1,18 +1,29 @@
 # Skill Test Spec: $skill-improve
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/skill-improve/SKILL.md`
+- Runtime name: `skill-improve`
+- Runtime trigger description: `"Use when a Codex skill has validation failures or warnings that need an approved test-fix-retest cycle."`
+- Native invocation: `$skill-improve`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$skill-improve` runs an automated test-fix-retest improvement loop on a skill
-file. It invokes `$skill-test static` (and optionally `$skill-test category`) to
-establish a baseline score, diagnoses the failing checks, proposes targeted fixes
-to the SKILL.md file, asks "May I write the improvements to [skill path]?", applies
-the fixes, and re-runs the tests to confirm improvement.
+`$skill-improve` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-If the proposed fix makes the skill worse (regression), the fix is reverted (with
-user confirmation) rather than applied. If the skill is already perfect (0 failures),
-the skill exits immediately without making changes. No director gates apply. Verdicts:
-IMPROVED (score went up), NO CHANGE (no improvements possible or user declined), or
-REVERTED (fix was applied but caused regression and was reverted).
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ REVERTED (fix was applied but caused regression and was reverted).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: IMPROVED, NO CHANGE, REVERTED
-- [ ] Contains "May I write" collaborative protocol language before applying fixes
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., run `$skill-test spec` to validate behavioral compliance)
 
 ---
@@ -40,7 +51,7 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 
 **Fixture:**
 - `.agents/skills/some-skill/SKILL.md` has 2 static failures:
-  - Check 4: no "May I write" language despite having Write in allowed-tools
+  - The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
   - Check 5: no next-step handoff at the end
 
 **Input:** `$skill-improve some-skill`
@@ -49,16 +60,16 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 1. Skill runs `$skill-test static some-skill` — baseline: 5/7 checks pass
 2. Skill diagnoses the 2 failing checks (4 and 5)
 3. Skill proposes fixes:
-   - Add "May I write" language to the appropriate phase
+   - The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
    - Add a next-step handoff section at the end
-4. Skill asks "May I write improvements to `.agents/skills/some-skill/SKILL.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Fixes applied; `$skill-test static some-skill` re-run — now 7/7 checks pass
 6. Verdict is IMPROVED (5→7)
 
 **Assertions:**
 - [ ] Baseline score is established before any changes (5/7)
 - [ ] Both failing checks are diagnosed and addressed in the proposed fix
-- [ ] "May I write" is asked before applying the fix
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Re-test confirms improvement (7/7)
 - [ ] Verdict is IMPROVED with before/after score shown
 
@@ -75,11 +86,11 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 
 **Expected behavior:**
 1. Baseline: 6/7 checks pass (1 failure: missing handoff)
-2. Skill proposes fix and asks "May I write improvements?"
+2. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 3. Fix is applied; re-test runs
 4. Re-test result: 5/7 (fixed the handoff but broke verdict keywords)
 5. Skill detects regression: score went DOWN
-6. Skill asks user: "Fix caused a regression (6→5). May I revert the changes?"
+6. The parent shows regression evidence and obtains explicit revert approval in its own decision turn.
 7. User confirms; changes are reverted; verdict is REVERTED
 
 **Assertions:**
@@ -106,7 +117,7 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
    - Category: 3/5 G-criteria pass
 2. Combined baseline: 9/12
 3. Skill diagnoses all 3 failures and proposes fixes
-4. "May I write improvements to `.agents/skills/gate-check/SKILL.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Fixes applied; both test types re-run
 6. Re-test: static 7/7, category 5/5 = 12/12
 7. Verdict is IMPROVED (9→12)
@@ -133,14 +144,14 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 2. If category applies: 5/5 criteria pass
 3. Skill outputs: "No improvements needed — brainstorm is fully compliant"
 4. Skill exits without proposing any changes
-5. No "May I write" is asked; no files are modified
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Verdict is NO CHANGE
 
 **Assertions:**
 - [ ] Skill exits immediately after confirming 0 failures
 - [ ] "No improvements needed" message is shown
 - [ ] No changes are proposed
-- [ ] No "May I write" is asked
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is NO CHANGE
 
 ---
@@ -168,7 +179,7 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 
 - [ ] Always establishes a baseline score before proposing any changes
 - [ ] Shows before/after score comparison in the output
-- [ ] Asks "May I write" before applying any fix
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Detects regressions by comparing re-test score to baseline
 - [ ] Asks for user confirmation before reverting (not automatic)
 - [ ] Ends with IMPROVED, NO CHANGE, or REVERTED verdict

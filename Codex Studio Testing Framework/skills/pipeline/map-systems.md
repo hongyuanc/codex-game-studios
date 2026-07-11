@@ -1,19 +1,29 @@
 # Skill Test Spec: $map-systems
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/map-systems/SKILL.md`
+- Runtime name: `map-systems`
+- Runtime trigger description: `Decompose an approved game concept into systems, dependencies, priorities, and design order.`
+- Native invocation: `$map-systems`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$map-systems` decomposes a game concept into a systems index. It reads the
-approved game concept and pillars, enumerates both explicit and implicit systems,
-maps dependencies between systems, assigns priority tiers (MVP / Vertical Slice /
-Alpha / Full Vision), and organizes systems into a layered design order
-(Foundation → Core → Feature → Presentation). The output is written to
-`design/systems-index.md` after user approval.
+`$map-systems` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-This skill is required between game concept approval and per-system GDD creation
-— it is a mandatory gate in the pipeline. In `full` review mode, CD-SYSTEMS
-(creative-director) and TD-SYSTEM-BOUNDARY (technical-director) spawn in parallel
-after the decomposition is drafted. In `lean` or `solo` mode, both gates are
-skipped. The skill writes to `design/systems-index.md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -21,10 +31,10 @@ skipped. The skill writes to `design/systems-index.md`.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" collaborative protocol language (for systems-index.md)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$design-system`)
 - [ ] Documents gate behavior: CD-SYSTEMS + TD-SYSTEM-BOUNDARY in parallel in full mode
 
@@ -60,15 +70,15 @@ In `solo` mode: both gates are skipped with equivalent notes.
 2. Identifies 5-8 systems (explicit + implicit)
 3. Maps dependencies between systems and assigns layers
 4. CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel and return APPROVED
-5. Asks "May I write `design/systems-index.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Writes systems-index.md after approval
 7. Updates `production/session-state/active.md`
 
 **Assertions:**
 - [ ] Between 5 and 8 systems are identified (not fewer, not more without explanation)
 - [ ] CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel (not sequentially)
-- [ ] Both gates complete before the "May I write" ask
-- [ ] "May I write `design/systems-index.md`?" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] systems-index.md is NOT written without approval
 - [ ] Session state is updated after writing
 - [ ] Verdict is COMPLETE
@@ -112,13 +122,13 @@ In `solo` mode: both gates are skipped with equivalent notes.
 3. TD-SYSTEM-BOUNDARY returns APPROVED
 4. Skill surfaces CD-SYSTEMS concerns to user
 5. User is asked: revise systems list to add the missing system, or proceed as-is
-6. If revised: updated systems list shown before "May I write" ask
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] CD-SYSTEMS concerns are shown to the user before writing
 - [ ] Skill does NOT auto-write systems-index.md while CONCERNS are unresolved
 - [ ] User is given the option to revise or proceed
-- [ ] Revised systems list is re-shown after revision before final "May I write"
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -154,11 +164,11 @@ In `solo` mode: both gates are skipped with equivalent notes.
 1. Systems are decomposed and drafted
 2. Both CD-SYSTEMS and TD-SYSTEM-BOUNDARY are skipped
 3. Output notes: "CD-SYSTEMS skipped — lean mode" and "TD-SYSTEM-BOUNDARY skipped — lean mode"
-4. "May I write" ask proceeds directly
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions (lean mode):**
 - [ ] Both gate skip notes appear in output
-- [ ] Skill proceeds to "May I write" without gate approval
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] systems-index.md is written after user approval
 
 **Fixture (solo mode):**
@@ -167,7 +177,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Solo mode expected behavior:**
 1. Same decomposition workflow
 2. Both gates skipped — noted in output with "solo mode"
-3. "May I write" ask proceeds
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions (solo mode):**
 - [ ] Both skip notes appear with "solo mode" label
@@ -178,7 +188,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 ## Protocol Compliance
 
 - [ ] Reads game-concept.md and game-pillars.md before any decomposition
-- [ ] "May I write `design/systems-index.md`?" asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] systems-index.md is NOT written without user approval
 - [ ] CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel in full mode
 - [ ] Skipped gates noted by name and mode in lean/solo output

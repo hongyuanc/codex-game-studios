@@ -1,18 +1,29 @@
 # Skill Test Spec: $qa-plan
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/qa-plan/SKILL.md`
+- Runtime name: `qa-plan`
+- Runtime trigger description: `"Use when a sprint, feature, or story needs test scope, evidence requirements, manual cases, smoke coverage, and QA ownership before implementation."`
+- Native invocation: `$qa-plan`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$qa-plan` generates a structured QA test plan for a feature or sprint milestone.
-It reads story files for the specified sprint, extracts acceptance criteria from
-each story, cross-references test standards from `coding-standards.md` to assign
-the appropriate test type (unit, integration, visual, UI, or config/data), and
-produces a prioritized QA plan document.
+`$qa-plan` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill asks "May I write to `production/qa/qa-plan-sprint-NNN.md`?" before
-persisting the output. If an existing test plan for the same sprint is found, the
-skill offers to update rather than replace. The verdict is COMPLETE when the plan
-is written. No director gates are used — gate-level story readiness is handled by
-`$story-readiness`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ is written. No director gates are used — gate-level story readiness is handled
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before writing the plan
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$smoke-check` or `$story-readiness`)
 
 ---
@@ -54,14 +65,14 @@ None. `$qa-plan` is a planning utility. Story readiness gates are separate.
    - Visual story → Screenshot + lead sign-off (ADVISORY)
    - UI story → Manual walkthrough doc (ADVISORY)
 4. Skill drafts QA plan with story-by-story test type breakdown
-5. Skill asks "May I write to `production/qa/qa-plan-sprint-003.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. File is written on approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] All 4 stories are included in the plan
 - [ ] Test type is assigned per coding-standards.md (not guessed)
 - [ ] Gate level (BLOCKING vs ADVISORY) is noted for each story
-- [ ] "May I write" is asked with the correct file path
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -101,7 +112,7 @@ None. `$qa-plan` is a planning utility. Story readiness gates are separate.
 1. Skill reads sprint-003.md and detects 2 stories not in the existing plan
 2. Skill reports: "Existing QA plan found for sprint-003 — offering to update"
 3. Skill presents the 2 new stories and their proposed test assignments
-4. Skill asks "May I update `production/qa/qa-plan-sprint-003.md`?" (not overwrite)
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Updated plan is written on approval
 
 **Assertions:**
@@ -124,7 +135,7 @@ None. `$qa-plan` is a planning utility. Story readiness gates are separate.
 1. Skill attempts to read sprint-007.md — file not found
 2. Skill outputs: "No sprint file found for sprint-007"
 3. Skill suggests running `$sprint-plan` to create the sprint first
-4. No plan is written; no "May I write" is asked
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Error message names the missing sprint file
@@ -159,7 +170,7 @@ None. `$qa-plan` is a planning utility. Story readiness gates are separate.
 - [ ] Assigns BLOCKING or ADVISORY gate level per story type
 - [ ] Flags stories with no AC as UNTESTABLE (does not silently skip them)
 - [ ] Detects existing plan and offers update path
-- [ ] Asks "May I write" before creating or updating the plan file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when plan is written
 
 ---

@@ -809,7 +809,8 @@ skills:
     category: utility
 
 agents:
-  # Tier 1 Directors (Opus)
+  # Model route is verified from each runtime TOML; tier does not imply model.
+  # Leadership profiles (Sol or Terra as declared by runtime)
   - name: creative-director
     spec: Codex Studio Testing Framework/agents/directors/creative-director.md
     last_spec: ""
@@ -834,7 +835,7 @@ agents:
     last_spec_result: ""
     category: director
 
-  # Tier 2 Leads (Sonnet)
+  # Department leads (Terra as declared by runtime)
   - name: lead-programmer
     spec: Codex Studio Testing Framework/agents/leads/lead-programmer.md
     last_spec: ""
@@ -877,7 +878,7 @@ agents:
     last_spec_result: ""
     category: lead
 
-  # Core Specialists (Sonnet)
+  # Core specialists (Terra or Luna as declared by runtime)
   - name: gameplay-programmer
     spec: Codex Studio Testing Framework/agents/specialists/gameplay-programmer.md
     last_spec: ""

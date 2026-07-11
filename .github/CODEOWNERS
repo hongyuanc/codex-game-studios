@@ -6,11 +6,12 @@
 *                           @Donchitos
 
 # Core configuration — owner review required
-CLAUDE.md                   @Donchitos
-.codex/                     @Donchitos
-settings.json               @Donchitos
+AGENTS.md                   @Donchitos
+.codex/config.toml          @Donchitos
+.codex/studio.toml          @Donchitos
+.codex/hooks.json           @Donchitos
 
 # Skills and agents — high-impact, review carefully
 .agents/skills/             @Donchitos
 .codex/agents/             @Donchitos
-.codex/hooks/              @Donchitos
+.codex/hooks/hook_runner.py @Donchitos

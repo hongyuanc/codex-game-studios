@@ -1,12 +1,29 @@
 # Skill Test Spec: $scope-check
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/scope-check/SKILL.md`
+- Runtime name: `scope-check`
+- Runtime trigger description: `Compare a feature or sprint with its approved scope and report scope creep and recommended cuts.`
+- Native invocation: `$scope-check`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$scope-check` is a Haiku-tier read-only skill that analyzes a feature, sprint,
-or story for scope creep risk. It reads sprint and story files and compares them
-against the active milestone goals. It is designed for fast, low-cost checks
-before or during planning. No director gates are invoked. No files are written.
-Verdicts: ON SCOPE, CONCERNS, or SCOPE CREEP DETECTED.
+`$scope-check` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -14,10 +31,10 @@ Verdicts: ON SCOPE, CONCERNS, or SCOPE CREEP DETECTED.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: ON SCOPE, CONCERNS, SCOPE CREEP DETECTED
-- [ ] Does NOT require "May I write" language (read-only skill)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do based on verdict)
 
 ---
@@ -154,7 +171,7 @@ None. Scope check is a read-only advisory skill; no gates are invoked.
 - [ ] Maps each story to a milestone goal (or flags as unmapped)
 - [ ] Does not write any files
 - [ ] No director gates are invoked
-- [ ] Runs on Haiku model tier (fast, low-cost)
+- [ ] Runs on Luna model tier (fast, low-cost)
 - [ ] Verdict is one of: ON SCOPE, CONCERNS, SCOPE CREEP DETECTED
 
 ---

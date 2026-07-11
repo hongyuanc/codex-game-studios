@@ -1,13 +1,29 @@
 # Skill Test Spec: $gate-check
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/gate-check/SKILL.md`
+- Runtime name: `gate-check`
+- Runtime trigger description: `Evaluate readiness to advance to a named development phase and issue a PASS, CONCERNS, or FAIL verdict.`
+- Native invocation: `$gate-check`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$gate-check` validates whether the project is ready to advance to the next
-development phase. It checks for required artifacts, runs quality checks, asks
-the user about unverifiable items, and produces a PASS/CONCERNS/FAIL verdict.
-On PASS with user confirmation, it writes the new stage name to
-`production/stage.txt`. It governs all 6 phase transitions and is the most
-critical gate-keeping skill in the pipeline.
+`$gate-check` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ critical gate-keeping skill in the pipeline.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings (numbered Phase N or ## sections)
 - [ ] Contains verdict keywords: PASS, CONCERNS, FAIL
-- [ ] Contains "May I write" collaborative protocol language
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (Follow-Up Actions section)
 
 ---
@@ -40,7 +56,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. Skill checks quality items (core loop described, target audience identified)
 4. Skill outputs structured checklist with all items marked
 5. Skill presents PASS/CONCERNS/FAIL verdict
-6. If PASS: skill asks "May I update `production/stage.txt` to 'Systems Design'?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill uses Glob or Read to verify `design/gdd/game-concept.md` exists before marking it checked
@@ -48,7 +64,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Output includes a "Quality Checks" section with check status per item
 - [ ] Output includes a "Verdict" line with one of PASS / CONCERNS / FAIL
 - [ ] Skill asks about unverifiable quality items (e.g., "Has this been reviewed?") rather than assuming PASS
-- [ ] Skill asks "May I write" before updating `production/stage.txt`
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill does NOT write `production/stage.txt` without explicit user confirmation
 
 ---
@@ -180,7 +196,7 @@ treat this confirmation as a failure.
 
 ## Protocol Compliance
 
-- [ ] Uses "May I write" before updating `production/stage.txt`
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Presents the full checklist report before asking for write approval
 - [ ] Ends with a "Follow-Up Actions" section listing next steps per verdict
 - [ ] Never advances the stage without explicit user confirmation

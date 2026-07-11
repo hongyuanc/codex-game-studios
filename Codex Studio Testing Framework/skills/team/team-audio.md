@@ -1,28 +1,40 @@
 # Skill Test Spec: $team-audio
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-audio/SKILL.md`
+- Runtime name: `team-audio`
+- Runtime trigger description: `"Use when an audio feature needs coordinated direction, sound design, technical integration, and gameplay hooks."`
+- Native invocation: `$team-audio`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the audio team through a four-step pipeline: audio direction
-(audio-director) → sound design + accessibility review in parallel (sound-designer
-+ accessibility-specialist) → technical implementation + engine validation in
-parallel (technical-artist + primary engine specialist) → code integration
-(gameplay-programmer). Reads relevant GDDs, the sound bible (if present), and
-existing audio asset lists before spawning agents. Compiles all outputs into an
-audio design document saved to `design/gdd/audio-[feature].md`. Uses
-`request_user_input` at each step transition. Verdict is COMPLETE when the audio
-design document is produced. Skips the engine specialist spawn gracefully when no
-engine is configured.
+`$team-audio` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 step/phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
 - [ ] Contains "File Write Protocol" section
-- [ ] File writes are delegated to sub-agents — orchestrator does not write files directly
-- [ ] Sub-agents enforce "May I write to [path]?" before any write
+- [ ] File writes are delegated to child custom agents — orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$dev-story`, `$asset-audit`)
 - [ ] Error Recovery Protocol section is present
 - [ ] `request_user_input` is used at step transitions before proceeding
@@ -56,7 +68,7 @@ engine is configured.
 7. `request_user_input` presents technical plan; user approves before Step 4 begins
 8. Step 4: gameplay-programmer is spawned; wires up audio events to gameplay triggers, implements adaptive music, sets up occlusion zones, writes unit tests for audio event triggers
 9. Orchestrator compiles all outputs into a single audio design document
-10. Subagent asks "May I write the audio design document to `design/gdd/audio-combat.md`?" before writing
+10. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 11. Summary output lists: audio event count, estimated asset count, implementation tasks, and any open questions
 12. Verdict: COMPLETE
 
@@ -64,8 +76,8 @@ engine is configured.
 - [ ] Sound bible is read during context gathering (before Step 1) when it exists
 - [ ] audio-director is spawned before sound-designer or accessibility-specialist
 - [ ] `request_user_input` appears after Step 1 output and before Step 2 launch
-- [ ] sound-designer and accessibility-specialist Task calls are issued simultaneously in Step 2
-- [ ] technical-artist and engine specialist Task calls are issued simultaneously in Step 3
+- [ ] sound-designer and accessibility-specialist child-agent delegations are issued simultaneously in Step 2
+- [ ] technical-artist and engine specialist child-agent delegations are issued simultaneously in Step 3
 - [ ] gameplay-programmer is not launched until Step 3 `request_user_input` is approved
 - [ ] Audio design document is written to `design/gdd/audio-combat.md` (not another path)
 - [ ] Summary includes audio event count and estimated asset count
@@ -184,9 +196,9 @@ engine is configured.
 
 - [ ] Context gathering (GDDs, sound bible, asset list) runs before any agent is spawned
 - [ ] `request_user_input` is used after every step output before the next step launches
-- [ ] Parallel spawning: Step 2 (sound-designer + accessibility-specialist) and Step 3 (technical-artist + engine specialist) issue all Task calls before waiting for results
-- [ ] No files are written by the orchestrator directly — all writes are delegated to sub-agents
-- [ ] Each sub-agent enforces the "May I write to [path]?" protocol before any write
+- [ ] Parallel spawning: Step 2 (sound-designer + accessibility-specialist) and Step 3 (technical-artist + engine specialist) issue all child-agent delegations before waiting for results
+- [ ] No files are written by the orchestrator directly — all writes are delegated to child custom agents
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] BLOCKED status from any agent is surfaced immediately — not silently skipped
 - [ ] A partial report is always produced when some agents complete and others block
 - [ ] Audio design document path follows the pattern `design/gdd/audio-[feature].md`

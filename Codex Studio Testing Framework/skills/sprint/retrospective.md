@@ -1,15 +1,29 @@
 # Skill Test Spec: $retrospective
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/retrospective/SKILL.md`
+- Runtime name: `retrospective`
+- Runtime trigger description: `"Use when a completed sprint or milestone needs reflection on outcomes, velocity, blockers, patterns, and next-iteration actions."`
+- Native invocation: `$retrospective`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$retrospective` generates a structured sprint or milestone retrospective
-covering three categories: what went well, what didn't, and action items.
-It reads sprint files and session logs to compile observations, then produces
-a retrospective document. No director gates are used — retrospectives are
-team self-reflection artifacts. The skill asks "May I write to
-`production/retrospectives/retro-sprint-NNN.md`?" before persisting.
-Verdict is always COMPLETE (retrospective is structured output, not a pass/fail
-assessment).
+`$retrospective` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -17,10 +31,10 @@ assessment).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" language (skill writes retrospective document)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after retrospective is written)
 
 ---
@@ -47,14 +61,14 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 2. Skill compiles three retrospective categories: went well (4 stories shipped), 
    didn't (1 blocked, 1 deferred), and action items (address blocker root cause)
 3. Skill presents retrospective draft to user
-4. Skill asks "May I write to `production/retrospectives/retro-sprint-005.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. User approves; file is written; verdict COMPLETE
 
 **Assertions:**
 - [ ] Retrospective contains all three categories (went well / didn't / actions)
 - [ ] Blocked and deferred stories appear in the "what didn't" section
 - [ ] At least one action item is generated from the blocked story
-- [ ] Skill asks "May I write" before writing file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE after successful write
 
 ---
@@ -73,13 +87,13 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 2. Skill informs user that no sprint data was found for sprint-009
 3. Skill prompts user to provide retrospective input manually (went well, didn't, actions)
 4. User provides input; skill formats it into the retrospective structure
-5. Skill asks "May I write" and writes the document on approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill does not crash or produce an empty document when sprint file is absent
 - [ ] User is prompted to provide manual input
 - [ ] Manual input is formatted into the three-category structure
-- [ ] "May I write" prompt still appears before file write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -95,13 +109,13 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 1. Skill detects that `retro-sprint-005.md` already exists
 2. Skill presents user with choice: append new observations or replace existing file
 3. User selects "replace"; skill compiles fresh retrospective
-4. Skill asks "May I write to `production/retrospectives/retro-sprint-005.md`?" (confirming overwrite)
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. File is overwritten; verdict COMPLETE
 
 **Assertions:**
 - [ ] Skill checks for existing retrospective file before compiling
 - [ ] User is offered append or replace choice — not silently overwritten
-- [ ] "May I write" prompt reflects the overwrite scenario
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE after write regardless of append vs. replace
 
 ---
@@ -145,7 +159,7 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 **Assertions:**
 - [ ] No director gate is invoked regardless of review mode
 - [ ] Output does not contain any gate invocation or gate result notation
-- [ ] Skill proceeds directly from compilation to "May I write" prompt
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Review mode file content is irrelevant to this skill's behavior
 
 ---
@@ -153,7 +167,7 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 ## Protocol Compliance
 
 - [ ] Always shows retrospective draft before asking to write
-- [ ] Always asks "May I write" before writing retrospective file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked
 - [ ] Verdict is always COMPLETE (not a pass/fail skill)
 - [ ] Checks prior retrospective for unresolved action items

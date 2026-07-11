@@ -1,17 +1,29 @@
 # Skill Test Spec: $onboard
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/onboard/SKILL.md`
+- Runtime name: `onboard`
+- Runtime trigger description: `"Use when a contributor or agent needs a role-specific summary of project state, architecture, conventions, and priorities."`
+- Native invocation: `$onboard`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$onboard` generates a contextual project onboarding summary tailored for a new
-team member. It reads CLAUDE.md, `technical-preferences.md`, the active sprint
-file, recent git commits, and `production/stage.txt` to produce a structured
-orientation document. The skill runs on the Haiku model (read-only, formatting
-task) and produces no file writes — all output is conversational.
+`$onboard` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill optionally accepts a role argument (e.g., `$onboard artist`) to tailor
-the summary to a specific discipline. When the project is in an early stage or
-unconfigured, the output adapts to reflect what little is known. The verdict is
-always ONBOARDING COMPLETE — the skill is purely informational.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ always ONBOARDING COMPLETE — the skill is purely informational.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: ONBOARDING COMPLETE
-- [ ] Does NOT contain "May I write" language (skill is read-only)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff suggesting a relevant follow-on skill
 
 ---
@@ -70,7 +82,7 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 - `technical-preferences.md` contains only placeholders (`[TO BE CONFIGURED]`)
 - No `production/stage.txt`
 - No sprint files
-- No CLAUDE.md overrides beyond defaults
+- No AGENTS.md overrides beyond defaults
 
 **Input:** `$onboard`
 
@@ -89,22 +101,22 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 
 ---
 
-### Case 3: No CLAUDE.md Found — Error with remediation
+### Case 3: No AGENTS.md Found — Error with remediation
 
 **Fixture:**
-- `CLAUDE.md` file does not exist (deleted or never created)
+- `AGENTS.md` file does not exist (deleted or never created)
 - All other files may or may not exist
 
 **Input:** `$onboard`
 
 **Expected behavior:**
-1. Skill attempts to read CLAUDE.md and fails
-2. Skill outputs an error: "CLAUDE.md not found — cannot generate onboarding summary"
+1. Skill attempts to read AGENTS.md and fails
+2. Skill outputs an error: "AGENTS.md not found — cannot generate onboarding summary"
 3. Skill provides remediation: "Run `$start` to initialize the project configuration"
 4. No partial summary is generated
 
 **Assertions:**
-- [ ] Error message clearly identifies the missing file as CLAUDE.md
+- [ ] Error message clearly identifies the missing file as AGENTS.md
 - [ ] Remediation step (`$start`) is explicitly named
 - [ ] Skill does NOT produce a partial output when the root config is missing
 - [ ] Verdict is ONBOARDING COMPLETE (with error context, not a crash)
@@ -148,7 +160,7 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 1. Skill completes the full onboarding summary
 2. No director agents are spawned at any point
 3. No gate IDs appear in the output
-4. No "May I write" prompts appear
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] No director gate is invoked

@@ -1,17 +1,29 @@
 # Skill Test Spec: $asset-spec
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/asset-spec/SKILL.md`
+- Runtime name: `asset-spec`
+- Runtime trigger description: `Generate approved per-asset visual specifications and prompts from the art bible and design documents.`
+- Native invocation: `$asset-spec`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$asset-spec` generates per-asset visual specification documents from design
-requirements. It reads the relevant GDD, art bible, and design system to produce
-a structured asset spec sheet that defines: dimensions, animation states (if
-applicable), color palette reference, style notes, technical constraints
-(format, file size budget), and deliverable checklist.
+`$asset-spec` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-Spec sheets are written to `assets/specs/[asset-name]-spec.md` after a "May I write"
-ask. If a spec already exists, the skill offers to update it. When multiple assets
-are requested in a single invocation, a "May I write" ask is made per asset. No
-director gates apply. The verdict is COMPLETE when all requested specs are written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ director gates apply. The verdict is COMPLETE when all requested specs are writt
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language (per asset)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., assign to an artist, or `$asset-audit` later)
 
 ---
@@ -54,14 +66,14 @@ review specs separately but this is not a gate within this skill.
    - Style notes: from art bible character design rules
    - Technical constraints: format (PNG), size budget
    - Deliverable checklist
-3. Skill asks "May I write to `assets/specs/goblin-enemy-spec.md`?"
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 4. File written on approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] All 6 spec components are present (dimensions, animations, palette, style, tech, checklist)
 - [ ] Color palette reference links to art bible (not duplicated)
 - [ ] Animation states are drawn from GDD (not invented)
-- [ ] "May I write" is asked with the correct path
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -79,7 +91,7 @@ review specs separately but this is not a gate within this skill.
 2. Skill generates spec with placeholder style notes: "DEPENDENCY GAP: art bible
    not found — style notes are placeholders"
 3. Color palette section uses: "TBD — see art bible when created"
-4. Skill asks "May I write to `assets/specs/player-sprite-spec.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. File written with placeholders and dependency flag; verdict is COMPLETE with advisory
 
 **Assertions:**
@@ -104,13 +116,13 @@ review specs separately but this is not a gate within this skill.
 3. Skill diffs GDD against existing spec and identifies: new "charge-attack" animation
    state added in GDD but not in spec
 4. Skill presents the diff: "1 new animation state found — offering to update spec"
-5. Skill asks "May I update `assets/specs/goblin-enemy-spec.md`?" (not overwrite)
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Spec is updated; verdict is COMPLETE
 
 **Assertions:**
 - [ ] Existing spec is detected and "update" path is offered
 - [ ] Diff between GDD and existing spec is shown
-- [ ] "May I update" language is used (not "May I write")
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Existing spec content is preserved; only the diff is applied
 - [ ] Verdict is COMPLETE
 
@@ -126,13 +138,13 @@ review specs separately but this is not a gate within this skill.
 
 **Expected behavior:**
 1. Skill generates all 3 specs in sequence
-2. For each asset, skill shows the draft and asks "May I write to
+2. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
    `assets/specs/[name]-spec.md`?" individually
 3. User can approve all 3 or skip individual assets
 4. All approved specs are written; verdict is COMPLETE
 
 **Assertions:**
-- [ ] "May I write" is asked 3 times (once per asset), not once for all
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] User can decline one asset without blocking the others
 - [ ] All 3 spec files are written for approved assets
 - [ ] Verdict is COMPLETE when all approved specs are written
@@ -163,7 +175,7 @@ review specs separately but this is not a gate within this skill.
 - [ ] Reads GDD, art bible, and design system before generating spec
 - [ ] Includes all 6 spec components (dimensions, animations, palette, style, tech, checklist)
 - [ ] Flags missing dependencies (art bible, GDD) with DEPENDENCY GAP notes
-- [ ] Asks "May I write" (or "May I update") per asset
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Handles multiple assets with individual write confirmations
 - [ ] Verdict is COMPLETE when all approved specs are written
 

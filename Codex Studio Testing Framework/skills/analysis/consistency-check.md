@@ -1,16 +1,29 @@
 # Skill Test Spec: $consistency-check
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/consistency-check/SKILL.md`
+- Runtime name: `consistency-check`
+- Runtime trigger description: `Check registered entities, values, and formulas for conflicts across game design documents.`
+- Native invocation: `$consistency-check`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$consistency-check` scans all GDDs in `design/gdd/` and checks for internal
-conflicts across documents. It produces a structured findings table with columns:
-System A vs System B, Conflict Type, Severity (HIGH / MEDIUM / LOW). Conflict
-types include: formula mismatch, competing ownership, stale reference, and
-dependency gap.
+`$consistency-check` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill is read-only during analysis. It has no director gates. An optional
-consistency report can be written to `design/consistency-report-[date].md` if the
-user requests it, but the skill asks "May I write" before doing so.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -18,10 +31,10 @@ user requests it, but the skill asks "May I write" before doing so.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: CONSISTENT, CONFLICTS FOUND, DEPENDENCY GAP
-- [ ] Does NOT require "May I write" language during analysis (read-only scan)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
 - [ ] Documents that report writing is optional and requires approval
 
@@ -161,7 +174,7 @@ required as part of the scan itself.
 - [ ] Findings table shown in full before any write ask (if report is requested)
 - [ ] Verdict is one of exactly: CONSISTENT, CONFLICTS FOUND, DEPENDENCY GAP
 - [ ] No director gates — no review-mode.txt read
-- [ ] Report writing (if requested) gated by "May I write" approval
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Ends with next-step handoff appropriate to verdict
 
 ---

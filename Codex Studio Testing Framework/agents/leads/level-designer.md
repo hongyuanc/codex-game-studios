@@ -1,20 +1,31 @@
 # Agent Test Spec: level-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/level-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 **Domain owned:** Level layouts, encounter design, pacing and tension arc, environmental storytelling, spatial puzzles.
 **Does NOT own:** Narrative dialogue (writer / narrative-director), visual art style (art-director), code implementation (lead-programmer / ai-programmer), enemy AI behavior logic (ai-programmer / gameplay-programmer).
-**Model tier:** Sonnet (individual system analysis — level design review and encounter assessment).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 **Gate IDs handled:** Level design review verdicts (uses APPROVED / REVISION NEEDED vocabulary).
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified by reading the agent's `.codex/agents/level-designer.md` frontmatter:
+Verified by parsing the runtime TOML profile `.codex/agents/level-designer.toml`:
 
 - [ ] `description:` field is present and domain-specific (references level layout, encounter design, pacing, environmental storytelling — not generic)
-- [ ] `allowed-tools:` list is read-focused; includes Read for level design documents and GDDs; no Bash unless level tooling requires it
-- [ ] Model tier is `claude-sonnet-4-6` per coordination-rules.md
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over narrative dialogue, AI behavior code, or visual art style
 
 ---

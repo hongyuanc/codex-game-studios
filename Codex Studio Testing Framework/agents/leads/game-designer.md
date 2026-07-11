@@ -1,20 +1,31 @@
 # Agent Test Spec: game-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/game-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 **Domain owned:** Core loop design, progression systems, combat mechanics rules, economy design, player-facing rules and interactions.
 **Does NOT own:** Code implementation (lead-programmer / gameplay-programmer), visual art (art-director), narrative lore and story (narrative-director — coordinates with), balance formula math (systems-designer — collaborates with).
-**Model tier:** Sonnet (individual system design authoring and review).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 **Gate IDs handled:** Design review verdicts on mechanic specs (no named gate ID prefix — uses APPROVED / NEEDS REVISION vocabulary).
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified by reading the agent's `.codex/agents/game-designer.md` frontmatter:
+Verified by parsing the runtime TOML profile `.codex/agents/game-designer.toml`:
 
 - [ ] `description:` field is present and domain-specific (references core loop, progression, combat rules, economy, player-facing design — not generic)
-- [ ] `allowed-tools:` list is read-focused; includes Read for GDDs and design docs; no Bash unless design tooling requires it
-- [ ] Model tier is `claude-sonnet-4-6` per coordination-rules.md
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over code implementation, visual art style, or standalone narrative lore decisions
 
 ---

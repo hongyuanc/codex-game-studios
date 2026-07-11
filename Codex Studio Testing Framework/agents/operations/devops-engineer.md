@@ -1,9 +1,20 @@
 # Agent Test Spec: devops-engineer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/devops-engineer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: CI/CD pipeline configuration, build scripts, version control workflow enforcement, deployment infrastructure, branching strategy, environment management, automated test integration in CI
 - **Does NOT own**: Game logic or gameplay systems, security audits (security-engineer), QA test strategy (qa-lead), game networking logic (network-programmer)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; escalates deployment blockers to producer
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references CI/CD, build, deployment, version control)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for pipeline config files, shell scripts, YAML; no game source editing tools)
-- [ ] Model tier is Sonnet (default for operations specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over game logic, security audits, or QA test design
 
 ---
@@ -46,11 +57,11 @@
 ### Case 4: Branching strategy conflict
 **Input**: "Half the team wants to use GitFlow with long-lived feature branches. The other half wants trunk-based development. How should we set this up?"
 **Expected behavior**:
-- Recommends trunk-based development per project conventions (CLAUDE.md / coordination-rules.md specify Git with trunk-based development)
+- Recommends trunk-based development per project conventions (AGENTS.md / coordination-rules.md specify Git with trunk-based development)
 - Provides concrete rationale for the recommendation in this project's context: smaller team, fewer integration conflicts, faster CI feedback
 - Does NOT present this as a 50/50 choice if the project has an established convention
 - Explains how to implement trunk-based development with short-lived feature branches and feature flags if needed
-- Does NOT override the project convention without flagging that doing so requires updating CLAUDE.md
+- Does NOT override the project convention without flagging that doing so requires updating AGENTS.md
 
 ### Case 5: Context pass — platform-specific build matrix
 **Input context**: Project targets PC (Windows, Linux), Nintendo Switch, and PlayStation 5.

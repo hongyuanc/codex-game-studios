@@ -1,25 +1,38 @@
 # Skill Test Spec: $team-ui
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-ui/SKILL.md`
+- Runtime name: `team-ui`
+- Runtime trigger description: `"Use when a UI feature needs coordinated UX, art, implementation, accessibility, and QA work."`
+- Native invocation: `$team-ui`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the UI team through the full UX pipeline for a single UI feature.
-Coordinates ux-designer, ui-programmer, art-director, the engine UI specialist,
-and accessibility-specialist through five structured phases: Context Gathering +
-UX Spec (Phase 1a/1b) → UX Review Gate (Phase 1c) → Visual Design (Phase 2) →
-Implementation (Phase 3) → Review in parallel (Phase 4) → Polish (Phase 5).
-Uses `request_user_input` at each phase transition. Delegates all file writes to
-sub-agents and sub-skills (`$ux-design`, `ui-programmer`). Produces a summary report
-with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
-`$team-polish`.
+`$team-ui` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings (Phase 1a through Phase 5 are all present)
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" or "File Write Protocol" — writes delegated to sub-agents and sub-skills, orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$ux-review`, `$code-review`, `$team-polish`)
 - [ ] Error Recovery Protocol section is present with all four recovery steps
 - [ ] Uses `request_user_input` at phase transitions for user approval before proceeding
@@ -60,7 +73,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
 - [ ] Art-director in Phase 2 reviews full spec, not just wireframe images
 - [ ] Engine UI specialist spawned before ui-programmer in Phase 3
 - [ ] Phase 4 agents launched simultaneously (ux-designer, art-director, accessibility-specialist)
-- [ ] All file writes delegated to sub-agents and sub-skills
+- [ ] All file writes delegated to child custom agents and sub-skills
 - [ ] Verdict COMPLETE in final summary report
 - [ ] Next steps include `$ux-review`, `$code-review`, `$team-polish`
 
@@ -110,7 +123,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
 
 **Assertions:**
 - [ ] Skill does NOT spawn any subagents when no argument is given
-- [ ] Usage message includes the argument-hint format from frontmatter
+- [ ] Usage message includes the invocation arguments format from frontmatter
 - [ ] At least one example of a valid invocation is shown
 - [ ] No UX spec files or GDDs read before failing
 - [ ] Verdict is NOT shown (pipeline never starts)
@@ -129,7 +142,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
 
 **Expected behavior:**
 1. Phase 4 begins after implementation is confirmed complete
-2. Three Task calls issued simultaneously: ux-designer, art-director, accessibility-specialist
+2. Three child-agent delegations issued simultaneously: ux-designer, art-director, accessibility-specialist
 3. Each stream operates independently:
    - ux-designer: verifies implementation matches wireframes, tests keyboard-only and gamepad-only navigation, checks accessibility features function
    - art-director: verifies visual consistency with art bible at minimum and maximum supported resolutions
@@ -138,7 +151,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
 5. `request_user_input` presents all three review results before Phase 5 begins
 
 **Assertions:**
-- [ ] All three Task calls issued before any result is awaited (parallel, not sequential)
+- [ ] All three child-agent delegations issued before any result is awaited (parallel, not sequential)
 - [ ] Phase 5 does NOT begin until all three Phase 4 agents have returned
 - [ ] Accessibility-specialist explicitly reads `design/accessibility-requirements.md` for the committed tier
 - [ ] Accessibility violations flagged as BLOCKING (not merely advisory)
@@ -179,7 +192,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$ux-review`, `$code-review`,
 
 - [ ] `request_user_input` used at each phase transition — user approves before pipeline advances
 - [ ] UX Review Gate (Phase 1c) is blocking — Phase 2 cannot begin without APPROVED or explicit user override
-- [ ] All file writes delegated to sub-agents and sub-skills — orchestrator does not call Write or Edit directly
+- [ ] Delegated writes remain bounded to direct child profiles or native `$skill` workflows; the orchestrator synthesizes the result and enforces scope
 - [ ] Phase 4 agents launched in parallel per skill spec
 - [ ] Error Recovery Protocol followed: surface → assess → offer options → partial report
 - [ ] Partial report always produced even when agents are BLOCKED

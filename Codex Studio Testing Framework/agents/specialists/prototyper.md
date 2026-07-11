@@ -1,9 +1,20 @@
 # Agent Test Spec: prototyper
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/prototyper.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Rapid throwaway prototypes in the `prototypes/` directory, concept validation experiments, mechanical feasibility tests. Standards intentionally relaxed for speed — prototypes are not production code.
 - **Does NOT own**: Production source code in `src/` (gameplay-programmer), design documents (game-designer), production-grade architecture decisions (lead-programmer / technical-director)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; produces recommendation docs after prototype conclusion; does not participate in phase gates
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references rapid prototyping, prototypes/ directory, throwaway code)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write scoped to prototypes/ directory; no production src/ write access)
-- [ ] Model tier is Sonnet (default for specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition explicitly states that prototype code is not production code and must not be copied to src/
 
 ---

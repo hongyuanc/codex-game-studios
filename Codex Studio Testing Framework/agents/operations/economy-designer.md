@@ -1,9 +1,20 @@
 # Agent Test Spec: economy-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/economy-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Resource economy design, loot table design, progression curves (XP, level, unlock), in-game market and shop design, economic balance analysis, sink and faucet mechanics, inflation/deflation risk assessment
 - **Does NOT own**: Live ops event scheduling and structure (live-ops-designer), code implementation, analytics tracking design (analytics-engineer), narrative justification for economy systems (writer)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; escalates economy-breaking design conflicts to creative-director or producer
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references economy, loot tables, progression curves, balance)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for design/balance/ documents; no code or analytics tools)
-- [ ] Model tier is Sonnet (default for design specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over live ops scheduling, code, or narrative
 
 ---

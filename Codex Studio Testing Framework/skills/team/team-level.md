@@ -1,24 +1,38 @@
 # Skill Test Spec: $team-level
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-level/SKILL.md`
+- Runtime name: `team-level`
+- Runtime trigger description: `"Use when a level or area needs coordinated narrative, world, art, systems, layout, and QA design."`
+- Native invocation: `$team-level`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the full level design team for a single level or area. Coordinates
-narrative-director, world-builder, level-designer, systems-designer, art-director,
-accessibility-specialist, and qa-tester through five sequential steps with one
-parallel phase (Step 4). Compiles all team outputs into a single level design
-document saved to `design/levels/[level-name].md`. Uses `request_user_input` at each
-step transition. Delegates all file writes to sub-agents. Produces a summary report
-with verdict COMPLETE / BLOCKED and handoffs to `$design-review`, `$dev-story`,
-`$qa-plan`.
+`$team-level` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase/step headings (Step 1 through Step 5 are all present)
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" or "File Write Protocol" — writes delegated to sub-agents, orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$design-review`, `$dev-story`, `$qa-plan`)
 - [ ] Error Recovery Protocol section is present with all four recovery steps
 - [ ] Uses `request_user_input` at step transitions for user approval before proceeding
@@ -49,7 +63,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$design-review`, `$dev-story`,
 4. Step 3 — systems-designer spawned: specifies enemy compositions, loot tables, difficulty balance, area-specific mechanics, resource distribution; `request_user_input` confirms systems before Step 4
 5. Step 4 — art-director and accessibility-specialist spawned in parallel; art-director: visual theme, color palette, lighting, asset list, VFX needs; accessibility-specialist: navigation clarity, colorblind safety, cognitive load check — each concern rated BLOCKING / RECOMMENDED / NICE TO HAVE; `request_user_input` presents both outputs before Step 5
 6. Step 5 — qa-tester spawned: test cases for critical path, boundary/edge cases (sequence breaks, softlocks), playtest checklist, acceptance criteria
-7. Orchestrator compiles all team outputs into level design document format; sub-agent asked "May I write to `design/levels/forest-dungeon.md`?"; file saved
+7. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 8. Summary report: area overview, encounter count, estimated asset list, narrative beats, cross-team dependencies, verdict: COMPLETE
 9. Next steps listed: `$design-review design/levels/forest-dungeon.md`, `$dev-story`, `$qa-plan`
 
@@ -58,7 +72,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$design-review`, `$dev-story`,
 - [ ] narrative-director and world-builder both spawned in Step 1 (may be sequential or parallel — both must complete before Step 2)
 - [ ] `request_user_input` called at each step gate (minimum: after Step 1, Step 2, Step 3, Step 4)
 - [ ] Step 4 agents (art-director, accessibility-specialist) launched simultaneously
-- [ ] All file writes delegated to sub-agents — orchestrator does not write directly
+- [ ] All file writes delegated to child custom agents — orchestrator does not write directly
 - [ ] Level doc saved to `design/levels/forest-dungeon.md` (slugified from argument)
 - [ ] Verdict COMPLETE in final summary report
 - [ ] Next steps include `$design-review`, `$dev-story`, `$qa-plan`
@@ -111,7 +125,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$design-review`, `$dev-story`,
 
 **Assertions:**
 - [ ] Skill does NOT spawn any subagents when no argument is given
-- [ ] Usage message includes the argument-hint format from frontmatter
+- [ ] Usage message includes the invocation arguments format from frontmatter
 - [ ] At least one example of a valid invocation is shown
 - [ ] No GDD or level files read before failing
 - [ ] Verdict is NOT shown (pipeline never starts)
@@ -182,7 +196,7 @@ with verdict COMPLETE / BLOCKED and handoffs to `$design-review`, `$dev-story`,
 ## Protocol Compliance
 
 - [ ] `request_user_input` used at each step transition — user approves before pipeline advances
-- [ ] All file writes delegated to sub-agents via Task — orchestrator does not call Write or Edit directly
+- [ ] Any delegated file write is bounded to a direct child custom agent; the orchestrator remains responsible for synthesis and scope
 - [ ] Error Recovery Protocol followed: surface → assess → offer options → partial report
 - [ ] Step 4 agents (art-director, accessibility-specialist) launched in parallel per skill spec
 - [ ] Partial report always produced even when agents are BLOCKED

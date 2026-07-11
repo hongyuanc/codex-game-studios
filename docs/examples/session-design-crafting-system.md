@@ -216,7 +216,8 @@
 > - Consulted `systems-designer` for XP curve formula validation
 > - Consulted `economy-designer` for material cost balancing
 >
-> May I write this to `design/gdd/crafting-system.md`?
+> Proposed bounded changeset: `design/gdd/crafting-system.md`, its registry
+> entry, and `$design-review` evidence. Approve this GDD phase?
 
 ## Turn 11: User Approves Writing
 
@@ -253,7 +254,7 @@
 - Turn 5: User modified recommended option, agent incorporated it
 - Turn 8: Agent caught edge case and asked rather than assuming
 - Turn 9: User's choice (procedural potions) changed design direction
-- Turn 10: Agent requested approval before writing file
+- Turn 10: Codex presented one bounded GDD changeset for approval
 
 **Files Created:**
 - `design/gdd/crafting-system.md` (complete 8-section GDD)

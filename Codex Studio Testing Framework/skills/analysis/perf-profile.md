@@ -1,13 +1,29 @@
 # Skill Test Spec: $perf-profile
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/perf-profile/SKILL.md`
+- Runtime name: `perf-profile`
+- Runtime trigger description: `Profile a game system or build against performance budgets and prioritize observed bottlenecks.`
+- Native invocation: `$perf-profile`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$perf-profile` is a structured performance profiling workflow that identifies
-bottlenecks and recommends optimizations. If profiler data or performance logs
-are provided, it analyzes them directly. If not, it guides the user through a
-manual profiling checklist. No director gates are invoked. The skill asks
-"May I write to `production/qa/perf-[date].md`?" before persisting a report.
-Verdicts: WITHIN BUDGET, CONCERNS, or OVER BUDGET.
+`$perf-profile` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ Verdicts: WITHIN BUDGET, CONCERNS, or OVER BUDGET.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: WITHIN BUDGET, CONCERNS, OVER BUDGET
-- [ ] Contains "May I write" language (skill writes perf report)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after performance findings are reviewed)
 
 ---
@@ -46,14 +62,14 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 3. Skill identifies draw call spike on frames 42–48 (450 calls vs 200 budget)
 4. Verdict is CONCERNS (average OK, but spikes indicate an issue)
 5. Skill recommends batching or culling for the identified scene
-6. Skill asks "May I write to `production/qa/perf-2026-04-06.md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Spike frames are identified by frame number
 - [ ] Draw call count and budget are compared explicitly
 - [ ] Verdict is CONCERNS when spikes exceed budget even if average is OK
 - [ ] At least one specific optimization recommendation is given
-- [ ] "May I write" prompt appears before writing report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -96,13 +112,13 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 2. All frames are over the 16.6ms budget
 3. Verdict is OVER BUDGET
 4. Skill outputs a prioritized optimization list (e.g., LOD system, shader complexity, physics tick rate)
-5. Skill asks "May I write" before writing report
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Verdict is OVER BUDGET when all or most frames exceed budget
 - [ ] Target frame budget is read from `technical-preferences.md` (not hardcoded)
 - [ ] Optimization priority list is provided, not just the raw verdict
-- [ ] "May I write" prompt appears before report write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -142,12 +158,12 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 1. Skill analyzes profiler data; verdict is CONCERNS
 2. No director gate is invoked regardless of review mode
 3. Output notes: "For in-depth analysis, consider running `$perf-profile` with the performance-analyst agent"
-4. Skill asks "May I write" and writes report on user approval
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] Performance-analyst consultation is suggested (not mandated)
-- [ ] "May I write" prompt appears before report write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is CONCERNS for spike-based findings
 
 ---
@@ -157,7 +173,7 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 - [ ] Reads profiler data when provided; outputs checklist when not
 - [ ] Reads `technical-preferences.md` for target platform frame budget
 - [ ] Checks for prior perf reports to enable delta comparison
-- [ ] Always asks "May I write" before writing report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked
 - [ ] Verdict is one of: WITHIN BUDGET, CONCERNS, OVER BUDGET
 

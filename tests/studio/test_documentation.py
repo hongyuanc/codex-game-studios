@@ -89,7 +89,7 @@ class DocumentationTests(unittest.TestCase):
         for path in CODEX_DOCS.rglob("*"):
             if not path.is_file():
                 continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.relative_to(ROOT)):
                 for forbidden in FORBIDDEN_RUNTIME_TEXT:
                     self.assertNotIn(forbidden, text)
@@ -103,7 +103,7 @@ class DocumentationTests(unittest.TestCase):
 
     def test_codex_operating_contract_is_documented(self):
         combined = "\n".join(
-            path.read_text(encoding="utf-8", errors="ignore")
+            path.read_text(encoding="utf-8")
             for path in CODEX_DOCS.rglob("*")
             if path.is_file()
         )
@@ -162,6 +162,34 @@ class DocumentationTests(unittest.TestCase):
                 self.assertIn("2-3 mutually exclusive options", text)
                 self.assertIn("one question at a time", text)
                 self.assertIn("genuinely independent", text)
+
+    def test_public_facing_codex_docs_use_python_hook_runtime(self):
+        setup = (CODEX_DOCS / "setup-requirements.md").read_text(encoding="utf-8")
+        hooks = (CODEX_DOCS / "hooks-reference.md").read_text(encoding="utf-8")
+        self.assertIn("Python 3", setup)
+        self.assertIn("10 hook actions", setup)
+        self.assertNotIn("jq", setup.lower())
+        self.assertNotIn("Bash", setup)
+        self.assertIn("hook_runner.py", hooks)
+        self.assertNotIn(".sh", hooks)
+
+    def test_context_and_skill_test_templates_use_phase_gates(self):
+        context = (CODEX_DOCS / "context-management.md").read_text(encoding="utf-8")
+        spec = (CODEX_DOCS / "templates/skill-test-spec.md").read_text(encoding="utf-8")
+        self.assertNotIn("/clear", context)
+        self.assertIn("phase-gated", spec)
+        self.assertNotIn("May I write", spec)
+        self.assertNotIn("/[skill-name]", spec)
+        self.assertIn("$[skill-name]", spec)
+
+    def test_implementation_protocol_uses_current_question_limits(self):
+        path = CODEX_DOCS / "templates/collaborative-protocols/implementation-agent-protocol.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("one decision at a time", text)
+        self.assertIn("1-3 questions", text)
+        self.assertIn("2-3 mutually exclusive options", text)
+        for forbidden in ("up to 4", "Batch up to 4", "four questions", "multi-select"):
+            self.assertNotIn(forbidden, text)
 
 
 if __name__ == "__main__":

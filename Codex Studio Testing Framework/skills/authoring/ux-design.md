@@ -1,18 +1,29 @@
 # Skill Test Spec: $ux-design
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/ux-design/SKILL.md`
+- Runtime name: `ux-design`
+- Runtime trigger description: `Collaboratively author a UX specification, HUD design, player journey, or interaction pattern artifact.`
+- Native invocation: `$ux-design`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$ux-design` is a guided, section-by-section UX spec authoring skill. It produces
-user flow diagrams (described textually), interaction state definitions, wireframe
-descriptions, and accessibility notes for a specified screen or HUD element. The
-skill follows the skeleton-first pattern: it creates the file with all section
-headers immediately, then fills each section through discussion and writes each
-section to disk after user approval.
+`$ux-design` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill has no inline director gates — `$ux-review` is the separate review step.
-Each section requires a "May I write section [N] to [filepath]?" ask. If a UX spec
-already exists for the named screen, the skill offers to retrofit individual sections
-rather than replace. Verdict is COMPLETE when all sections are written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ rather than replace. Verdict is COMPLETE when all sections are written.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" language per section
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$ux-review` to validate the completed spec)
 
 ---
@@ -49,7 +60,7 @@ review skill invoked after this skill completes.
 1. Skill creates a skeleton file `design/ux/hud.md` with all section headers
 2. Skill discusses and drafts each section: User Flows, Interaction States
    (normal/hover/focus/disabled), Wireframe Description, Accessibility Notes
-3. After each section is drafted and user confirms, skill asks "May I write
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
    section [N] to `design/ux/hud.md`?"
 4. Each section is written in sequence after approval
 5. After all sections are written, verdict is COMPLETE
@@ -57,7 +68,7 @@ review skill invoked after this skill completes.
 
 **Assertions:**
 - [ ] Skeleton file is created first (with empty section bodies)
-- [ ] "May I write section [N]" is asked per section (not once at the end)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] All required sections are present: User Flows, Interaction States,
      Wireframe Description, Accessibility Notes
 - [ ] Handoff to `$ux-review` is at the end
@@ -78,7 +89,7 @@ review skill invoked after this skill completes.
 2. Skill reports: "UX spec already exists for HUD — offering to retrofit"
 3. Skill lists all sections and asks which to update
 4. User selects Accessibility Notes
-5. Skill drafts updated accessibility content and asks "May I write section
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
    Accessibility Notes to `design/ux/hud.md`?"
 6. Only that section is updated; other sections are preserved; verdict is COMPLETE
 
@@ -86,7 +97,7 @@ review skill invoked after this skill completes.
 - [ ] Existing spec is detected and retrofit is offered
 - [ ] User selects which section(s) to update
 - [ ] Only the selected section is updated — other sections unchanged
-- [ ] "May I write" is asked for the updated section
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -126,7 +137,7 @@ review skill invoked after this skill completes.
 1. Skill detects no screen name or argument provided
 2. Skill outputs a usage error: "Screen name required. Usage: `$ux-design [screen-name]`"
 3. Skill provides examples: `$ux-design hud`, `$ux-design main-menu`, `$ux-design inventory`
-4. No file is created; no "May I write" is asked
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Usage error is clearly stated
@@ -159,7 +170,7 @@ review skill invoked after this skill completes.
 
 - [ ] Creates skeleton file with all section headers before discussing content
 - [ ] Discusses and drafts one section at a time
-- [ ] Asks "May I write section [N]" after each section is approved
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Detects existing spec and offers retrofit path
 - [ ] Ends with handoff to `$ux-review`
 - [ ] Verdict is COMPLETE when all sections are written

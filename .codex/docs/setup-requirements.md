@@ -1,80 +1,47 @@
 # Setup Requirements
 
-This template requires a few tools to be installed for full functionality.
-All hooks fail gracefully if tools are missing — nothing will break, but
-you'll lose validation features.
+Codex Game Studios uses Git, Codex, and Python 3. The runtime has no JavaScript,
+shell-script, or external JSON-parser dependency.
 
-## Required
+## Required tools
 
-| Tool | Purpose | Install |
-| ---- | ---- | ---- |
-| **Git** | Version control, branch management | [git-scm.com](https://git-scm.com/) |
-| **Codex** | AI coding app or CLI | Install the Codex app or run `npm install -g @openai/codex` |
+| Tool | Purpose | Verification |
+| --- | --- | --- |
+| Git | Version control and repository discovery | `git --version` |
+| Codex | Skills, custom agents, and phase-gated orchestration | `codex --version` |
+| Python 3.11+ | 10 hook actions, tests, and repository validation | `python3 --version` |
 
-## Recommended
+On Windows, `py -3 --version` may be used instead. Hook registrations in
+`.codex/hooks.json` provide Windows commands as well as macOS/Linux commands.
 
-| Tool | Used By | Purpose | Install |
-| ---- | ---- | ---- | ---- |
-| **jq** | Hooks (7 of 12) | JSON parsing in commit/push/asset/agent hooks | See below |
-| **Python 3** | Hooks (2 of 12) | JSON validation for data files | [python.org](https://www.python.org/) |
-| **Bash** | All hooks | Shell script execution | Included with Git for Windows |
+## Runtime layout
 
-### Installing jq
+- `.codex/config.toml` configures Codex features and agent concurrency.
+- `.codex/studio.toml` selects the engine pack, language, review mode, and model policy.
+- `.codex/hooks.json` maps Codex events to Python commands.
+- `.codex/hooks/hook_runner.py` implements all 10 hook actions.
+- `.agents/skills/` contains the 73 discoverable studio skills.
+- `.codex/agents/` and `.codex/agent-packs/` contain the 49 TOML profiles.
 
-**Windows** (any of these):
-```
-winget install jqlang.jq
-choco install jq
-scoop install jq
-```
+## Verify the installation
 
-**macOS**:
-```
-brew install jq
-```
+From the repository root:
 
-**Linux**:
-```
-sudo apt install jq     # Debian/Ubuntu
-sudo dnf install jq     # Fedora
-sudo pacman -S jq       # Arch
+```text
+git --version
+codex --version
+python3 --version
+python3 -m unittest discover -s tests/studio -v
+python3 -m tools.codex_studio.validate --root . --phase final
 ```
 
-## Platform Notes
+If Python is unavailable, Codex can still open the repository, but the hook
+runner and validation gates cannot operate. Install Python before relying on
+the studio safety contract.
 
-### Windows
-- Git for Windows includes **Git Bash**, which provides the `bash` command
-  used by hooks declared in `.codex/hooks.json`
-- Ensure Git Bash is on your PATH (default if installed via the Git installer)
-- Hooks use `bash .codex/hooks/[name].sh` — this works on Windows because
-  Codex invokes commands through a shell that can find `bash.exe`
+## Trust and review
 
-### macOS / Linux
-- Bash is available natively
-- Install `jq` via your package manager for full hook support
-
-## Verifying Your Setup
-
-Run these commands to check prerequisites:
-
-```bash
-git --version          # Should show git version
-bash --version         # Should show bash version
-jq --version           # Should show jq version (optional)
-python3 --version      # Should show python version (optional)
-```
-
-## What Happens Without Optional Tools
-
-| Missing Tool | Effect |
-| ---- | ---- |
-| **jq** | Commit validation, push protection, asset validation, and agent audit hooks silently skip their checks. Commits and pushes still work. |
-| **Python 3** | JSON data file validation in commit and asset hooks is skipped. Invalid JSON can be committed without warning. |
-| **Both** | All hooks still execute without error (exit 0) but provide no validation. You're flying without safety nets. |
-
-## Recommended IDE
-
-Codex works with any editor, but the template is optimized for:
-- **VS Code** with the Codex extension
-- **Cursor** (Codex compatible)
-- Terminal-based Codex CLI
+Review `AGENTS.md`, `.codex/config.toml`, `.codex/studio.toml`,
+`.codex/hooks.json`, and `.codex/hooks/hook_runner.py` before trusting a fork.
+Hook actions should use repository-relative paths, avoid network access, and
+fail open for optional quality checks while blocking clear safety violations.

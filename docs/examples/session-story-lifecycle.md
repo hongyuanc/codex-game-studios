@@ -68,7 +68,8 @@
 >
 > > Roll direction: last movement direction. If velocity is zero at roll input, roll uses current facing direction.
 >
-> May I write this to `production/stories/STORY-MOV-001.md` and set Status to `ready-for-dev`?
+> Proposed readiness changeset: update `production/stories/STORY-MOV-001.md`, set
+> it to `ready-for-dev`, and rerun `$story-readiness`. Approve this story phase?
 
 **User:**
 > Yes

@@ -1,9 +1,20 @@
 # Agent Test Spec: engine-programmer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/engine-programmer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 Domain: Rendering pipeline, physics integration, memory management, resource loading, and core engine framework.
 Does NOT own: gameplay mechanics (gameplay-programmer), editor/debug tool UI (tools-programmer).
-Model tier: Sonnet (default).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 No gate IDs assigned.
 
 ---
@@ -11,8 +22,8 @@ No gate IDs assigned.
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references rendering / memory / engine core)
-- [ ] `allowed-tools:` list includes Read, Write, Edit, Bash, Glob, Grep
-- [ ] Model tier is Sonnet (default for specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over gameplay mechanics or tool UI
 
 ---

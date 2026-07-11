@@ -13,7 +13,7 @@ A brief description of what you'd like added or changed.
 ## Type
 
 - [ ] New agent
-- [ ] New skill (slash command)
+- [ ] New skill (`$skill-name` invocation)
 - [ ] New hook
 - [ ] New rule
 - [ ] New template
@@ -27,9 +27,9 @@ What problem does this solve? What workflow does it improve?
 ## Proposed Solution
 
 How do you think this should work? Include details like:
-- For agents: what domain, what tier, what tools
-- For skills: what the workflow looks like, what it outputs
-- For hooks: what event triggers it, what it validates
+- For agents: the `.codex/agents/*.toml` profile, domain, GPT model, and tools
+- For skills: the trigger description, workflow, and output
+- For hooks: the event, `hook_runner.py` action, and validation behavior
 
 ## Alternatives Considered
 

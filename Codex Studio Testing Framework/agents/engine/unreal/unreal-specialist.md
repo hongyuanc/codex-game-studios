@@ -1,9 +1,20 @@
 # Agent Test Spec: unreal-specialist
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agent-packs/unreal/unreal-specialist.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Unreal Engine patterns and architecture — Blueprint vs C++ decisions, UE subsystems (GAS, Enhanced Input, Niagara), UE project structure, plugin integration, and engine-level configuration
 - **Does NOT own**: Art style and visual direction (art-director), server infrastructure and deployment (devops-engineer), UI/UX flow design (ux-designer)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; defers gate verdicts to technical-director
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references Unreal Engine)
-- [ ] `allowed-tools:` list matches the agent's role (Read, Write for UE project files; no deployment tools)
-- [ ] Model tier is Sonnet (default for specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority outside its declared domain (no art, no server infra)
 
 ---

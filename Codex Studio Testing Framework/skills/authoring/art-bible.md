@@ -1,18 +1,29 @@
 # Skill Test Spec: $art-bible
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/art-bible/SKILL.md`
+- Runtime name: `art-bible`
+- Runtime trigger description: `Author the game's visual identity specification after the game concept is approved and before asset production begins.`
+- Native invocation: `$art-bible`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$art-bible` is a guided, section-by-section art bible authoring skill. It
-produces a comprehensive visual direction document covering: Visual Style overview,
-Color Palette, Typography, Character Design Rules, Environment Style, and UI
-Visual Language. The skill follows the skeleton-first pattern: creates the file
-with all section headers immediately, then fills each section through discussion
-and writes each to disk after user approval.
+`$art-bible` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-In `full` review mode, the AD-ART-BIBLE director gate (art director) runs after
-the draft is complete and before any section is written. In `lean` and `solo`
-modes, AD-ART-BIBLE is skipped and only user approval is required. The verdict
-is COMPLETE when all sections are written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ is COMPLETE when all sections are written.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" language per section
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Documents the AD-ART-BIBLE director gate and its mode behavior
 - [ ] Has a next-step handoff (e.g., `$asset-spec` or `$design-system`)
 
@@ -53,13 +64,13 @@ Verified automatically by `$skill-test static` — no fixture needed.
 2. Skill discusses and drafts each section with user collaboration
 3. After all sections are drafted, AD-ART-BIBLE gate is invoked (art director review)
 4. AD-ART-BIBLE returns APPROVED
-5. Skill asks "May I write section [N] to `design/art-bible.md`?" per section
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. All sections written after approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] Skeleton file is created first (before any section content is written)
 - [ ] AD-ART-BIBLE gate is invoked in full mode after draft is complete
-- [ ] Gate approval precedes the "May I write" section asks
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] All sections are present in the final file
 - [ ] Verdict is COMPLETE
 
@@ -81,7 +92,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. Skill returns to the Color Palette section for revision
 4. User and skill revise the palette to align with game concept tone
 5. AD-ART-BIBLE is not re-invoked (user decides to proceed after revision)
-6. Revised section is written after "May I write" approval; verdict is COMPLETE
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] CONCERNS are shown to user before any section is written
@@ -128,7 +139,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. User selects Character Design Rules
 4. Skill drafts updated content; in full mode, AD-ART-BIBLE is invoked for the
    revised section before writing
-5. Skill asks "May I write Character Design Rules to `design/art-bible.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Only that section is updated; other sections preserved; verdict is COMPLETE
 
 **Assertions:**
@@ -169,7 +180,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Discusses and drafts one section at a time
 - [ ] AD-ART-BIBLE gate runs in full mode after all sections are drafted
 - [ ] AD-ART-BIBLE is skipped in lean and solo modes — noted by name
-- [ ] Asks "May I write section [N]" per section
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when all sections are written
 
 ---

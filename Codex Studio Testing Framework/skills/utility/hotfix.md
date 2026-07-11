@@ -1,17 +1,29 @@
 # Skill Test Spec: $hotfix
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/hotfix/SKILL.md`
+- Runtime name: `hotfix`
+- Runtime trigger description: `"Use when an S1 or S2 production defect requires an emergency fix with an audit trail and rollback plan."`
+- Native invocation: `$hotfix`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$hotfix` manages an emergency fix workflow: it creates a hotfix branch from
-main, applies a targeted fix to the identified file(s), runs `$smoke-check` to
-validate the fix doesn't introduce regressions, and prompts the user to confirm
-merge back to main. Each code change requires a "May I write to [filepath]?" ask.
-Git operations (branch creation, merge) are presented as Bash commands for user
-confirmation before execution.
+`$hotfix` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill is time-sensitive — director review is optional post-hoc, not a
-blocking gate. Verdicts: HOTFIX COMPLETE (fix applied, smoke check passed, merged)
-or HOTFIX BLOCKED (fix introduced regression or user declined).
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ or HOTFIX BLOCKED (fix introduced regression or user declined).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: HOTFIX COMPLETE, HOTFIX BLOCKED
-- [ ] Contains "May I write" language for code changes
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$bug-report` to document the issue, or version bump)
 
 ---
@@ -49,14 +61,14 @@ post-hoc step. No gate is invoked within this skill.
 1. Skill proposes creating a hotfix branch: `hotfix/boss-arena-crash`
 2. User confirms; Bash command for branch creation is shown and confirmed
 3. Skill identifies the fix location in `arena.gd` and drafts the change
-4. Skill asks "May I write to `src/gameplay/arena.gd`?" and applies fix on approval
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Skill runs `$smoke-check` — PASS
 6. Skill presents the merge command and asks user to confirm merge to `main`
 7. User confirms; merge executes; verdict is HOTFIX COMPLETE
 
 **Assertions:**
 - [ ] Hotfix branch is created before any code changes
-- [ ] "May I write" is asked before modifying any source file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] `$smoke-check` runs after the fix is applied
 - [ ] Merge requires explicit user confirmation (not automatic)
 - [ ] Verdict is HOTFIX COMPLETE after successful merge
@@ -99,13 +111,13 @@ post-hoc step. No gate is invoked within this skill.
 1. Skill detects that the current HEAD is a tagged release (v1.2.0)
 2. Skill notes: "Hotfix targeting tagged release v1.2.0"
 3. After smoke check passes, skill prompts: "Should version be bumped to v1.2.1?"
-4. If user confirms version bump: skill asks "May I write to VERSION or equivalent?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. After version update and merge: verdict is HOTFIX COMPLETE with version noted
 
 **Assertions:**
 - [ ] Version tag context is detected and surfaced to user
 - [ ] Patch version bump is suggested (not required) after merge
-- [ ] Version bump requires its own "May I write" confirmation
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is HOTFIX COMPLETE
 
 ---
@@ -155,7 +167,7 @@ post-hoc step. No gate is invoked within this skill.
 ## Protocol Compliance
 
 - [ ] Creates hotfix branch before making any code changes
-- [ ] Asks "May I write" before modifying any source files
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Runs `$smoke-check` after applying the fix
 - [ ] Requires explicit user confirmation before merging
 - [ ] HOTFIX BLOCKED when smoke check fails — no automatic merge
@@ -166,7 +178,7 @@ post-hoc step. No gate is invoked within this skill.
 ## Coverage Notes
 
 - The case where multiple files need to be modified for one fix follows the same
-  "May I write" per-file pattern and is not separately tested.
+  The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 - The post-hotfix steps (create bug report, update changelog) are suggested in
   the handoff but not tested as part of this skill's execution.
 - Conflict resolution during the merge (if main has diverged) is not tested;

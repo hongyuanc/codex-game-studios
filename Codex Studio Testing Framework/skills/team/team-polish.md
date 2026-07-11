@@ -1,26 +1,40 @@
 # Skill Test Spec: $team-polish
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-polish/SKILL.md`
+- Runtime name: `team-polish`
+- Runtime trigger description: `"Use when a feature or area needs coordinated performance, visual, audio, and QA hardening."`
+- Native invocation: `$team-polish`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the polish team through a six-phase pipeline: performance assessment
-(performance-analyst) → optimization (performance-analyst, optionally with
-engine-programmer when engine-level root causes are found) → visual polish
-(technical-artist, parallel with Phase 2) → audio polish (sound-designer, parallel
-with Phase 2) → hardening (qa-tester) → sign-off (orchestrator collects all results
-and issues READY FOR RELEASE or NEEDS MORE WORK). Uses `request_user_input` at each
-phase transition. Engine-programmer is spawned conditionally only when Phase 1
-identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE WORK.
+`$team-polish` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: READY FOR RELEASE, NEEDS MORE WORK
 - [ ] Contains "File Write Protocol" section
-- [ ] File writes are delegated to sub-agents — orchestrator does not write files directly
-- [ ] Sub-agents enforce "May I write to [path]?" before any write
+- [ ] File writes are delegated to child custom agents — orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$release-checklist`, `$sprint-plan update`, `$gate-check`)
 - [ ] Error Recovery Protocol section is present
 - [ ] `request_user_input` is used at phase transitions before proceeding
@@ -54,13 +68,13 @@ identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE 
 6. Phase 5: qa-tester runs edge case tests, soak tests, stress tests, and regression tests; all pass
 7. `request_user_input` presents test results; user approves before Phase 6
 8. Phase 6: orchestrator collects all results; compares before/after performance metrics against budgets; all metrics pass
-9. Subagent asks "May I write the polish report to `production/qa/evidence/polish-combat-[date].md`?" before writing
+9. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 10. Verdict: READY FOR RELEASE
 
 **Assertions:**
 - [ ] performance-analyst is spawned first in Phase 1 before any other agents
 - [ ] `request_user_input` appears after Phase 1 output and before Phases 2/3/4 launch
-- [ ] Phases 3 and 4 Task calls are issued at the same time as Phase 2 (not after Phase 2 completes)
+- [ ] Phases 3 and 4 child-agent delegations are issued at the same time as Phase 2 (not after Phase 2 completes)
 - [ ] engine-programmer is NOT spawned when Phase 1 finds no engine-level root causes
 - [ ] qa-tester (Phase 5) is not launched until the parallel phases complete and user approves
 - [ ] Phase 6 verdict is based on comparison of metrics against defined budgets
@@ -144,7 +158,7 @@ identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE 
 **Assertions:**
 - [ ] engine-programmer is NOT spawned in Phase 2 unless Phase 1 explicitly identifies an engine-level root cause
 - [ ] engine-programmer is spawned in Phase 2 when Phase 1 identifies an engine-level root cause
-- [ ] engine-programmer and performance-analyst Task calls in Phase 2 are issued simultaneously (not sequentially)
+- [ ] engine-programmer and performance-analyst child-agent delegations in Phase 2 are issued simultaneously (not sequentially)
 - [ ] Phases 3 and 4 also run in parallel with Phase 2 (not deferred until Phase 2 completes)
 - [ ] engine-programmer's output includes profiler validation of the fix
 - [ ] qa-tester in Phase 5 runs regression tests that cover the engine-level change
@@ -166,7 +180,7 @@ identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE 
 2. Phase 5: qa-tester runs regression tests and detects "Item highlight glow on hover no longer renders — regression introduced by shader optimization in Phase 3"
 3. qa-tester returns test results with the regression noted
 4. Orchestrator surfaces the regression immediately: "qa-tester: REGRESSION FOUND — `item-highlight-hover` glow broken by Phase 3 shader optimization"
-5. Subagent files a bug report asking "May I write the bug report to `production/qa/evidence/bug-polish-inventory-ui-[date].md`?" before writing
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Bug report is written after approval; it includes: the broken behavior, the polish change that caused it, reproduction steps, and severity
 7. `request_user_input` presents the regression with options:
    - Revert the shader optimization and find an alternative approach
@@ -177,7 +191,7 @@ identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE 
 **Assertions:**
 - [ ] Regression is surfaced before Phase 6 sign-off
 - [ ] The specific broken behavior and the responsible change are both named in the report
-- [ ] Subagent asks "May I write the bug report to [path]?" before filing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Bug report includes: broken behavior, causal change, reproduction steps, severity
 - [ ] `request_user_input` offers options including revert, fix in place, and schedule later
 - [ ] Verdict is NEEDS MORE WORK when a regression is present and unresolved
@@ -191,8 +205,8 @@ identifies engine-level root causes. Verdict is READY FOR RELEASE or NEEDS MORE 
 - [ ] `request_user_input` is used after every phase output before the next phase launches
 - [ ] Phases 3 and 4 are always launched in parallel with Phase 2 (not deferred)
 - [ ] engine-programmer is only spawned when Phase 1 explicitly identifies engine-level root causes
-- [ ] No files are written by the orchestrator directly — all writes are delegated to sub-agents
-- [ ] Each sub-agent enforces the "May I write to [path]?" protocol before any write
+- [ ] No files are written by the orchestrator directly — all writes are delegated to child custom agents
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] BLOCKED status from any agent is surfaced immediately — not silently skipped
 - [ ] A partial report is always produced when some agents complete and others block
 - [ ] Verdict is exactly READY FOR RELEASE or NEEDS MORE WORK — no other verdict values used

@@ -1,15 +1,15 @@
 # Engine Reference Documentation
 
 This directory contains curated, version-pinned documentation snapshots for the
-game engine(s) used in this project. These files exist because **LLM knowledge
-has a cutoff date** and game engines update frequently.
+game engine(s) used in this project. These files exist because model knowledge
+must be verified against rapidly changing engine releases.
 
 ## Why This Exists
 
-Claude's training data has a knowledge cutoff (currently May 2025). Game engines
-like Godot, Unity, and Unreal ship updates that introduce breaking API changes,
-new features, and deprecated patterns. Without these reference files, agents will
-suggest outdated code.
+Godot, Unity, and Unreal ship updates that introduce breaking API changes, new
+features, and deprecated patterns. Treat these version-pinned references and
+their linked official documentation as authoritative for version-sensitive
+implementation choices.
 
 ## Structure
 
@@ -42,7 +42,7 @@ Engine-specialist agents are instructed to:
 
 - After upgrading the engine version
 - When the LLM model is updated (new knowledge cutoff)
-- After running `/refresh-docs` (if available)
+- After running `$refresh-docs` (if available)
 - When you discover an API the model gets wrong
 
 ### How to Update

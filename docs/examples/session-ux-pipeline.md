@@ -51,14 +51,17 @@
 > > **Approach: Persistent Minimal**
 > > The HUD is always visible but occupies minimal screen real estate. The player is a resource-managing survivor — denying HP/stamina visibility creates frustration, not tension. All critical stats are readable at a glance without interrupting exploration focus. Elements scale in visual weight when they become urgent (HP below 30% pulses, stamina at 0 flashes), then return to minimal state.
 >
-> May I write this to `design/ux/hud.md` as the Philosophy section?
+> Proposed bounded UX changeset: `design/ux/hud.md`, the inventory screen spec,
+> and accessibility review evidence. Approve this UX phase?
 
 **User:**
 > Yes
 
 **Agent creates `design/ux/hud.md` and writes Philosophy section.**
 
-*(Turns 4–7 continue the section-by-section HUD authoring: Info Architecture, Zones, Element Specs, State Machine, Visual Budget, Platform Adaptation — each drafted, approved, and written to file.)*
+*(Turns 4–7 continue inside the approved UX phase: Codex resolves material
+decisions for Info Architecture, Zones, Element Specs, State Machine, Visual
+Budget, and Platform Adaptation, then writes each section incrementally.)*
 
 ---
 
@@ -168,7 +171,8 @@ design/ux/hud.md
 >
 > > Press F (or South button) to pick up item at cursor. Item enters "held" state with visual indicator. Press F again on target slot to place. Press Escape to cancel and return item.
 >
-> May I write this to `design/ux/screens/inventory.md` and re-run the accessibility check?
+> This correction is inside the approved UX changeset. I will update
+> `design/ux/screens/inventory.md` and re-run the accessibility check.
 
 **User:**
 > Yes

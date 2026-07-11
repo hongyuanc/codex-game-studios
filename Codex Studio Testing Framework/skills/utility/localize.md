@@ -1,18 +1,29 @@
 # Skill Test Spec: $localize
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/localize/SKILL.md`
+- Runtime name: `localize`
+- Runtime trigger description: `"Use when game strings, translations, cultural review, VO, RTL support, string freeze, or localization QA need attention."`
+- Native invocation: `$localize`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$localize` manages the full localization pipeline: it extracts all player-facing
-strings from source files, manages translation files in `assets/localization/`,
-and validates completeness across all locale files. For new languages, it creates
-a locale file skeleton with all current strings as keys and empty values. For
-existing locale files, it produces a diff showing additions, removals, and
-changed keys.
+`$localize` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-Translation files are written to `assets/localization/[locale-code].csv` (or
-engine-appropriate format) after a "May I write" ask. No director gates apply.
-Verdicts: LOCALIZATION COMPLETE (all locales are complete) or GAPS FOUND (at
-least one locale is missing string keys).
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ least one locale is missing string keys).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: LOCALIZATION COMPLETE, GAPS FOUND
-- [ ] Contains "May I write" collaborative protocol language before writing locale files
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., send locale skeletons to translators)
 
 ---
@@ -50,14 +61,14 @@ lead agent may review separately but is not invoked within this skill.
 1. Skill extracts all player-facing strings from source files
 2. Skill finds the same strings in `en.csv` as a reference
 3. Skill generates `fr.csv` skeleton with all string keys and empty values
-4. Skill asks "May I write to `assets/localization/fr.csv`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. File written on approval; verdict is GAPS FOUND (file created but empty values)
 6. Skill notes: "fr.csv created — send to translator to fill values"
 
 **Assertions:**
 - [ ] All string keys from `en.csv` are present in `fr.csv`
 - [ ] All values in `fr.csv` are empty (not copied from English)
-- [ ] "May I write" is asked before creating the file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is GAPS FOUND (file is created but untranslated)
 
 ---
@@ -78,7 +89,7 @@ lead agent may review separately but is not invoked within this skill.
    - 3 new keys (need translation — listed as empty in fr.csv)
    - 1 removed key (marked as obsolete — suggest removal)
    - 2 changed keys (English source changed — French may need update, flagged)
-4. Skill asks "May I update `assets/localization/fr.csv`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. File updated with new empty keys added, obsolete keys marked; verdict is GAPS FOUND
 
 **Assertions:**
@@ -161,7 +172,7 @@ lead agent may review separately but is not invoked within this skill.
 - [ ] Creates new locale files with all keys as empty values (not auto-translated)
 - [ ] Diffs existing locale files against current source strings
 - [ ] Flags missing keys by locale and by key name
-- [ ] Asks "May I write" before creating or updating any locale file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is LOCALIZATION COMPLETE (all locales fully translated) or GAPS FOUND
 
 ---

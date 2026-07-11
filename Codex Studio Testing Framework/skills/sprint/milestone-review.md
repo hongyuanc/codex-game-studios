@@ -1,13 +1,29 @@
 # Skill Test Spec: $milestone-review
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/milestone-review/SKILL.md`
+- Runtime name: `milestone-review`
+- Runtime trigger description: `"Use when a milestone checkpoint needs completeness, quality, risk, schedule, and go/no-go assessment."`
+- Native invocation: `$milestone-review`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$milestone-review` generates a comprehensive review of a completed milestone:
-what shipped, velocity metrics, deferred items, risks surfaced, and retrospective
-seeds. In full mode the PR-MILESTONE director gate runs after the review is
-compiled (producer reviews scope delivery). In lean and solo modes the gate is
-skipped. The skill asks "May I write to `production/milestones/review-milestone-N.md`?"
-before persisting. Verdicts: MILESTONE COMPLETE or MILESTONE INCOMPLETE.
+`$milestone-review` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ before persisting. Verdicts: MILESTONE COMPLETE or MILESTONE INCOMPLETE.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: MILESTONE COMPLETE, MILESTONE INCOMPLETE
-- [ ] Contains "May I write" language (skill writes review document)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after review is written)
 
 ---
@@ -48,14 +64,14 @@ Verified automatically by `$skill-test static` — no fixture needed.
 2. Skill compiles: 7 shipped, 1 deferred; velocity; no blockers
 3. Skill presents review draft to user
 4. PR-MILESTONE gate invoked; producer approves
-5. Skill asks "May I write to `production/milestones/review-milestone-03.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. User approves; file is written; verdict MILESTONE COMPLETE
 
 **Assertions:**
 - [ ] Deferred story is noted in the review with its target milestone
 - [ ] Verdict is MILESTONE COMPLETE despite the one deferred story
 - [ ] PR-MILESTONE gate is invoked after draft compilation in full mode
-- [ ] Skill asks "May I write" before writing review file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Review document path matches `production/milestones/review-milestone-03.md`
 
 ---
@@ -81,7 +97,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Verdict is MILESTONE INCOMPLETE when any stories are Blocked
 - [ ] Each blocked story's name and blocker reason is listed in the review
 - [ ] PR-MILESTONE gate is still invoked in full mode even for INCOMPLETE verdict
-- [ ] "May I write" prompt still appears before file write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -155,7 +171,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ## Protocol Compliance
 
 - [ ] Shows compiled review draft before invoking PR-MILESTONE or asking to write
-- [ ] Always asks "May I write" before writing review document
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] PR-MILESTONE gate only runs in full mode
 - [ ] Skip message appears in lean and solo output
 - [ ] Verdict is MILESTONE COMPLETE or MILESTONE INCOMPLETE, stated clearly

@@ -1,10 +1,21 @@
 # Agent Test Spec: qa-tester
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/qa-tester.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Luna** (`gpt-5.6-luna`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Detailed test case authoring, bug reports (structured format), test execution documentation, regression checklists, smoke check execution docs, test evidence recording per the project's coding standards
 - **Does NOT own**: Test strategy and test plan design (qa-lead), implementation fixes for found bugs (appropriate programmer), QA process architecture (qa-lead)
 - **Category**: qa
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; flags ambiguous acceptance criteria to qa-lead rather than resolving independently
 
 ---
@@ -12,8 +23,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references test cases, bug reports, test execution, regression testing)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for tests/ and production/qa/evidence/; no source code editing tools)
-- [ ] Model tier is Sonnet (default for QA specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over test strategy, fix implementation, or acceptance criterion definition
 
 ---

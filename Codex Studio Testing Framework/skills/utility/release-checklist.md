@@ -1,16 +1,29 @@
 # Skill Test Spec: $release-checklist
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/release-checklist/SKILL.md`
+- Runtime name: `release-checklist`
+- Runtime trigger description: `"Use when build, certification, store, content, and launch readiness need a read-only pre-release evaluation."`
+- Native invocation: `$release-checklist`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$release-checklist` generates an internal release readiness checklist covering:
-sprint story completion, open bug severity, QA sign-off status, build stability,
-and changelog readiness. It is an internal gate — not a platform/store checklist
-(that is `$launch-checklist`). When a previous release checklist exists, it shows
-a delta of resolved and newly introduced issues.
+`$release-checklist` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill writes its checklist report to `production/releases/release-checklist-[date].md`
-after a "May I write" ask. No director gates apply — `$gate-check` handles
-formal phase gate logic. Verdicts: RELEASE READY, RELEASE BLOCKED, or CONCERNS.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -18,10 +31,10 @@ formal phase gate logic. Verdicts: RELEASE READY, RELEASE BLOCKED, or CONCERNS.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: RELEASE READY, RELEASE BLOCKED, CONCERNS
-- [ ] Contains "May I write" collaborative protocol language before writing the report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$launch-checklist` for external or `$gate-check` for phase)
 
 ---
@@ -51,7 +64,7 @@ is managed by `$gate-check`.
 2. Skill reads bugs: no HIGH or CRITICAL open bugs
 3. Skill confirms QA plan has sign-off
 4. Skill confirms changelog entry exists
-5. All checks pass; skill asks "May I write to
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
    `production/releases/release-checklist-2026-04-06.md`?"
 6. Report written; verdict is RELEASE READY
 
@@ -59,7 +72,7 @@ is managed by `$gate-check`.
 - [ ] All 4 check categories are evaluated (stories, bugs, QA, changelog)
 - [ ] All items appear with PASS markers
 - [ ] Verdict is RELEASE READY
-- [ ] "May I write" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -160,7 +173,7 @@ is managed by `$gate-check`.
 - [ ] Checks QA plan sign-off status
 - [ ] Checks changelog existence
 - [ ] Compares against previous checklist when one exists
-- [ ] Asks "May I write" before writing the report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is RELEASE READY, RELEASE BLOCKED, or CONCERNS
 
 ---

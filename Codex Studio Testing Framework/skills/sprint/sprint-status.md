@@ -1,13 +1,29 @@
 # Skill Test Spec: $sprint-status
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/sprint-status/SKILL.md`
+- Runtime name: `sprint-status`
+- Runtime trigger description: `"Use when someone asks for a quick sprint update, burndown assessment, blocker scan, or current progress snapshot."`
+- Native invocation: `$sprint-status`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$sprint-status` is a Haiku-tier read-only skill that reads the current active
-sprint file and the session state to produce a concise sprint health summary.
-It reports story counts by status (Complete / In Progress / Blocked / Not Started)
-and emits one of three sprint-health verdicts: ON TRACK, AT RISK, or BLOCKED.
-It never writes files and does not invoke any director gates. It is designed for
-fast, low-cost status checks during a session.
+`$sprint-status` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ fast, low-cost status checks during a session.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings or numbered check sections
 - [ ] Contains verdict keywords: ON TRACK, AT RISK, BLOCKED
-- [ ] Does NOT require "May I write" language (read-only skill)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do based on the verdict)
 
 ---
@@ -141,7 +157,7 @@ None. `$sprint-status` is a read-only reporting skill; no gates are invoked.
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
-- [ ] Output does not contain any "May I write" prompt
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill completes and returns a verdict without user interaction
 - [ ] Review mode file is ignored (or confirmed irrelevant) by this skill
 
@@ -153,7 +169,7 @@ None. `$sprint-status` is a read-only reporting skill; no gates are invoked.
 - [ ] Presents story count breakdown before emitting verdict
 - [ ] Does not ask for approval
 - [ ] Ends with a recommended next step based on verdict
-- [ ] Runs on Haiku model tier (fast, low-cost)
+- [ ] Runs on Luna model tier (fast, low-cost)
 
 ---
 

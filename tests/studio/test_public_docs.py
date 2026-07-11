@@ -6,9 +6,13 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 PUBLIC = [
     ROOT / "README.md",
+    ROOT / "AGENTS.md",
     ROOT / "CONTRIBUTING.md",
     ROOT / "SECURITY.md",
+    ROOT / "UPGRADING.md",
+    ROOT / "docs/COLLABORATIVE-DESIGN-PRINCIPLE.md",
     ROOT / "docs/WORKFLOW-GUIDE.md",
+    ROOT / "docs/engine-reference/README.md",
     *sorted((ROOT / "docs/examples").glob("*.md")),
     *sorted((ROOT / ".github/ISSUE_TEMPLATE").glob("*.md")),
     ROOT / ".github/PULL_REQUEST_TEMPLATE.md",
@@ -21,7 +25,27 @@ FORBIDDEN = (
     "subagent_type",
     ".claude/",
     ".Codex/",
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "claude --version",
+    "slash command",
+    "slash commands",
+    "multi-select",
+    "2-4 options",
+    "2–4 options",
+    "Batch up to 4",
+    "session-start.sh",
 )
+
+
+def local_markdown_links(path: Path) -> list[str]:
+    links = []
+    for target in re.findall(r"(?<!!)\[[^]]+\]\(([^)]+)\)", path.read_text(encoding="utf-8")):
+        target = target.strip().split(maxsplit=1)[0].strip("<>")
+        if re.match(r"(?:https?://|mailto:|#)", target):
+            continue
+        links.append(target.split("#", 1)[0])
+    return [link for link in links if link]
 
 
 class PublicDocumentationTests(unittest.TestCase):
@@ -35,6 +59,17 @@ class PublicDocumentationTests(unittest.TestCase):
         missing = [target for target in local_links if not (ROOT / target).exists()]
         imports = re.findall(r"^@([^\s]+)$", (ROOT / "AGENTS.md").read_text(encoding="utf-8"), re.MULTILINE)
         missing.extend(target for target in imports if not (ROOT / target).exists())
+        self.assertEqual([], missing)
+
+    def test_all_public_markdown_links_resolve_recursively(self):
+        missing = []
+        for path in PUBLIC:
+            if path.suffix != ".md":
+                continue
+            for target in local_markdown_links(path):
+                destination = (path.parent / target).resolve()
+                if not destination.exists():
+                    missing.append(f"{path.relative_to(ROOT)} -> {target}")
         self.assertEqual([], missing)
 
     def test_readme_has_exact_codex_entry_path(self):
@@ -55,11 +90,69 @@ class PublicDocumentationTests(unittest.TestCase):
     def test_runtime_public_surface_is_codex_only(self):
         failures = []
         for path in PUBLIC:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = path.read_text(encoding="utf-8")
             for token in FORBIDDEN:
                 if token in text:
                     failures.append(f"{path.relative_to(ROOT)}: {token}")
         self.assertEqual([], failures)
+
+    def test_public_runtime_contract_is_native_and_phase_gated(self):
+        contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+        principle = (ROOT / "docs/COLLABORATIVE-DESIGN-PRINCIPLE.md").read_text(encoding="utf-8")
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        for token in ("name", "description", "trigger", ".codex/agents/*.toml", "hook_runner.py"):
+            self.assertIn(token, contributing)
+        self.assertIn("phase-gated", contributing)
+        self.assertIn("hook_runner.py", security)
+        self.assertIn("OpenAI", security)
+        self.assertIn("$start", agents)
+        self.assertNotIn("/start", agents)
+        self.assertNotIn("Claude", gitignore)
+
+        for token in (
+            "phase-gated", "request_user_input", "one decision at a time",
+            "1-3 questions", "2-3 mutually exclusive options", ".codex/agents/*.toml",
+        ):
+            self.assertIn(token, principle)
+        self.assertNotIn("before every file", principle.lower())
+        self.assertNotIn("May I write this to", principle)
+
+    def test_workflow_guide_has_exact_native_inventory(self):
+        text = (ROOT / "docs/WORKFLOW-GUIDE.md").read_text(encoding="utf-8")
+        self.assertIn("73 skills", text)
+        self.assertIn("10 Python hook actions", text)
+        self.assertIn(".codex/hooks/hook_runner.py", text)
+        self.assertNotIn("12 automated hooks", text)
+        self.assertNotIn("/clear", text)
+
+    def test_public_templates_use_native_component_contracts(self):
+        files = [
+            ROOT / ".github/ISSUE_TEMPLATE/bug_report.md",
+            ROOT / ".github/ISSUE_TEMPLATE/feature_request.md",
+            ROOT / ".github/PULL_REQUEST_TEMPLATE.md",
+            ROOT / ".github/CODEOWNERS",
+        ]
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
+        self.assertIn("$<skill>", combined)
+        self.assertIn(".codex/agents/", combined)
+        self.assertIn(".codex/hooks/hook_runner.py", combined)
+        self.assertIn("AGENTS.md", combined)
+        self.assertNotIn("slash command", combined.lower())
+
+    def test_upgrade_guide_preserves_a_complete_migration_method(self):
+        text = (ROOT / "UPGRADING.md").read_text(encoding="utf-8")
+        for heading in (
+            "## Choose a migration strategy", "## Preserve project-owned work",
+            "## Merge without losing customizations", "## Breaking changes",
+            "## Verification checklist", "## Rollback",
+        ):
+            self.assertIn(heading, text)
+        self.assertIn("source system", text)
+        self.assertIn("Codex-only", text)
+        self.assertIn("production/migration/claude-to-codex-coverage.yaml", text)
 
     def test_public_skill_invocations_use_dollar_syntax(self):
         names = {
@@ -68,7 +161,7 @@ class PublicDocumentationTests(unittest.TestCase):
         slash = re.compile(r"(?<![A-Za-z0-9_.-])/((?:" + "|".join(sorted(map(re.escape, names))) + r"))\b")
         failures = []
         for path in PUBLIC:
-            for match in slash.finditer(path.read_text(encoding="utf-8", errors="ignore")):
+            for match in slash.finditer(path.read_text(encoding="utf-8")):
                 failures.append(f"{path.relative_to(ROOT)}: /{match.group(1)}")
         self.assertEqual([], failures)
 

@@ -1,12 +1,29 @@
 # Skill Test Spec: $asset-audit
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/asset-audit/SKILL.md`
+- Runtime name: `asset-audit`
+- Runtime trigger description: `Audit game assets for naming, format, budget, reference, and pipeline compliance.`
+- Native invocation: `$asset-audit`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$asset-audit` audits the `assets/` directory for naming convention compliance,
-missing metadata, and format/size issues. It reads asset files against the
-conventions and budgets defined in `technical-preferences.md`. No director gates
-are invoked. The skill does not write without user approval. Verdicts: COMPLIANT,
-WARNINGS, or NON-COMPLIANT.
+`$asset-audit` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -14,10 +31,10 @@ WARNINGS, or NON-COMPLIANT.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLIANT, WARNINGS, NON-COMPLIANT
-- [ ] Does NOT require "May I write" language (read-only; optional report requires approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after audit results)
 
 ---
@@ -140,13 +157,13 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 3. Verdict is WARNINGS
 4. Output notes: "Consider having a Technical Artist review naming conventions"
 5. Skill presents findings; offers optional audit report write
-6. If user opts in: "May I write to `production/qa/asset-audit-[date].md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] Technical artist consultation is suggested (not mandated)
 - [ ] Findings table is presented before any write prompt
-- [ ] Optional audit report write asks "May I write" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 

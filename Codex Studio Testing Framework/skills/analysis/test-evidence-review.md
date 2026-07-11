@@ -1,13 +1,29 @@
 # Skill Test Spec: $test-evidence-review
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/test-evidence-review/SKILL.md`
+- Runtime name: `test-evidence-review`
+- Runtime trigger description: `"Use when tests or manual evidence need quality, assertion, edge-case, naming, sign-off, or completeness review before QA closure."`
+- Native invocation: `$test-evidence-review`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$test-evidence-review` performs a quality review of test files in `tests/`,
-checking test naming conventions, determinism, isolation, and absence of
-hardcoded magic numbers — all against the project's test standards defined in
-`coding-standards.md`. Findings may be flagged for qa-lead review. No director
-gates are invoked. The skill does not write without user approval. Verdicts:
-PASS, WARNINGS, or FAIL.
+`$test-evidence-review` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ PASS, WARNINGS, or FAIL.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: PASS, WARNINGS, FAIL
-- [ ] Does NOT require "May I write" language (read-only; write is optional flagging report)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after findings are reviewed)
 
 ---
@@ -147,12 +163,12 @@ is a separate skill invocation and is NOT triggered here.
 2. No director gate is invoked (QL-TEST-COVERAGE is invoked separately, not here)
 3. Verdict is WARNINGS
 4. Output notes: "For full test coverage gate, run `$gate-check` which invokes QL-TEST-COVERAGE"
-5. Skill offers optional report write; asks "May I write" if user opts in
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] Output distinguishes this skill from the QL-TEST-COVERAGE gate invocation
-- [ ] Optional report requires "May I write" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is WARNINGS for advisory-level test quality issues
 
 ---

@@ -1,21 +1,38 @@
 # Skill Test Spec: $team-live-ops
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-live-ops/SKILL.md`
+- Runtime name: `team-live-ops`
+- Runtime trigger description: `"Use when a season, event, or live content update needs coordinated design, economy, analytics, communication, writing, and narrative planning."`
+- Native invocation: `$team-live-ops`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the live-ops team through a 7-phase planning pipeline to produce a
-season or event plan. Coordinates live-ops-designer, economy-designer,
-analytics-engineer, community-manager, narrative-director, and writer. Phases 3
-and 4 (economy design and analytics) run simultaneously. Ends with a consolidated
-season plan requiring user approval before handoff to production.
+`$team-live-ops` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" language in the File Write Protocol section (delegated to sub-agents)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a File Write Protocol section stating that the orchestrator does not write files directly
 - [ ] Has a next-step handoff at the end referencing `$design-review`, `$sprint-plan`, and `$team-release`
 - [ ] Uses `request_user_input` at phase transitions to capture user approval before proceeding
@@ -38,23 +55,23 @@ season plan requiring user approval before handoff to production.
 **Input:** `$team-live-ops "Season 2: The Frozen Wastes"`
 
 **Expected behavior:**
-1. Phase 1: Spawns `live-ops-designer` via Task; receives season brief with scope, content list, and retention mechanic; presents to user
+1. Phase 1: Delegates the season brief to `live-ops-designer`; the parent receives and presents the scoped result
 2. request_user_input: user approves Phase 1 output before Phase 2 begins
-3. Phase 2: Spawns `narrative-director` via Task; reads the Phase 1 season brief; produces narrative framing document (theme, story hook, lore connections); presents to user
-4. Phase 3 and 4 (parallel): Spawns `economy-designer` and `analytics-engineer` simultaneously via two Task calls before waiting for either result; economy-designer reads `design/live-ops/economy-rules.md`
+3. Phase 2: Delegates narrative framing to `narrative-director`; the parent receives and presents the theme, story hook, and lore connections
+4. Phase 3 and 4 (parallel): Spawns `economy-designer` and `analytics-engineer` simultaneously via two child-agent delegations before waiting for either result; economy-designer reads `design/live-ops/economy-rules.md`
 5. Phase 5: Spawns `narrative-director` and `writer` in parallel to produce in-game narrative text and player-facing copy; both read Phase 2 narrative framing doc
-6. Phase 6: Spawns `community-manager` via Task; reads season brief, economy design, and narrative framing; produces communication calendar with draft copy
+6. Phase 6: Spawns `community-manager` as a direct child custom agent; reads season brief, economy design, and narrative framing; produces communication calendar with draft copy
 7. Phase 7: Collects all phase outputs; presents consolidated season plan summary including economy health check, analytics readiness, ethics review, and open questions
 8. request_user_input: user approves the full season plan
-9. Sub-agents ask "May I write to `design/live-ops/seasons/S2_The_Frozen_Wastes.md`?", `...analytics.md`, and `...comms.md` before writing
+9. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 10. Verdict: COMPLETE — season plan produced and handed off for production
 
 **Assertions:**
-- [ ] All 7 phases execute in order; Phase 3 and 4 are issued as parallel Task calls
+- [ ] All 7 phases execute in order; Phase 3 and 4 are issued as parallel child-agent delegations
 - [ ] Phase 7 consolidated summary includes all six sections (season brief, narrative framing, economy design, analytics plan, content inventory, communication calendar)
 - [ ] Ethics review section in Phase 7 explicitly references `design/live-ops/ethics-policy.md`
 - [ ] Three output documents written to `design/live-ops/seasons/` with correct naming convention
-- [ ] File writes are delegated to sub-agents — orchestrator does not write directly
+- [ ] File writes are delegated to child custom agents — orchestrator does not write directly
 - [ ] Verdict: COMPLETE appears in final output
 - [ ] Next steps reference `$design-review`, `$sprint-plan`, and `$team-release`
 
@@ -100,8 +117,8 @@ season plan requiring user approval before handoff to production.
 
 **Assertions:**
 - [ ] Skill does NOT guess a season name or fabricate a scope
-- [ ] Error message includes the correct usage format with the argument-hint
-- [ ] No Task calls are issued before the argument check fails
+- [ ] Error message includes the correct usage format with the invocation arguments
+- [ ] No child-agent delegations are issued before the argument check fails
 - [ ] No files are read or written
 
 ---
@@ -116,13 +133,13 @@ season plan requiring user approval before handoff to production.
 **Input:** `$team-live-ops "Season 1: The First Thaw"` (observed at Phase 3/4 transition)
 
 **Expected behavior:**
-1. After Phase 2 is approved by the user, the orchestrator issues both Task calls (economy-designer and analytics-engineer) before awaiting either result
+1. After Phase 2 is approved by the user, the orchestrator issues both child-agent delegations (economy-designer and analytics-engineer) before awaiting either result
 2. Both agents receive the season brief as context; analytics-engineer does NOT wait for economy-designer output to begin
 3. Economy-designer output and analytics-engineer output are collected together before Phase 5 begins
 4. If one of the two parallel agents blocks, the other continues; a partial result is reported
 
 **Assertions:**
-- [ ] Both Task calls for Phase 3 and Phase 4 are issued before either result is awaited — they are not sequential
+- [ ] Both child-agent delegations for Phase 3 and Phase 4 are issued before either result is awaited — they are not sequential
 - [ ] Analytics-engineer prompt does NOT include economy-designer output as a required input (the inputs are independent)
 - [ ] If economy-designer blocks but analytics-engineer succeeds, analytics output is preserved and the block is surfaced via request_user_input
 - [ ] Phase 5 does not begin until BOTH Phase 3 and Phase 4 results are collected
@@ -160,8 +177,8 @@ season plan requiring user approval before handoff to production.
 
 - [ ] `request_user_input` used at every phase transition — user approves before the next phase begins
 - [ ] Phases 3 and 4 are always spawned in parallel, not sequentially
-- [ ] File Write Protocol: orchestrator never calls Write/Edit directly — all writes are delegated to sub-agents
-- [ ] Each output document gets its own "May I write to [path]?" ask from the relevant sub-agent
+- [ ] File Write Protocol: orchestrator never calls Write/Edit directly — all writes are delegated to child custom agents
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Ethics review in Phase 7 always references the ethics policy file path explicitly
 - [ ] Error recovery: any BLOCKED agent is surfaced immediately with request_user_input options (skip / retry / stop)
 - [ ] Partial reports are produced if any phase blocks — work is never discarded
@@ -172,7 +189,7 @@ season plan requiring user approval before handoff to production.
 
 ## Coverage Notes
 
-- Phase 5 parallel spawning (narrative-director + writer) follows the same pattern as Phases 3/4 but is not separately tested here — it uses the same parallel Task protocol validated in Case 4.
+- Phase 5 parallel spawning (narrative-director + writer) follows the same pattern as Phases 3/4 but is not separately tested here — it uses the same parallel direct-child delegation protocol validated in Case 4.
 - The "economy-rules.md absent" edge case is not separately tested — it would surface as a BLOCKED result from economy-designer and follow the standard error recovery path tested implicitly in Case 4.
 - The full content writing pipeline (Phase 5 output validation) is validated implicitly by the Case 1 happy path consolidated summary check.
 - Community manager communication calendar format (pre-launch, launch day, mid-season, final week) is validated implicitly by Case 1; no separate edge case is needed.

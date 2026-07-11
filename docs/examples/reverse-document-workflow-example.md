@@ -85,7 +85,8 @@ SECTIONS:
    - Should respec cost scale with level or stay flat?
    - Tier 5 damage bonus: tune to +30% or keep +50%?
 
-**May I write this to design/gdd/skill-system.md?**
+**Proposed bounded changeset:** write `design/gdd/skill-system.md`, update its
+registry entry, and run `$design-review`. **Approve this reverse-document phase?**
 ```
 
 **User:**

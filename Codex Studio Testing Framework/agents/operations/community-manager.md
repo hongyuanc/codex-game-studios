@@ -1,9 +1,20 @@
 # Agent Test Spec: community-manager
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/community-manager.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Luna** (`gpt-5.6-luna`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Player-facing communications — patch notes text (player-friendly), social media post drafts, community update announcements, crisis communication response plans, bug triage and routing from player reports (not fixing)
 - **Does NOT own**: Technical patch content (devops-engineer), QA verification and test execution (qa-lead), bug fixes (programmers), brand strategy direction (creative-director)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; escalates brand voice conflicts to creative-director
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references player communication, patch notes, community management)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for production/releases/patch-notes/ and communication drafts; no code or build tools)
-- [ ] Model tier is Sonnet (default for operations specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over technical content, QA strategy, or bug fixing
 
 ---

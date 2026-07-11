@@ -1,14 +1,29 @@
 # Skill Test Spec: $sprint-plan
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/sprint-plan/SKILL.md`
+- Runtime name: `sprint-plan`
+- Runtime trigger description: `"Use when a sprint needs creation, replanning, capacity allocation, milestone alignment, or backlog prioritization."`
+- Native invocation: `$sprint-plan`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$sprint-plan` reads the current milestone file and backlog stories, then
-generates a new numbered sprint with stories prioritized by implementation layer
-and priority score. In full mode the PR-SPRINT director gate runs after the
-sprint draft is compiled (producer reviews the plan). In lean and solo modes
-the gate is skipped. The skill asks "May I write to `production/sprints/sprint-NNN.md`?"
-before persisting. Verdicts: COMPLETE (sprint generated and written) or
-BLOCKED (cannot proceed due to missing data or gate failure).
+`$sprint-plan` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -16,10 +31,10 @@ BLOCKED (cannot proceed due to missing data or gate failure).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" language (skill writes sprint file)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after sprint is written)
 
 ---
@@ -50,14 +65,14 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. Skill drafts sprint-003 with stories fitting within capacity
 4. Skill presents draft to user before invoking gate
 5. Skill invokes PR-SPRINT gate (full mode); producer approves
-6. Skill asks "May I write to `production/sprints/sprint-003.md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. User approves; file is written
 
 **Assertions:**
 - [ ] Stories are sorted by implementation layer before priority
 - [ ] Sprint draft is shown before any write or gate invocation
 - [ ] PR-SPRINT gate is invoked in full mode after draft is ready
-- [ ] Skill asks "May I write" before writing the sprint file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Written file path matches `production/sprints/sprint-003.md`
 - [ ] Verdict is COMPLETE after successful write
 
@@ -99,7 +114,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 2. PR-SPRINT gate runs; producer returns CONCERNS: sprint is overloaded
 3. Skill presents concern to user and asks which stories to defer
 4. User selects 3 stories to defer; sprint is revised to 5 stories / 10 points
-5. Skill asks "May I write" with revised sprint; writes on approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] CONCERNS from PR-SPRINT gate surfaces to user before any write
@@ -159,7 +174,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ## Protocol Compliance
 
 - [ ] Shows draft sprint before invoking PR-SPRINT gate or asking to write
-- [ ] Always asks "May I write" before writing sprint file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] PR-SPRINT gate only runs in full mode
 - [ ] Skip message appears in lean and solo mode output
 - [ ] Verdict is clearly stated at the end of the skill output

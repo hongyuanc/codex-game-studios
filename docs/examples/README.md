@@ -36,7 +36,7 @@ Dev runs `$design-system movement` after `$map-systems` produced the systems ind
 
 **Key Moments:**
 - Technical feasibility pre-check flags Jolt physics default change (Godot 4.6)
-- Incremental writing: each section on disk immediately after approval
+- Incremental writing inside one approved document changeset
 - Session crash during section 5 → agent resumes from first empty section
 - Dependency signals (stamina, inventory) surfaced during the Dependencies section
 - Ends with explicit handoff: "run `$design-review` before the next system"
@@ -154,7 +154,7 @@ Dev has 3 months of existing code and rough design notes but nothing in the righ
 **Complexity:** Medium
 
 **Scenario:**
-Solo dev needs to design a crafting system that serves Pillar 2 ("Emergent Discovery Through Experimentation"). The agent guides them through question/answer, presents 3 design options with game theory analysis, incorporates user modifications, and iteratively drafts the GDD with approval at each step.
+Solo dev needs to design a crafting system that serves Pillar 2 ("Emergent Discovery Through Experimentation"). The agent reads `AGENTS.md` and `.codex/studio.toml`, guides one decision at a time, presents 3 design options with game theory analysis, incorporates user modifications, and drafts the approved GDD changeset.
 
 **Key Collaborative Moments:**
 - Agent asks 5 clarifying questions upfront
@@ -162,7 +162,7 @@ Solo dev needs to design a crafting system that serves Pillar 2 ("Emergent Disco
 - User modifies recommended option, agent incorporates immediately
 - Edge case flagged proactively ("what if non-recipe combo?")
 - Each GDD section shown for approval before moving to next
-- Explicit "May I write to [file]?" before creating file
+- One complete GDD changeset is approved before in-boundary edits begin
 
 **Learn:**
 - How design agents ask about goals, constraints, references
@@ -245,7 +245,7 @@ Question → Options → Decision → Draft → Approval
 
 > **Note:** These examples show the collaborative pattern as conversational text.
 > In practice, agents now use the `request_user_input` tool at decision points to
-> present structured option pickers (with labels, descriptions, and multi-select).
+> present structured option pickers with mutually exclusive choices.
 > The pattern is **Explain → Capture**: agents explain their analysis in
 > conversation first, then present a structured UI picker for the user's decision.
 
@@ -257,7 +257,7 @@ Question → Options → Decision → Draft → Approval
    - Leadership agents gather full context before recommending
 
 2. **Agents Present Options, Not Dictates**
-   - 2-4 options with pros/cons
+   - 2-3 mutually exclusive options with pros/cons
    - Reasoning based on theory, precedent, project pillars
    - Recommendation made, but user decides
 
@@ -266,10 +266,10 @@ Question → Options → Decision → Draft → Approval
    - Architecture proposals shown before implementation
    - Strategic analysis presented before decisions
 
-4. **Agents Get Approval Before Writing Files**
-   - Explicit "May I write to [file]?" before using Write/Edit tools
-   - Multi-file changes list all affected files first
-   - User says "Yes" before any file is created
+4. **Agents Use Phase-Gated Approval**
+   - One preflight lists the complete bounded changeset
+   - The user approves material design, architecture, and scope
+   - Codex edits and tests autonomously inside that approved boundary
 
 5. **Agents Iterate on Feedback**
    - User modifications incorporated immediately
@@ -314,7 +314,7 @@ If you're teaching someone to use this system, walk through one example turn-by-
 - No assumptions or guesses
 
 ### Turn 3-5: **Present Options with Reasoning**
-- 2-4 distinct approaches
+- 2-3 mutually exclusive approaches
 - Pros/cons for each
 - Theory/precedent supporting the analysis
 - Recommendation made, decision deferred to user
@@ -325,9 +325,9 @@ If you're teaching someone to use this system, walk through one example turn-by-
 - Flag edge cases or ambiguities proactively
 
 ### Turn 9-10: **Approval and Completion**
-- "May I write to [file]?"
-- User: "Yes"
-- Agent writes files
+- Codex presents the bounded changeset and acceptance criteria
+- User approves the phase
+- Codex writes and validates the agreed files
 - Agent offers next steps (tests, review, integration)
 
 ---
@@ -342,7 +342,7 @@ After reading these examples, try this exercise:
    - ✅ Asks clarifying questions upfront
    - ✅ Presents options with reasoning
    - ✅ Shows drafts before finalizing
-   - ✅ Requests approval before writing files
+   - ✅ Requests one phase or story approval before bounded execution
 
 If the agent skips any of these, remind it:
 > "Please follow the collaborative protocol from docs/COLLABORATIVE-DESIGN-PRINCIPLE.md"
@@ -354,4 +354,5 @@ If the agent skips any of these, remind it:
 - **Full Principle Documentation:** [docs/COLLABORATIVE-DESIGN-PRINCIPLE.md](../COLLABORATIVE-DESIGN-PRINCIPLE.md)
 - **Workflow Guide:** [docs/WORKFLOW-GUIDE.md](../WORKFLOW-GUIDE.md)
 - **Agent Roster:** [.codex/docs/agent-roster.md](../../.codex/docs/agent-roster.md)
-- **CLAUDE.md (Collaboration Protocol):** [CLAUDE.md](../../CLAUDE.md#collaboration-protocol)
+- **Repository Instructions:** [AGENTS.md](../../AGENTS.md#collaboration-protocol)
+- **Studio Runtime Configuration:** [.codex/studio.toml](../../.codex/studio.toml)

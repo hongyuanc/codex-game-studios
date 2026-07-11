@@ -9,9 +9,7 @@
 Thumbs.db
 Desktop.ini
 
-# === Claude Code Local ===
-.claude/settings.local.json
-CLAUDE.local.md
+# === Codex Studio Local State ===
 production/session-logs/
 
 # === Internal Planning (not for public) ===
@@ -22,7 +20,7 @@ expansions/
 marrow/
 
 # === Runtime Artifacts (auto-generated, start empty on fresh clone) ===
-# Created on first use by /consistency-check and /architecture-review
+# Created on first use by $consistency-check and $architecture-review
 docs/consistency-failures.md
 
 # === Build Output ===

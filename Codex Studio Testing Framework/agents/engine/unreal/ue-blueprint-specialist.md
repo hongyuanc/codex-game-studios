@@ -1,9 +1,20 @@
 # Agent Test Spec: ue-blueprint-specialist
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agent-packs/unreal/ue-blueprint-specialist.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Blueprint architecture, the Blueprint/C++ boundary, Blueprint graph quality, Blueprint performance optimization, Blueprint Function Library design
 - **Does NOT own**: C++ implementation (engine-programmer or gameplay-programmer), art assets or shaders, UI/UX flow design (ux-designer)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; defers to unreal-specialist or lead-programmer for cross-domain rulings
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references Blueprint architecture and optimization)
-- [ ] `allowed-tools:` list matches the agent's role (Read for Blueprint project files; no server or deployment tools)
-- [ ] Model tier is Sonnet (default for specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over C++ implementation decisions
 
 ---

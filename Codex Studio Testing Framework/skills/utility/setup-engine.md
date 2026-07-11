@@ -1,18 +1,29 @@
 # Skill Test Spec: $setup-engine
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/setup-engine/SKILL.md`
+- Runtime name: `setup-engine`
+- Runtime trigger description: `Use when you need to configure and safely activate one native Codex engine-specialist pack for Godot, Unity, or Unreal.`
+- Native invocation: `$setup-engine`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$setup-engine` configures the project's engine, language, rendering backend,
-physics engine, specialist agent assignments, and naming conventions by
-populating `technical-preferences.md`. It accepts an optional engine argument
-(e.g., `$setup-engine godot`) to skip the engine-selection step. For each
-section of `technical-preferences.md`, the skill presents a draft and asks
-"May I write to `technical-preferences.md`?" before updating.
+`$setup-engine` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill also populates the specialist routing table (file extension → agent
-mappings) based on the chosen engine. It has no director gates — configuration
-is a technical utility task. The verdict is always COMPLETE when the file is
-fully written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ fully written.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before updating technical-preferences.md
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$brainstorm` or `$start` depending on flow)
 
 ---
@@ -53,7 +64,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
    (godot-specialist, gdscript-specialist, godot-shader-specialist, etc.)
 5. Skill populates the routing table: `.gd` → gdscript-specialist, `.gdshader` →
    godot-shader-specialist, `.tscn` → godot-specialist
-6. Skill asks "May I write to `technical-preferences.md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. File is written after approval; verdict is COMPLETE
 
 **Assertions:**
@@ -62,7 +73,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 - [ ] Naming conventions are GDScript-appropriate (snake_case)
 - [ ] Routing table includes `.gd`, `.gdshader`, and `.tscn` entries
 - [ ] Specialists are assigned (not placeholders)
-- [ ] "May I write" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -81,7 +92,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 3. Specialist assignments reference unity-specialist, csharp-specialist
 4. Routing table: `.cs` → csharp-specialist, `.asmdef` → unity-specialist,
    `.unity` (scene) → unity-specialist
-5. Skill asks "May I write to `technical-preferences.md`?" and writes on approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Engine field is set to Unity (not Godot or Unreal)
@@ -106,7 +117,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 3. Routing table: `.uasset` → blueprint-specialist or unreal-specialist,
    `.umap` → unreal-specialist
 4. Performance budgets are pre-set with Unreal defaults (e.g., higher draw call budget)
-5. Skill asks "May I write" and writes on approval; verdict is COMPLETE
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Engine field is set to Unreal Engine 5
@@ -131,7 +142,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
    (Engine/Language, Naming Conventions, Specialists, Performance Budgets)
 4. User selects "Reconfigure Performance Budgets only"
 5. Only the performance budget section is updated; all other fields unchanged
-6. Skill asks "May I write to `technical-preferences.md`?" and writes on approval
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill does NOT overwrite all fields when only a section update was requested
@@ -163,7 +174,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ## Protocol Compliance
 
 - [ ] Presents draft configuration before asking to write
-- [ ] Asks "May I write to `technical-preferences.md`?" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Respects engine argument when provided (skips selection step)
 - [ ] Detects existing config and offers partial reconfigure
 - [ ] Routing table is populated for all key file types for the chosen engine

@@ -1,13 +1,29 @@
 # Skill Test Spec: $tech-debt
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/tech-debt/SKILL.md`
+- Runtime name: `tech-debt`
+- Runtime trigger description: `Scan, record, prioritize, or report technical debt in the game project.`
+- Native invocation: `$tech-debt`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$tech-debt` tracks, categorizes, and prioritizes technical debt across the
-codebase. It reads `docs/tech-debt-register.md` for the existing debt register
-and scans source files in `src/` for inline `TODO` and `FIXME` comments. It
-merges and sorts items by severity. No director gates are invoked. The skill
-asks "May I write to `docs/tech-debt-register.md`?" before updating. Verdicts:
-REGISTER UPDATED or NO NEW DEBT FOUND.
+`$tech-debt` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ REGISTER UPDATED or NO NEW DEBT FOUND.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: REGISTER UPDATED, NO NEW DEBT FOUND
-- [ ] Contains "May I write" language (skill writes to debt register)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after register is updated)
 
 ---
@@ -46,14 +62,14 @@ invoked.
 2. Skill scans `src/` — finds 3 inline comments (2 TODOs, 1 FIXME)
 3. Skill checks whether inline comments already exist in the register (deduplication)
 4. Skill presents combined list sorted by severity (FIXME before TODO by default)
-5. Skill asks "May I write to `docs/tech-debt-register.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. User approves; register updated; verdict REGISTER UPDATED
 
 **Assertions:**
 - [ ] Inline comments are found by scanning `src/` recursively
 - [ ] Existing register items are not duplicated
 - [ ] Combined list is sorted by severity
-- [ ] "May I write" prompt appears before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is REGISTER UPDATED
 
 ---
@@ -70,13 +86,13 @@ invoked.
 1. Skill attempts to read `docs/tech-debt-register.md` — not found
 2. Skill informs user: "No tech-debt-register.md found"
 3. Skill offers to create the register with the inline items it found
-4. Skill asks "May I write to `docs/tech-debt-register.md`?" (create)
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. User approves; register created with 4 items; verdict REGISTER UPDATED
 
 **Assertions:**
 - [ ] Skill does not crash when register file is absent
 - [ ] User is offered register creation (not silently skipping)
-- [ ] "May I write" prompt reflects file creation (not update)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is REGISTER UPDATED after creation
 
 ---
@@ -140,13 +156,13 @@ invoked.
 1. Skill scans source and reads register; compiles combined debt list
 2. No director gate is invoked regardless of review mode
 3. Skill presents sorted debt table to user
-4. Skill asks "May I write to `docs/tech-debt-register.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. User approves; register updated; verdict REGISTER UPDATED
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] Debt table is presented before any write prompt
-- [ ] "May I write" prompt appears before file update
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Write only occurs with explicit user approval
 
 ---
@@ -156,7 +172,7 @@ invoked.
 - [ ] Reads `docs/tech-debt-register.md` and scans `src/` before compiling
 - [ ] Deduplicates inline comments against existing register items
 - [ ] Sorts combined list by severity
-- [ ] Always asks "May I write" before updating register
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked
 - [ ] Verdict is REGISTER UPDATED or NO NEW DEBT FOUND
 

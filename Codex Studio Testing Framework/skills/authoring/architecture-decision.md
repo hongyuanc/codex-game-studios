@@ -1,18 +1,29 @@
 # Skill Test Spec: $architecture-decision
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/architecture-decision/SKILL.md`
+- Runtime name: `architecture-decision`
+- Runtime trigger description: `Create or revise an Architecture Decision Record for a significant technical choice.`
+- Native invocation: `$architecture-decision`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$architecture-decision` guides the user through section-by-section authoring of
-a new Architecture Decision Record (ADR). Required sections are: Status, Context,
-Decision, Consequences, Alternatives, and Related ADRs. The skill also stamps the
-engine version reference from `docs/engine-reference/` into the ADR for traceability.
+`$architecture-decision` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-In `full` review mode, TD-ADR (technical-director) and LP-FEASIBILITY
-(lead-programmer) gate agents spawn after the draft is complete. If both gates
-return APPROVED, the ADR status is set to Accepted. In `lean` or `solo` mode,
-both gates are skipped and the ADR is written with Status: Proposed. The skill
-asks "May I write" per section during authoring. ADRs are written to
-`docs/architecture/adr-NNN-[name].md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ asks "May I write" per section during authoring. ADRs are written to
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: ACCEPTED, PROPOSED, CONCERNS
-- [ ] Contains "May I write" collaborative protocol language (per-section approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
 - [ ] Documents gate behavior: TD-ADR + LP-FEASIBILITY in full mode; skipped in lean/solo
 - [ ] Documents that ADR status is Accepted (full, gates approve) or Proposed (otherwise)
@@ -58,7 +69,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 **Expected behavior:**
 1. Skill guides user through each required section (Status, Context, Decision, Consequences, Alternatives, Related ADRs)
 2. Engine version is stamped into the ADR from `docs/engine-reference/`
-3. For each section: draft shown, "May I write this section?" asked, approved
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 4. After all sections: TD-ADR and LP-FEASIBILITY gates spawn in parallel
 5. Both gates return APPROVED
 6. ADR Status is set to Accepted
@@ -70,7 +81,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 - [ ] Engine version reference is stamped in the ADR
 - [ ] TD-ADR and LP-FEASIBILITY spawn in parallel (not sequentially)
 - [ ] ADR Status is Accepted when both gates return APPROVED in full mode
-- [ ] "May I write" is asked per section during authoring
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] File is written to `docs/architecture/adr-NNN-[name].md`
 
 ---
@@ -112,12 +123,12 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 2. After draft is complete: both TD-ADR and LP-FEASIBILITY are skipped
 3. Output notes: "TD-ADR skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode"
 4. ADR is written with Status: Proposed (not Accepted, since gates did not approve)
-5. "May I write" is still asked before the final file write
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Both gate skip notes appear in output
 - [ ] ADR Status is Proposed (not Accepted) in lean mode
-- [ ] "May I write" is still asked before writing the file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill writes the ADR after user approval
 
 ---
@@ -179,7 +190,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 - [ ] All 6 required sections authored before gate review
 - [ ] Engine version stamped in ADR from `docs/engine-reference/`
-- [ ] "May I write" asked per section during authoring
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ADR and LP-FEASIBILITY spawn in parallel in full mode
 - [ ] Skipped gates noted by name and mode in lean/solo output
 - [ ] ADR Status: Accepted only when full mode AND both gates APPROVED

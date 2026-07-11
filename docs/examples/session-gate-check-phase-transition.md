@@ -37,7 +37,7 @@
 > | `$design-review` per GDD | Each GDD reviewed | ✅ (6/6 review comments found) |
 > | Cross-GDD review report | `design/gdd/gdd-cross-review-*.md` exists | ✅ |
 > | Cross-review verdict | PASS or CONCERNS (not FAIL) | ✅ CONCERNS |
-> | Engine configured | `production/stage.txt` or CLAUDE.md engine entry | ✅ Godot 4.6 |
+> | Engine configured | `.codex/studio.toml` engine entry | ✅ Godot 4.6 |
 >
 > ---
 > **Content Scan:**

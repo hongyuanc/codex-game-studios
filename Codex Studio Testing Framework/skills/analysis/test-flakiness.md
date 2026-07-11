@@ -1,12 +1,29 @@
 # Skill Test Spec: $test-flakiness
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/test-flakiness/SKILL.md`
+- Runtime name: `test-flakiness`
+- Runtime trigger description: `"Use when CI history or repeated runs show intermittent, non-deterministic, timing-sensitive, or suspected flaky tests."`
+- Native invocation: `$test-flakiness`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$test-flakiness` detects non-deterministic tests by analyzing test history logs
-(if available) or scanning test source code for common flakiness patterns (random
-numbers without seeds, real-time waits, external I/O). No director gates are
-invoked. The skill does not write without user approval. Verdicts: NO FLAKINESS,
-SUSPECT TESTS FOUND, or CONFIRMED FLAKY.
+`$test-flakiness` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -14,10 +31,10 @@ SUSPECT TESTS FOUND, or CONFIRMED FLAKY.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: NO FLAKINESS, SUSPECT TESTS FOUND, CONFIRMED FLAKY
-- [ ] Does NOT require "May I write" language (read-only; optional report requires approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after flakiness findings)
 
 ---
@@ -145,12 +162,12 @@ are invoked.
 2. No director gate is invoked regardless of review mode
 3. Verdict is CONFIRMED FLAKY
 4. Skill presents findings and offers optional written report
-5. If user opts in: "May I write to `production/qa/flakiness-report-[date].md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] CONFIRMED FLAKY verdict requires history-based evidence (not just source patterns)
-- [ ] Optional report requires "May I write" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Flakiness report is advisory for qa-lead; skill does not auto-disable tests
 
 ---

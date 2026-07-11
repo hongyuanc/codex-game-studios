@@ -1,93 +1,56 @@
-# Codex Studio Testing Framework — Codex Instructions
+# Codex Studio Testing Framework Instructions
 
-This folder is the quality assurance layer for the Codex Game Studios skill/agent
-framework. It is self-contained and separate from any game project.
+This directory is the behavioral QA layer for Codex Game Studios. Runtime files
+outside this directory are authoritative; specs must describe and test them, not
+invent a parallel agent or skill format.
 
-## Key files
+## Required inventory
 
-| File | Purpose |
-|------|---------|
-| `catalog.yaml` | Master registry for all 73 skills and 49 agents. Contains category, spec path, and last-test tracking fields. Always read this first when running any test command. |
-| `quality-rubric.md` | Category-specific pass/fail metrics. Read the matching `###` section for the skill's category when running `$skill-test category`. |
-| `skills/[category]/[name].md` | Behavioral spec for a skill — 5 test cases + protocol compliance assertions. |
-| `agents/[tier]/[name].md` | Behavioral spec for an agent — 5 test cases + protocol compliance assertions. |
-| `templates/skill-test-spec.md` | Template for writing new skill spec files. |
-| `templates/agent-test-spec.md` | Template for writing new agent spec files. |
-| `results/` | Written by `$skill-test spec` when results are saved. Gitignored. |
+- Exactly 73 skills at `.agents/skills/<name>/SKILL.md`.
+- Exactly 49 TOML custom-agent profiles across `.codex/agents/` and
+  `.codex/agent-packs/{godot,unity,unreal}/`.
+- One catalog entry and one five-case spec for every runtime item.
 
-## Path conventions
+## Agent spec rules
 
-- Skill specs: `Codex Studio Testing Framework/skills/[category]/[name].md`
-- Agent specs: `Codex Studio Testing Framework/agents/[tier]/[name].md`
-- Catalog: `Codex Studio Testing Framework/catalog.yaml`
-- Rubric: `Codex Studio Testing Framework/quality-rubric.md`
+Each agent spec identifies the actual `.toml` path and verifies the exact keys
+`name`, `description`, `model`, `model_reasoning_effort`, and
+`developer_instructions`. It records the runtime route exactly:
 
-The `spec:` field in `catalog.yaml` is the authoritative path for each skill/agent spec.
-Always read it rather than guessing the path.
+- Sol (`gpt-5.6`)
+- Terra (`gpt-5.6-terra`)
+- Luna (`gpt-5.6-luna`)
 
-## Skill categories
+Do not infer a route from organizational tier. Read it from the profile.
 
-```
-gate        → gate-check
-review      → design-review, architecture-review, review-all-gdds
-authoring   → design-system, quick-design, architecture-decision, art-bible,
-              create-architecture, ux-design, ux-review
-readiness   → story-readiness, story-done
-pipeline    → create-epics, create-stories, dev-story, create-control-manifest,
-              propagate-design-change, map-systems
-analysis    → consistency-check, balance-check, content-audit, code-review,
-              tech-debt, scope-check, estimate, perf-profile, asset-audit,
-              security-audit, test-evidence-review, test-flakiness
-team        → team-combat, team-narrative, team-audio, team-level, team-ui,
-              team-qa, team-release, team-polish, team-live-ops
-sprint      → sprint-plan, sprint-status, milestone-review, retrospective,
-              changelog, patch-notes
-utility     → all remaining skills
-```
+## Skill spec rules
 
-## Agent tiers
+Each skill spec identifies `.agents/skills/<name>/SKILL.md`, copies its exact
+`name` and trigger `description`, and uses native `$name` invocation. YAML
+frontmatter requires only `name` and `description`; execution arguments and
+permissions are runtime/workflow concerns.
 
-```
-directors   → creative-director, technical-director, producer, art-director
-leads       → lead-programmer, narrative-director, audio-director, ux-designer,
-              qa-lead, release-manager, localization-lead
-specialists → gameplay-programmer, engine-programmer, ui-programmer,
-              tools-programmer, network-programmer, ai-programmer,
-              level-designer, sound-designer, technical-artist
-godot       → godot-specialist, godot-gdscript-specialist, godot-csharp-specialist,
-              godot-shader-specialist, godot-gdextension-specialist
-unity       → unity-specialist, unity-ui-specialist, unity-shader-specialist,
-              unity-dots-specialist, unity-addressables-specialist
-unreal      → unreal-specialist, ue-gas-specialist, ue-replication-specialist,
-              ue-umg-specialist, ue-blueprint-specialist
-operations  → devops-engineer, security-engineer, performance-analyst,
-              analytics-engineer, community-manager
-creative    → writer, world-builder, game-designer, economy-designer,
-              systems-designer, prototyper
-```
+Every spec retains five cases: happy path, blocked/failure path, mode or boundary
+variant, edge case, and delegation/gate behavior. Preserve useful domain fixtures
+and assertions during migrations.
 
-## Workflow for testing a skill
+## Interaction and delegation
 
-1. Read `catalog.yaml` to get the skill's `spec:` path and `category:`
-2. Read the skill at `.agents/skills/[name]/SKILL.md`
-3. Read the spec at the `spec:` path
-4. Evaluate assertions case by case
-5. Offer to write results to `results/` and update `catalog.yaml`
+For structured decisions, `request_user_input` accepts 1–3 questions and each
+question accepts 2–3 options. Ask one decision per turn. Multiple independent
+decisions are sequential turns, not one oversized prompt.
 
-## Workflow for improving a skill
+Custom-agent work is a bounded direct-child delegation. The maximum delegation
+depth is 1. Child agents return scoped evidence and never own user interaction,
+commits, publication, or scope expansion. The parent agent synthesizes the final
+answer and applies the approved changeset boundary.
 
-Use `$skill-improve [name]`. It handles the full loop:
-test → diagnose → propose fix → rewrite → retest → keep or revert.
+## Validation and writes
 
-## Spec validity note
+Validation is read-only. Optional test results and catalog metadata may be
+offered as one complete proposed changeset after findings are shown. List every
+path and material edit, obtain approval for the whole set, and request fresh
+approval for any expansion.
 
-Specs in this folder describe **current behavior**, not ideal behavior. They were
-written by reading the skills, so they may encode bugs. When a skill misbehaves in
-practice, correct the skill first, then update the spec to match the fixed behavior.
-Treat spec failures as "this needs investigation," not "the skill is definitively wrong."
-
-## This folder is deletable
-
-Nothing in `.codex/` imports from here. Deleting this folder has no effect on the
-Codex Studio skills or agents themselves. `$skill-test` and `$skill-improve` will report that
-`catalog.yaml` is missing and guide the user to initialize it.
+Use `catalog.yaml` for spec paths, `quality-rubric.md` for category criteria, and
+the templates in `templates/` for new specs.

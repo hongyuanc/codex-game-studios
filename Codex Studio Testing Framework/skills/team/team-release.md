@@ -1,25 +1,40 @@
 # Skill Test Spec: $team-release
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-release/SKILL.md`
+- Runtime name: `team-release`
+- Runtime trigger description: `"Use when a release candidate needs coordinated planning, QA, build, go or no-go, and separately authorized deployment steps."`
+- Native invocation: `$team-release`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the release team through a 7-phase pipeline from release candidate to
-deployment and post-release monitoring. Coordinates release-manager, qa-lead,
-devops-engineer, producer, security-engineer (optional, required for online/
-multiplayer), network-programmer (optional, required for multiplayer),
-analytics-engineer, and community-manager. Phase 3 agents run in parallel. Ends
-with a go/no-go decision; deployment (Phase 6) is skipped if the producer calls
-NO-GO. Closes with a post-release monitoring plan.
+`$team-release` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" language in the File Write Protocol section (delegated to sub-agents)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a File Write Protocol section stating that the orchestrator does not write files directly
-- [ ] Has an Error Recovery Protocol section with four recovery options (surface / assess / offer options / partial report)
+- [ ] Has an Error Recovery Protocol with four ordered steps (surface / assess / offer 2–3 options / preserve a partial report)
 - [ ] Has a next-step handoff referencing post-release monitoring, `$retrospective`, and `production/stage.txt`
 - [ ] Uses `request_user_input` at phase transitions requiring user approval before proceeding
 - [ ] Phase 3 agents (qa-lead, devops-engineer, and optionally security-engineer, network-programmer) are explicitly stated to run in parallel
@@ -43,17 +58,17 @@ NO-GO. Closes with a post-release monitoring plan.
 **Input:** `$team-release v1.0.0`
 
 **Expected behavior:**
-1. Phase 1: Spawns `producer` via Task; confirms all milestone acceptance criteria met; identifies any deferred scope; produces release authorization; presents to user; request_user_input: user approves before Phase 2
-2. Phase 2: Spawns `release-manager` via Task; cuts release branch from agreed commit; bumps version numbers; invokes `$release-checklist`; freezes branch; output: branch name and checklist; request_user_input: user approves before Phase 3
-3. Phase 3 (parallel): Issues Task calls simultaneously for `qa-lead` (regression suite, critical path sign-off) and `devops-engineer` (build artifacts, CI verification); security-engineer is NOT spawned (no online features); network-programmer is NOT spawned (no multiplayer); both complete successfully
+1. Phase 1: Delegates a bounded read-only review to `producer`; the parent receives milestone evidence and deferred scope, synthesizes the release-authorization draft, then asks one approval decision before Phase 2
+2. Phase 2: After the applicable mutation authorization, delegates bounded release preparation to `release-manager`; the parent receives the branch/version/checklist evidence and asks one approval decision before Phase 3
+3. Phase 3 (parallel): Issues child-agent delegations simultaneously for `qa-lead` (regression suite, critical path sign-off) and `devops-engineer` (build artifacts, CI verification); security-engineer is NOT spawned (no online features); network-programmer is NOT spawned (no multiplayer); both complete successfully
 4. Phase 4: Verifies localization strings all translated; `analytics-engineer` verifies telemetry fires correctly on the release build; performance benchmarks pass; sign-off produced
-5. Phase 5: Spawns `producer` via Task; collects sign-offs from qa-lead, release-manager, devops-engineer; no open blocking issues; producer declares GO; request_user_input: user sees GO decision and confirms deployment
+5. Phase 5: Delegates sign-off synthesis to `producer`; the parent receives the evidence, presents the GO recommendation, and asks one separately authorized deployment decision
 6. Phase 6: Spawns `release-manager` + `devops-engineer` (parallel); tags release in version control; invokes `$changelog`; deploys to staging; smoke test passes; deploys to production; simultaneously spawns `community-manager` to finalize patch notes via `$patch-notes v1.0.0` and prepare launch announcement
 7. Phase 7: release-manager generates release report; producer updates milestone tracking; qa-lead begins monitoring for regressions; community-manager publishes communication; analytics-engineer confirms live dashboards healthy
 8. Verdict: COMPLETE — release executed and deployed
 
 **Assertions:**
-- [ ] Phase 3 qa-lead and devops-engineer Task calls are issued simultaneously, not sequentially
+- [ ] Phase 3 qa-lead and devops-engineer child-agent delegations are issued simultaneously, not sequentially
 - [ ] security-engineer is NOT spawned when the game has no online features, multiplayer, or player data
 - [ ] Phase 5 producer collects sign-offs from all required parties before declaring GO
 - [ ] Phase 6 deployment only begins after GO decision is confirmed by the user
@@ -80,7 +95,7 @@ NO-GO. Closes with a post-release monitoring plan.
 2. Phase 3 (parallel): devops-engineer returns clean build sign-off; qa-lead returns with an S1 bug identified and regression suite failing; qa-lead declares quality gate: NOT PASSED
 3. Orchestrator surfaces the qa-lead result immediately: "QA-LEAD: S1 bug found — [crash description]. Quality gate: NOT PASSED."
 4. Phase 4 proceeds cautiously or is paused (request_user_input: continue to Phase 4 or skip to Phase 5 for go/no-go?)
-5. Phase 5: Spawns `producer` via Task; producer receives qa-lead's NOT PASSED verdict; no S1 sign-off available; producer declares NO-GO with rationale: "S1 bug [ID] is open and unresolved. Releasing is not safe."
+5. Phase 5: Spawns `producer` as a direct child custom agent; producer receives qa-lead's NOT PASSED verdict; no S1 sign-off available; producer declares NO-GO with rationale: "S1 bug [ID] is open and unresolved. Releasing is not safe."
 6. request_user_input: user is presented with the NO-GO decision and the S1 bug details; options: fix the bug and re-run, defer the release, or override (with documented rationale)
 7. Phase 6 (Deployment) is SKIPPED entirely — no branch tagging, no deploy to staging, no deploy to production
 8. community-manager is NOT spawned in Phase 6 (no deployment to announce)
@@ -111,7 +126,7 @@ NO-GO. Closes with a post-release monitoring plan.
 
 **Expected behavior:**
 1. Phases 1–2 complete normally
-2. Phase 3 (parallel): Orchestrator detects that the game has online/multiplayer features and player data; issues Task calls simultaneously for `qa-lead`, `devops-engineer`, AND `security-engineer`; also spawns `network-programmer` for netcode stability sign-off
+2. Phase 3 (parallel): Orchestrator detects that the game has online/multiplayer features and player data; issues child-agent delegations simultaneously for `qa-lead`, `devops-engineer`, AND `security-engineer`; also spawns `network-programmer` for netcode stability sign-off
 3. security-engineer conducts pre-release security audit: reviews authentication flows, anti-cheat presence, data privacy compliance; returns sign-off
 4. network-programmer verifies lag compensation, reconnect handling, and bandwidth under load; returns sign-off
 5. All four Phase 3 agents complete; their results are collected before Phase 4 begins
@@ -121,7 +136,7 @@ NO-GO. Closes with a post-release monitoring plan.
 **Assertions:**
 - [ ] security-engineer IS spawned in Phase 3 when the game has online features, multiplayer, or player data — this is not skipped
 - [ ] network-programmer IS spawned in Phase 3 when the game has multiplayer
-- [ ] All four Phase 3 Task calls (qa-lead, devops-engineer, security-engineer, network-programmer) are issued simultaneously
+- [ ] All four Phase 3 child-agent delegations (qa-lead, devops-engineer, security-engineer, network-programmer) are issued simultaneously
 - [ ] security-engineer audit covers authentication, anti-cheat, and data privacy compliance
 - [ ] Phase 5 producer sign-off collection includes security-engineer (four parties, not two)
 - [ ] Phase 6 deployment does not begin until security-engineer has signed off
@@ -195,9 +210,9 @@ NO-GO. Closes with a post-release monitoring plan.
 ## Protocol Compliance
 
 - [ ] `request_user_input` used at each phase transition gate (post-Phase 1, post-Phase 2, post-Phase 3/4 if issues, post-Phase 5 go/no-go)
-- [ ] Phase 3 agents are always issued as parallel Task calls — qa-lead and devops-engineer are never sequential
+- [ ] Phase 3 agents are always issued as parallel child-agent delegations — qa-lead and devops-engineer are never sequential
 - [ ] security-engineer is conditionally spawned based on game features — never silently skipped when features are present
-- [ ] File Write Protocol: orchestrator never calls Write/Edit directly — all writes are delegated to sub-agents or sub-skills
+- [ ] File Write Protocol: orchestrator never calls Write/Edit directly — all writes are delegated to child custom agents or sub-skills
 - [ ] Phase 6 Deployment is strictly conditional on a GO verdict from Phase 5 — never auto-triggered
 - [ ] Error recovery: any BLOCKED agent is surfaced immediately before continuing to dependent phases
 - [ ] Partial reports are always produced if any phase fails or the pipeline is halted (Case 2)

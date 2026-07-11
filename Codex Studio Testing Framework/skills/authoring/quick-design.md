@@ -1,17 +1,29 @@
 # Skill Test Spec: $quick-design
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/quick-design/SKILL.md`
+- Runtime name: `quick-design`
+- Runtime trigger description: `Create a lightweight approved design specification for a bounded change that does not require a full GDD.`
+- Native invocation: `$quick-design`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$quick-design` produces a lightweight design spec for features too small to
-warrant a full 8-section GDD. The target scope is under 4 hours of design time
-for a single-system feature. Instead of the full 8-section GDD format, the
-quick-design spec uses a streamlined 3-section format: Overview, Rules, and
-Acceptance Criteria.
+`$quick-design` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill has no director gates — adding gate overhead would defeat the purpose
-of a lightweight design tool. The skill asks "May I write" before writing the
-design note to `design/quick-notes/[name].md`. If the feature scope is too large
-for a quick-design, the skill redirects to `$design-system` instead.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ for a quick-design, the skill redirects to `$design-system` instead.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: CREATED, BLOCKED, REDIRECTED
-- [ ] Contains "May I write" collaborative protocol language (for quick-note file)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
 - [ ] Explicitly notes: no director gates (lightweight skill by design)
 - [ ] Mentions scope check: redirects to `$design-system` if scope exceeds sub-4h threshold
@@ -52,13 +64,13 @@ Full GDD review is not needed for sub-4-hour single-system features.
 2. Skill determines scope is within the sub-4h threshold
 3. Skill drafts a 3-section spec: Overview, Rules, Acceptance Criteria
 4. Draft is shown to user
-5. "May I write `design/quick-notes/[name].md`?" is asked
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. File is written after approval
 
 **Assertions:**
 - [ ] Spec contains exactly 3 sections: Overview, Rules, Acceptance Criteria
-- [ ] Draft is shown to user before "May I write" ask
-- [ ] "May I write `design/quick-notes/[name].md`?" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] File is written to the correct path: `design/quick-notes/[name].md`
 - [ ] Verdict is CREATED after successful write
 
@@ -99,13 +111,13 @@ Full GDD review is not needed for sub-4-hour single-system features.
 2. Skill asks: "[name].md already exists. Update it, or create a new version?"
 3. User selects update
 4. Skill shows the existing spec and asks which section to revise
-5. Updated spec is shown, "May I write?" asked, file updated after approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill detects and reads the existing file before offering to update
 - [ ] User is offered update or create-new options — not auto-overwritten
 - [ ] Only the revised section is updated (or the whole spec if user chooses full rewrite)
-- [ ] "May I write" is asked before overwriting the existing file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -142,7 +154,7 @@ Full GDD review is not needed for sub-4-hour single-system features.
 1. Skill asks scoping questions and determines scope is within threshold
 2. Skill does NOT read `production/session-state/review-mode.txt`
 3. Skill does NOT spawn any director gate agent
-4. Spec is drafted, "May I write" asked, file written after approval
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Output explicitly notes: "No director gate review — quick-design is for sub-4h features"
 
 **Assertions:**
@@ -158,8 +170,8 @@ Full GDD review is not needed for sub-4-hour single-system features.
 
 - [ ] Scope check runs before drafting (redirects to `$design-system` if scope too large)
 - [ ] 3-section format used (Overview, Rules, Acceptance Criteria) — NOT the 8-section GDD format
-- [ ] Draft shown to user before "May I write" ask
-- [ ] "May I write `design/quick-notes/[name].md`?" asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates — no review-mode.txt read
 - [ ] Ends with next-step handoff (e.g., proceed to implementation or `$dev-story`)
 

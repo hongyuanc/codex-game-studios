@@ -9,7 +9,7 @@
 - No `docs/architecture/` directory
 - No `production/` directory
 - No `design/gdd/systems-index.md`
-- CLAUDE.md exists (engine configured: Godot 4.6)
+- `AGENTS.md` exists and `.codex/studio.toml` configures Godot 4.6
 
 **Session Duration:** ~30 minutes
 **Turns:** 8
@@ -31,7 +31,7 @@
 >
 > | Artifact Category | Found | Notes |
 > |------------------|-------|-------|
-> | Engine configuration | ✅ | Godot 4.6 in CLAUDE.md |
+> | Engine configuration | ✅ | Godot 4.6 in `.codex/studio.toml` |
 > | Source code | ✅ | ~4000 lines in `src/gameplay/` |
 > | Design docs | ⚠️ | 3 files in `design/`, not in GDD format |
 > | Architecture docs | ❌ | `docs/architecture/` missing |
@@ -86,7 +86,8 @@
 >
 > **Important:** Step 1 must happen before any other step. Everything else can be done in parallel or reordered based on your priorities.
 >
-> May I write this plan to `docs/adoption-plan-2026-03-12.md`?
+> The bounded adoption changeset is `docs/adoption-plan-2026-03-12.md` plus the
+> systems index proposed below. Approve this adoption phase?
 
 **User:**
 > Yes. Write it.
@@ -142,7 +143,8 @@
 >
 > Updated dependency: Movement depends on Stamina (movement drains it).
 >
-> May I write this to `design/gdd/systems-index.md`?
+> This matches the approved adoption changeset. I will now update
+> `design/gdd/systems-index.md` and validate its references.
 
 ## Turn 6: User Approves
 

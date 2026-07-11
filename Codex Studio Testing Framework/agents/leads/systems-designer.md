@@ -1,20 +1,31 @@
 # Agent Test Spec: systems-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/systems-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 **Domain owned:** Combat formulas, progression curves, crafting recipes, status effect interactions, economy math, numerical balance.
 **Does NOT own:** Narrative and lore (narrative-director), visual design (art-director), code implementation (lead-programmer), conceptual mechanic rules (game-designer — collaborates with).
-**Model tier:** Sonnet (individual system analysis — formula review and balance math).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 **Gate IDs handled:** Systems review verdicts on formulas and balance specs (uses APPROVED / NEEDS REVISION vocabulary).
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified by reading the agent's `.codex/agents/systems-designer.md` frontmatter:
+Verified by parsing the runtime TOML profile `.codex/agents/systems-designer.toml`:
 
 - [ ] `description:` field is present and domain-specific (references formulas, progression curves, balance math, economy — not generic)
-- [ ] `allowed-tools:` list is read-focused; may include Bash for formula evaluation scripts if the project uses them; no write access outside `design/balance/` without delegation
-- [ ] Model tier is `claude-sonnet-4-6` per coordination-rules.md
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over narrative, visual design, or conceptual mechanic rule ownership
 
 ---

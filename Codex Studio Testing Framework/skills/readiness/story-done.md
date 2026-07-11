@@ -1,14 +1,29 @@
 # Skill Test Spec: $story-done
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/story-done/SKILL.md`
+- Runtime name: `story-done`
+- Runtime trigger description: `"Use when an implemented story needs evidence-backed acceptance, deviation, test, review, and completion gating."`
+- Native invocation: `$story-done`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$story-done` closes the loop between design and implementation. Run at the
-end of implementing a story, it reads the story file and verifies each
-acceptance criterion against the implementation. It checks for GDD and ADR
-deviations, prompts a code review, updates the story status to `Complete`,
-logs any tech debt, and surfaces the next ready story from the sprint. It
-produces a COMPLETE / COMPLETE WITH NOTES / BLOCKED verdict and writes to
-the story file and optionally to `docs/tech-debt-register.md`.
+`$story-done` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -16,10 +31,10 @@ the story file and optionally to `docs/tech-debt-register.md`.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥5 phase headings (complex skill warranting `context: fork` if applicable)
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] Contains "May I write" collaborative protocol language (writes to story file and tech-debt register)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (surfaces next story from sprint)
 
 ---
@@ -49,7 +64,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 6. Skill checks for ADR guideline deviations
 7. Skill prompts user: "Please provide the code review outcome for this story"
 8. Skill presents COMPLETE verdict
-9. Skill asks "May I update story Status to Complete and add Completion Notes?"
+9. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 10. If yes: skill updates the story file
 11. Skill surfaces the next `Ready for Dev` story from the sprint
 
@@ -59,7 +74,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Each acceptance criterion is listed with VERIFIED / DEFERRED / FAILED status
 - [ ] Skill prompts the user for code review outcome (does not skip this step)
 - [ ] Verdict is COMPLETE when all criteria are verified and no deviations exist
-- [ ] Skill asks "May I write" before updating the story file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill does NOT auto-update story status without user confirmation
 - [ ] After completion, skill surfaces the next ready story from `production/sprints/`
 
@@ -82,13 +97,13 @@ Verified automatically by `$skill-test static` — no fixture needed.
    pickup' cannot be auto-verified. Has this been manually tested?"
 4. If user says No: criterion is marked DEFERRED, verdict becomes COMPLETE WITH NOTES
 5. Skill records the deferred criterion in completion notes
-6. Asks "May I write updated story with deferred criterion noted?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill asks the user about unverifiable criteria rather than assuming PASS
 - [ ] Deferred criteria result in COMPLETE WITH NOTES (not COMPLETE or BLOCKED)
 - [ ] The deferred criterion is explicitly named in the completion notes
-- [ ] Skill still asks "May I write" before updating the story file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -168,7 +183,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] LP-CODE-REVIEW gate is invoked in full mode after implementation check
 - [ ] An LP NEEDS CHANGES verdict prevents story from being marked Complete
 - [ ] Gate result is noted in output: "Gate: LP-CODE-REVIEW — [result]"
-- [ ] Skill still asks "May I write" before updating story status even if LP approved
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 **Case 5b — lean or solo mode:**
 - `review-mode.txt` contains `lean` or `solo`
@@ -182,14 +197,14 @@ Verified automatically by `$skill-test static` — no fixture needed.
 **Assertions (5b):**
 - [ ] LP-CODE-REVIEW gate does NOT spawn in lean or solo mode
 - [ ] Skip is explicitly noted in output
-- [ ] Skill still requires "May I write" approval before marking story Complete
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
 ## Protocol Compliance
 
-- [ ] Uses "May I write" before updating the story file
-- [ ] Uses "May I write" before adding entries to `docs/tech-debt-register.md`
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Presents complete findings (criteria check, deviation check) before asking approval
 - [ ] Ends by surfacing the next ready story from the sprint plan
 - [ ] Does not mark a story Complete if any criteria are in ERROR state
@@ -205,5 +220,5 @@ Verified automatically by `$skill-test static` — no fixture needed.
   is mentioned in Case 2 but not the primary assertion focus; dedicated
   coverage deferred.
 - The `sprint-status.yaml` update (Phase 7 in the skill) is implied by Case 1
-  but not the primary assertion; assumed to follow the same "May I write" pattern.
+  The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 - Stories with multiple TR-IDs or multiple ADRs are not explicitly tested.

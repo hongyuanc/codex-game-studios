@@ -1,17 +1,29 @@
 # Skill Test Spec: $playtest-report
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/playtest-report/SKILL.md`
+- Runtime name: `playtest-report`
+- Runtime trigger description: `"Use when a playtest session needs a report template or raw notes need structured findings and design-impact analysis."`
+- Native invocation: `$playtest-report`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$playtest-report` generates a structured playtest report from session notes or
-user input. The report is organized into four sections: Feel/Accessibility,
-Bugs Observed, Design Feedback, and Next Steps. When multiple testers participated,
-the skill aggregates feedback and distinguishes majority opinions from minority
-ones. The skill links to existing bug reports when a reported bug matches a file
-in `production/bugs/`.
+`$playtest-report` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-Reports are written to `production/qa/playtest-[date].md` after a "May I write"
-ask. No director gates apply here — the CD-PLAYTEST director gate (if needed) is
-a separate invocation. The verdict is COMPLETE when the report is written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ a separate invocation. The verdict is COMPLETE when the report is written.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before writing the report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$bug-report` for new issues found, `$design-review` for feedback)
 
 ---
@@ -53,14 +65,14 @@ separate invocation and not part of this skill.
 4. Design Feedback: notes the tutorial length concern
 5. Next Steps: suggests `$bug-report` for the framerate issue and `$design-review`
    for the tutorial feedback
-6. Skill asks "May I write to `production/qa/playtest-2026-04-06.md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. Report is written on approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] All 4 sections are present in the report
 - [ ] Bug is listed in the Bugs section (not the Design Feedback section)
 - [ ] Next Steps are appropriate (bug report for crash, design review for feedback)
-- [ ] "May I write" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -79,7 +91,7 @@ separate invocation and not part of this skill.
    b. "Were any bugs observed? Describe them"
    c. "What design feedback did testers provide?"
 3. User answers each prompt
-4. Skill compiles report from answers and asks "May I write"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Report written on approval; verdict is COMPLETE
 
 **Assertions:**
@@ -105,7 +117,7 @@ separate invocation and not part of this skill.
 3. Font size → noted as "Minority (1/3): UI font size concern"
 4. Stuck-on-ledge bug → noted as "All testers: player stuck on ledge (confirmed)"
 5. Skill generates aggregated report with majority/minority labels
-6. Report written after "May I write" approval; verdict is COMPLETE
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Majority opinion (2/3) is labeled as majority
@@ -163,7 +175,7 @@ separate invocation and not part of this skill.
 - [ ] Structures output into all 4 sections (Feel, Bugs, Design Feedback, Next Steps)
 - [ ] Labels majority vs. minority opinions when multiple testers are involved
 - [ ] Cross-references existing bug reports when bugs match
-- [ ] Asks "May I write to `production/qa/playtest-[date].md`?" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when report is written
 
 ---

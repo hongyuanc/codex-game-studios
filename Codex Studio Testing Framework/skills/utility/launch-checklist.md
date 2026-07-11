@@ -1,18 +1,29 @@
 # Skill Test Spec: $launch-checklist
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/launch-checklist/SKILL.md`
+- Runtime name: `launch-checklist`
+- Runtime trigger description: `"Use when launch readiness needs a read-only cross-department go or no-go evaluation."`
+- Native invocation: `$launch-checklist`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$launch-checklist` generates and evaluates a complete launch readiness checklist
-covering: legal compliance (EULA, privacy policy, ESRB/PEGI ratings), platform
-certification status, store page completeness (screenshots, description, metadata),
-build validation (version tag, reproducible build), analytics and crash reporting
-configuration, and first-run experience verification.
+`$launch-checklist` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill produces a checklist report written to `production/launch/launch-checklist-[date].md`
-after a "May I write" ask. If a previous launch checklist exists, it compares the
-new results against the old to highlight newly resolved and newly blocked items. No
-director gates apply — `$team-release` orchestrates the full release pipeline. Verdicts:
-LAUNCH READY, LAUNCH BLOCKED, or CONCERNS.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ LAUNCH READY, LAUNCH BLOCKED, or CONCERNS.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: LAUNCH READY, LAUNCH BLOCKED, CONCERNS
-- [ ] Contains "May I write" collaborative protocol language before writing the checklist
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$team-release` or `$day-one-patch`)
 
 ---
@@ -52,14 +63,14 @@ is managed by `$team-release`.
 1. Skill checks all checklist categories
 2. All items pass their verification checks
 3. Skill produces checklist report with all items marked PASS
-4. Skill asks "May I write to `production/launch/launch-checklist-2026-04-06.md`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Report written on approval; verdict is LAUNCH READY
 
 **Assertions:**
 - [ ] All checklist categories are checked (legal, platform, store, build, analytics, UX)
 - [ ] All items appear in the report with PASS markers
 - [ ] Verdict is LAUNCH READY
-- [ ] "May I write" is asked with the correct dated filename
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -165,7 +176,7 @@ is managed by `$team-release`.
 - [ ] LAUNCH BLOCKED for hard failures (uncompleted certifications, missing legal docs)
 - [ ] CONCERNS for advisory items requiring manual verification
 - [ ] Compares against previous checklist when one exists
-- [ ] Asks "May I write" before creating the checklist report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is LAUNCH READY, LAUNCH BLOCKED, or CONCERNS
 
 ---

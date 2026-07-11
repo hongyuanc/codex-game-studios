@@ -24,7 +24,7 @@ class DesignSkillTests(unittest.TestCase):
         self.assertIn(end, text)
         return text.split(start, 1)[1].split(end, 1)[0]
 
-    def test_exact_skill_set_exists(self):
+    def test_required_design_skill_set_exists(self):
         found = {path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")}
         self.assertEqual(NAMES, {name for name in found if name in NAMES})
         self.assertEqual(29, len(NAMES))

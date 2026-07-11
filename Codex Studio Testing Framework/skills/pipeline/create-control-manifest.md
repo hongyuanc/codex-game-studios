@@ -1,17 +1,29 @@
 # Skill Test Spec: $create-control-manifest
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/create-control-manifest/SKILL.md`
+- Runtime name: `create-control-manifest`
+- Runtime trigger description: `Generate the programmer control manifest from accepted ADRs, technical preferences, and engine rules.`
+- Native invocation: `$create-control-manifest`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$create-control-manifest` reads all Accepted ADRs from `docs/architecture/` and
-generates a control manifest — a summary document that captures all architectural
-constraints, required patterns, and forbidden patterns in one place. The manifest
-is the reference document that story authors use when writing story files, ensuring
-stories inherit the correct architectural rules without having to read all ADRs
-individually.
+`$create-control-manifest` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill only includes Accepted ADRs; Proposed ADRs are excluded and noted. It
-has no director gates. The skill asks "May I write" before writing
-`docs/architecture/control-manifest.md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ has no director gates. The skill asks "May I write" before writing
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: CREATED, BLOCKED
-- [ ] Contains "May I write" collaborative protocol language (for control-manifest.md)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$create-epics` or `$create-stories`)
 - [ ] Documents that only Accepted ADRs are included (not Proposed)
 
@@ -52,14 +64,14 @@ review gate is needed.
 2. Extracts Required Patterns, Forbidden Patterns, and key constraints from each
 3. Drafts the manifest with correct section structure
 4. Shows the draft manifest to the user
-5. Asks "May I write `docs/architecture/control-manifest.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Writes the manifest after approval
 
 **Assertions:**
 - [ ] All 4 Accepted ADRs are represented in the manifest
 - [ ] Manifest includes distinct sections for Required Patterns and Forbidden Patterns
 - [ ] Manifest includes the source ADR number for each constraint
-- [ ] "May I write" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill does NOT write without approval
 - [ ] Verdict is CREATED after writing
 
@@ -98,7 +110,7 @@ review gate is needed.
 2. Manifest is drafted from the 3 Accepted ADRs only
 3. Output notes: "2 Proposed ADRs were excluded: [adr-NNN-name, adr-NNN-name]"
 4. User sees which ADRs were excluded before approving the write
-5. Asks "May I write `docs/architecture/control-manifest.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Only the 3 Accepted ADRs appear in the manifest content
@@ -120,14 +132,14 @@ review gate is needed.
 1. Skill detects existing manifest and reads its version number / date
 2. Skill offers to regenerate: "control-manifest.md already exists (v1, [date]). Regenerate with current ADRs?"
 3. If user confirms: skill drafts updated manifest, increments version number
-4. Asks "May I write `docs/architecture/control-manifest.md`?" (overwrite)
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Writes updated manifest after approval
 
 **Assertions:**
 - [ ] Skill reads and reports the existing manifest version before offering to regenerate
 - [ ] User is offered a regenerate/skip choice — not auto-overwritten
 - [ ] Updated manifest has an incremented version number
-- [ ] "May I write" is asked before overwriting the existing file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -143,7 +155,7 @@ review gate is needed.
 1. Skill reads ADRs and drafts manifest
 2. Skill does NOT read `production/session-state/review-mode.txt`
 3. No director gate agents are spawned at any point
-4. Skill proceeds directly to "May I write" after drafting
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Review mode setting has no effect on this skill's behavior
 
 **Assertions:**
@@ -158,8 +170,8 @@ review gate is needed.
 
 - [ ] Reads all ADR files before drafting manifest
 - [ ] Only Accepted ADRs included — Proposed ones noted as excluded
-- [ ] Manifest draft shown to user before "May I write" ask
-- [ ] "May I write `docs/architecture/control-manifest.md`?" asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates — no review-mode.txt read
 - [ ] Ends with next-step handoff: `$create-epics` or `$create-stories`
 

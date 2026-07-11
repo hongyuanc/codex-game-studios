@@ -1,24 +1,39 @@
 # Skill Test Spec: $team-qa
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-qa/SKILL.md`
+- Runtime name: `team-qa`
+- Runtime trigger description: `"Use when a sprint or feature needs a coordinated QA strategy, test cases, execution, and sign-off package."`
+- Native invocation: `$team-qa`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the QA team through a 7-phase structured testing cycle. Coordinates
-qa-lead (strategy, test plan, sign-off report) and qa-tester (test case writing,
-bug report writing). Covers scope detection, story classification, QA plan
-generation, smoke check gate, test case writing, manual QA execution with bug
-filing, and a final sign-off report with an APPROVED / APPROVED WITH CONDITIONS /
-NOT APPROVED verdict. Parallel qa-tester spawning is used in Phase 5 for
-independent stories.
+`$team-qa` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
 - [ ] Contains verdict keywords for sign-off report: APPROVED, APPROVED WITH CONDITIONS, NOT APPROVED
-- [ ] Contains "May I write" language for both the QA plan and the sign-off report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has an Error Recovery Protocol section
 - [ ] Uses `request_user_input` at phase transitions to capture user approval before proceeding
 - [ ] Phase 4 (smoke check) is a hard gate: FAIL stops the cycle
@@ -43,22 +58,22 @@ independent stories.
 
 **Expected behavior:**
 1. Phase 1: Reads all story files in `production/sprints/sprint-03/`; reads `production/stage.txt`; reports "Found 4 stories. Current stage: [stage]. Ready to begin QA strategy?"
-2. Phase 2: Spawns `qa-lead` via Task; produces strategy table classifying all 4 stories; no blockers flagged; presents to user; request_user_input: user selects "Looks good — proceed to test plan"
-3. Phase 3: Produces QA plan document; asks "May I write the QA plan to `production/qa/qa-plan-sprint-03-[date].md`?"; writes after approval
-4. Phase 4: Spawns `qa-lead` via Task; reviews `tests/smoke/`; returns PASS; reports "Smoke check passed. Proceeding to test case writing."
-5. Phase 5: Spawns `qa-tester` via Task for each Visual/Feel and Integration story (2–3 stories); run in parallel; presents test cases grouped by story; request_user_input per group; user approves
+2. Phase 2: Delegates strategy classification to `qa-lead`; the parent receives the four-story table, synthesizes it, and asks one proceed decision
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+4. Phase 4: Spawns `qa-lead` as a direct child custom agent; reviews `tests/smoke/`; returns PASS; reports "Smoke check passed. Proceeding to test case writing."
+5. Phase 5: Delegates each Visual/Feel and Integration story to sibling `qa-tester` children; the parent collects all cases and presents each story group in a separate sequential approval turn
 6. Phase 6: Walks through each approved story; user marks all as PASS; result summary: "Stories PASS: 4, FAIL: 0, BLOCKED: 0"
-7. Phase 7: Spawns `qa-lead` via Task to produce sign-off report; report shows all stories PASS; no bugs filed; Verdict: APPROVED; asks "May I write this QA sign-off report to `production/qa/qa-signoff-sprint-03-[date].md`?"; writes after approval
+7. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 8. Verdict: COMPLETE — QA cycle finished
 
 **Assertions:**
 - [ ] Phase 1 correctly counts and reports 4 stories with current stage
 - [ ] Strategy table in Phase 2 classifies all 4 stories with correct types
-- [ ] QA plan written only after "May I write?" approval
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Smoke check PASS allows pipeline to continue without user intervention
 - [ ] Phase 5 qa-tester tasks for independent stories are issued in parallel
 - [ ] Sign-off report includes Test Coverage Summary table and Verdict: APPROVED
-- [ ] Sign-off report written only after "May I write?" approval
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict: COMPLETE appears in final output
 - [ ] Next step: "Run `$gate-check` to validate advancement."
 
@@ -74,10 +89,10 @@ independent stories.
 
 **Expected behavior:**
 1. Phases 1–3 complete normally; QA plan is written
-2. Phase 4: Spawns `qa-lead` via Task; smoke check returns FAIL; two specific failures are identified
+2. Phase 4: Spawns `qa-lead` as a direct child custom agent; smoke check returns FAIL; two specific failures are identified
 3. Skill reports: "Smoke check failed. QA cannot begin until these issues are resolved: [list of 2 failures]. Fix them and re-run `$smoke-check`, or re-run `$team-qa` once resolved."
 4. Skill stops immediately after Phase 4 — no Phase 5, 6, or 7 is executed
-5. No sign-off report is produced; no "May I write?" for a sign-off is issued
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Smoke check FAIL causes the pipeline to halt at Phase 4 — Phases 5, 6, 7 are NOT executed
@@ -102,7 +117,7 @@ independent stories.
 **Expected behavior:**
 1. Phases 1–5 complete normally; test cases are written for the Visual/Feel story
 2. Phase 6: User marks Visual/Feel story as FAIL; request_user_input collects failure description: "Animation plays at 2x speed — jitter visible on every loop"
-3. Phase 6: Spawns `qa-tester` via Task to write a formal bug report; bug report written to `production/qa/bugs/BUG-001-animation-speed-jitter.md` (or next increment if bugs exist); report includes severity field
+3. Phase 6: Spawns `qa-tester` as a direct child custom agent to write a formal bug report; bug report written to `production/qa/bugs/BUG-001-animation-speed-jitter.md` (or next increment if bugs exist); report includes severity field
 4. Result summary: "Stories PASS: 1, FAIL: 1 — bugs filed: BUG-001"
 5. Phase 7: Spawns `qa-lead` to produce sign-off report; Bugs Found table lists BUG-001 with severity and status Open; Verdict: NOT APPROVED (S1/S2 bug open, or FAIL without documented workaround)
 6. Sign-off report write is offered; writes after approval
@@ -110,7 +125,7 @@ independent stories.
 
 **Assertions:**
 - [ ] FAIL result in Phase 6 triggers request_user_input to collect the failure description before the bug report is written
-- [ ] `qa-tester` is spawned via Task to write the bug report — orchestrator does not write it directly
+- [ ] `qa-tester` is spawned as a direct child custom agent to write the bug report — orchestrator does not write it directly
 - [ ] Bug report follows naming convention: `BUG-[NNN]-[short-slug].md` in `production/qa/bugs/`
 - [ ] Bug report NNN is incremented correctly from existing bugs in the directory
 - [ ] Phase 7 sign-off report Bugs Found table includes the bug ID, story name, severity, and status
@@ -168,7 +183,7 @@ independent stories.
 3. After Story C FAIL: qa-tester spawned to write bug report `BUG-001-crash-ability-activation.md` with S1 severity
 4. Result summary presented: "Stories PASS: 1, PASS WITH NOTES: 1, FAIL: 1 — bugs filed: BUG-001 (S1), BLOCKED: 1"
 5. Phase 7: qa-lead produces sign-off report covering all 4 stories; BUG-001 listed as S1/Open; Story D listed as BLOCKED; Verdict: NOT APPROVED
-6. Sign-off report written after "May I write?" approval
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. Next step: "Resolve S1/S2 bugs and re-run `$team-qa` or targeted manual QA before advancing."
 
 **Assertions:**
@@ -186,8 +201,8 @@ independent stories.
 
 - [ ] `request_user_input` used at Phase 2 (strategy review), Phase 5 (test case approval per group), and Phase 6 (per-story manual QA result)
 - [ ] Phase 4 smoke check is a hard gate: FAIL halts the pipeline at Phase 4 with no exceptions
-- [ ] "May I write?" asked separately for QA plan (Phase 3) and sign-off report (Phase 7)
-- [ ] Bug reports are always written by `qa-tester` via Task — orchestrator does not write directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Bug reports are always written by `qa-tester` as a direct child custom agent — orchestrator does not write directly
 - [ ] Phase 5 qa-tester tasks for independent stories are issued in parallel where possible
 - [ ] Error recovery: any BLOCKED agent is surfaced immediately with request_user_input options
 - [ ] Partial report always produced — no work is discarded because one story failed or blocked

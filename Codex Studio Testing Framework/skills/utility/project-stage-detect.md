@@ -1,19 +1,29 @@
 # Skill Test Spec: $project-stage-detect
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/project-stage-detect/SKILL.md`
+- Runtime name: `project-stage-detect`
+- Runtime trigger description: `Detect the current development stage from repository artifacts and identify the next gaps.`
+- Native invocation: `$project-stage-detect`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$project-stage-detect` automatically analyzes project artifacts to determine
-the current development stage. It runs on the Haiku model (read-only) and
-examines `production/stage.txt` (if present), design documents in `design/`,
-source code in `src/`, sprint and milestone files in `production/`, and the
-presence of engine configuration to classify the project into one of seven
-stages: Concept, Systems Design, Technical Setup, Pre-Production, Production,
-Polish, or Release.
+`$project-stage-detect` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill is advisory — it never writes `stage.txt`. That file is only updated
-when `$gate-check` passes and the user confirms advancement. The skill reports
-its confidence level (HIGH if stage.txt was read directly, MEDIUM if inferred
-from artifacts, LOW if conflicting signals were found).
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -21,10 +31,10 @@ from artifacts, LOW if conflicting signals were found).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains all seven stage names: Concept, Systems Design, Technical Setup, Pre-Production, Production, Polish, Release
-- [ ] Does NOT contain "May I write" language (skill is detection-only)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$gate-check` to formally advance stage)
 
 ---

@@ -1,13 +1,29 @@
 # Skill Test Spec: $balance-check
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/balance-check/SKILL.md`
+- Runtime name: `balance-check`
+- Runtime trigger description: `Analyze game balance data and formulas for outliers, broken progression, degenerate strategies, and economy risks.`
+- Native invocation: `$balance-check`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$balance-check` reads balance data files (JSON or YAML in `assets/data/`) and
-checks each value against the design formulas defined in GDDs under `design/gdd/`.
-It produces a findings table with columns: Value → Formula → Deviation → Severity.
-No director gates are invoked (read-only analysis). The skill may optionally write
-a balance report but asks "May I write" before doing so. Verdicts: BALANCED,
-CONCERNS, or OUT OF BALANCE.
+`$balance-check` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ CONCERNS, or OUT OF BALANCE.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: BALANCED, CONCERNS, OUT OF BALANCE
-- [ ] Contains "May I write" language (optional report write)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (what to do after findings are reviewed)
 
 ---
@@ -142,14 +158,14 @@ None. Balance check is a read-only analysis skill; no gates are invoked.
 3. No director gate is invoked
 4. Skill presents findings table to user
 5. Skill offers to write an optional balance report
-6. If user says yes: skill asks "May I write to `production/qa/balance-report-[date].md`?"
+6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. If user says no: skill ends without writing
 
 **Assertions:**
 - [ ] No director gate is invoked in any review mode
 - [ ] Findings table is presented without writing anything automatically
 - [ ] Optional report write is offered but not forced
-- [ ] "May I write" prompt appears only if user opts in to the report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 

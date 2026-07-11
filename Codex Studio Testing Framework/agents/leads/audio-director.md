@@ -1,20 +1,31 @@
 # Agent Test Spec: audio-director
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/audio-director.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 **Domain owned:** Music direction and palette, sound design philosophy, audio implementation strategy, mix balance, audio aspects of phase gates.
 **Does NOT own:** Visual design (art-director), code implementation (lead-programmer), narrative story content (narrative-director), UX interaction flows (ux-designer).
-**Model tier:** Sonnet (individual system analysis — audio direction and spec review).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 **Gate IDs handled:** AD-VISUAL (audio aspect of the phase gate; may be referenced as part of AD-PHASE-GATE in the audio dimension).
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified by reading the agent's `.codex/agents/audio-director.md` frontmatter:
+Verified by parsing the runtime TOML profile `.codex/agents/audio-director.toml`:
 
 - [ ] `description:` field is present and domain-specific (references music direction, sound design, mix, audio implementation — not generic)
-- [ ] `allowed-tools:` list is read-focused; no Bash unless audio asset pipeline checks are justified
-- [ ] Model tier is `claude-sonnet-4-6` per coordination-rules.md
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over visual design, code implementation, or narrative content
 
 ---

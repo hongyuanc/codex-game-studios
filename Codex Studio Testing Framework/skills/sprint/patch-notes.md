@@ -1,13 +1,29 @@
 # Skill Test Spec: $patch-notes
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/patch-notes/SKILL.md`
+- Runtime name: `patch-notes`
+- Runtime trigger description: `"Use when repository and release history must be translated into player-facing patch notes."`
+- Native invocation: `$patch-notes`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$patch-notes` is a Haiku-tier skill that generates player-facing patch notes
-from existing changelog content, stripping internal task IDs and technical
-jargon in favor of plain language. It filters entries to only those relevant
-to players (visible features and bug fixes; internal refactors are excluded).
-No director gates are used. The skill asks "May I write to
-`docs/patch-notes-vX.X.md`?" before persisting. Verdict is always COMPLETE.
+`$patch-notes` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -15,10 +31,10 @@ No director gates are used. The skill asks "May I write to
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" language (skill writes patch notes file)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., share with community manager)
 
 ---
@@ -49,14 +65,14 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 2. Skill filters to 3 player-facing entries; excludes 2 internal entries
 3. Skill rewrites entries in plain language (no task IDs, no tech jargon)
 4. Skill presents draft to user
-5. Skill asks "May I write to `docs/patch-notes-v0.4.0.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. User approves; file written; verdict COMPLETE
 
 **Assertions:**
 - [ ] Only 3 entries appear in the patch notes (2 internal entries excluded)
 - [ ] Entries are written in plain language without internal task IDs
 - [ ] File path matches `docs/patch-notes-v0.4.0.md`
-- [ ] "May I write" prompt appears before file write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE after write
 
 ---
@@ -76,7 +92,7 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 **Assertions:**
 - [ ] Skill does not crash when changelog is absent
 - [ ] Output explicitly directs user to run `$changelog`
-- [ ] No "May I write" prompt appears (nothing to write)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is BLOCKED (dependency not met)
 
 ---
@@ -116,7 +132,7 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 1. Skill reads changelog and detects template exists
 2. Skill populates the template with player-facing entries
 3. Template header/footer structure is preserved in the output
-4. Skill asks "May I write" and writes on approval
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill checks for a patch notes template before generating from scratch
@@ -137,14 +153,14 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 **Expected behavior:**
 1. Skill compiles patch notes in full mode
 2. No director gate is invoked (community review is a separate, manual step)
-3. Skill runs on Haiku model — fast compilation
+3. Skill runs on Luna model — fast compilation
 4. Skill notes in output: "Consider sharing draft with community manager before publishing"
 5. Skill asks user for approval and writes on confirmation
 
 **Assertions:**
 - [ ] No director gate is invoked regardless of review mode
 - [ ] Output suggests (but does not require) community manager review
-- [ ] Skill proceeds directly from compilation to "May I write" prompt
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -154,9 +170,9 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 - [ ] Reads `docs/CHANGELOG.md` before generating patch notes
 - [ ] Filters entries to player-facing items only
 - [ ] Rewrites entries in plain language without internal IDs
-- [ ] Always asks "May I write" before writing patch notes file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked
-- [ ] Runs on Haiku model tier (fast, low-cost)
+- [ ] Runs on Luna model tier (fast, low-cost)
 
 ---
 

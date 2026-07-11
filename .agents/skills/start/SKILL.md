@@ -1,11 +1,16 @@
 ---
 name: start
-description: First-time onboarding that detects project state and guides the user to the correct Codex Game Studios workflow.
+description: Use when a first-time user needs project-state detection and guidance to the correct Codex Game Studios workflow.
 ---
 
 ## Codex-native operating rules
 
-Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$start`; engine-dependent work with no configured engine routes to `$setup-engine`.
+Ask one decision per turn and wait for the answer before asking another. A
+`request_user_input` call contains 1-3 questions only when genuinely independent,
+and each question contains 2-3 mutually exclusive options. Discovery is read-only
+until a documented artifact changeset and target path are shown and approved.
+Fresh projects route from `$start`; engine-dependent work with no configured
+engine routes to `$setup-engine`.
 
 # Guided Onboarding
 
@@ -21,7 +26,10 @@ This skill is the entry point for new users. It does NOT assume you have a game 
 Before asking anything, silently gather context so you can tailor your guidance. Do NOT show these results unprompted — they inform your recommendations, not the conversation opener.
 
 Check:
-- **Engine configured?** Read `.codex/docs/technical-preferences.md`. If the Engine field contains `[TO BE CONFIGURED]`, the engine is not set.
+- **Engine configured?** Read `.codex/studio.toml`. If it contains
+  `engine = "unconfigured"`, no engine pack is active. Use
+  `.codex/docs/technical-preferences.md` only for the selected engine's detailed
+  preferences after activation.
 - **Game concept exists?** Check for `design/gdd/game-concept.md`.
 - **Source code exists?** repository file search for source files in `src/` (`*.gd`, `*.cs`, `*.cpp`, `*.h`, `*.rs`, `*.py`, `*.js`, `*.ts`).
 - **Prototypes exist?** Check for subdirectories in `prototypes/`.
@@ -30,20 +38,31 @@ Check:
 
 Store these findings internally to validate the user's self-assessment and tailor recommendations.
 
+When the engine is unconfigured and there are **No concept, source, prototype, design, or production artifacts**, classify the repository as fresh and route to `$brainstorm` after the onboarding decision below.
+
 ---
 
 ## Phase 2: Ask Where the User Is
 
-This is the first thing the user sees. Ask one concise question and wait for the answer with these exact options so the user can click rather than type:
+This is the first thing the user sees. Use two sequential two-option decisions so
+every `request_user_input` call fits the native schema.
 
-- **Prompt**: "Welcome to Codex Game Studios! Before I suggest anything, I'd like to understand where you're starting from. Where are you at with your game idea right now?"
-- **Options**:
-  - `A) No idea yet` — I don't have a game concept at all. I want to explore and figure out what to make.
-  - `B) Vague idea` — I have a rough theme, feeling, or genre in mind (e.g., "something with space" or "a cozy farming game") but nothing concrete.
-  - `C) Clear concept` — I know the core idea — genre, basic mechanics, maybe a pitch sentence — but haven't formalized it into documents yet.
-  - `D) Existing work` — I already have design docs, prototypes, code, or significant planning done. I want to organize or continue the work.
+First ask: "Which broad starting point best describes this project?"
 
-Wait for the user's selection. Do not proceed until they respond.
+- `New or exploratory` — no formalized game concept or implementation yet.
+- `Defined or existing` — a clear concept or existing project artifacts are present.
+
+Wait. If the user selects **New or exploratory**, ask one follow-up:
+
+- `No idea yet (Path A)` — explore what to make.
+- `Vague idea (Path B)` — develop a rough theme, feeling, or genre.
+
+If the user selects **Defined or existing**, ask one follow-up instead:
+
+- `Clear concept (Path C)` — formalize a known genre and core mechanic.
+- `Existing work (Path D)` — organize or continue existing docs, prototypes, or code.
+
+Wait for the second selection before routing. Never batch the two decisions.
 
 ---
 

@@ -1,17 +1,29 @@
 # Skill Test Spec: $day-one-patch
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/day-one-patch/SKILL.md`
+- Runtime name: `day-one-patch`
+- Runtime trigger description: `"Use when a bounded launch patch must be scoped, implemented, QA-gated, and prepared for separately authorized release steps."`
+- Native invocation: `$day-one-patch`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$day-one-patch` prepares a day-one patch plan for issues that are known at
-launch but deferred from the v1.0 release. It reads open bug reports in
-`production/bugs/`, deferred acceptance criteria from story files (stories
-marked `Status: Done` but with noted deferred ACs), and produces a prioritized
-patch plan with estimated fix timelines per issue.
+`$day-one-patch` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The patch plan is written to `production/releases/day-one-patch.md` after a
-"May I write" ask. If a P0 (critical post-ship) issue is discovered, the skill
-triggers guidance to run `$hotfix` before the patch. No director gates apply.
-The verdict is always COMPLETE.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ The verdict is always COMPLETE.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before writing the plan
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$hotfix` for P0 issues, `$release-checklist` for follow-up)
 
 ---
@@ -49,14 +61,14 @@ None. `$day-one-patch` is a release planning utility. No director gates apply.
 2. Skill assigns fix effort estimates: MEDIUM bug = 1-2 days, LOW bugs = 4 hours each
 3. Skill produces a patch plan prioritizing MEDIUM bug first
 4. Plan includes: priority order, estimated timeline, responsible system, fix description
-5. Skill asks "May I write to `production/releases/day-one-patch.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. File written; verdict is COMPLETE
 
 **Assertions:**
 - [ ] All 3 bugs appear in the plan
 - [ ] Bugs are prioritized by severity (MEDIUM before LOW)
 - [ ] Fix estimates are provided per issue
-- [ ] "May I write" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -99,7 +111,7 @@ None. `$day-one-patch` is a release planning utility. No director gates apply.
 1. Skill reads sprint stories and detects the deferred AC note
 2. Deferred AC is automatically included in the patch plan as a work item
 3. Plan entry: "Deferred from sprint-008: Gamepad vibration on damage"
-4. Fix estimate is assigned; patch plan written after "May I write" approval
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Verdict is COMPLETE
 
 **Assertions:**
@@ -123,7 +135,7 @@ None. `$day-one-patch` is a release planning utility. No director gates apply.
 2. Skill reads story deferred ACs — none found
 3. Skill produces an empty patch plan with a note: "No known issues at launch"
 4. Template structure is preserved (headers intact) for future use
-5. Skill asks "May I write to `production/releases/day-one-patch.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. File written; verdict is COMPLETE
 
 **Assertions:**
@@ -159,7 +171,7 @@ None. `$day-one-patch` is a release planning utility. No director gates apply.
 - [ ] Scans story files for deferred AC notes
 - [ ] Escalates CRITICAL (P0) bugs with explicit `$hotfix` guidance
 - [ ] Produces an empty plan with note when no issues exist (not an error)
-- [ ] Asks "May I write to `production/releases/day-one-patch.md`?" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE in all paths
 
 ---

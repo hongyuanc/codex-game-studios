@@ -1,19 +1,29 @@
 # Skill Test Spec: $brainstorm
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/brainstorm/SKILL.md`
+- Runtime name: `brainstorm`
+- Runtime trigger description: `Guide game concept ideation from an initial premise to an approved game concept document.`
+- Native invocation: `$brainstorm`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$brainstorm` facilitates guided game concept ideation. It presents 2-4 concept
-options with pros/cons, lets the user choose and refine a concept, and produces
-a structured `design/gdd/game-concept.md` document. The skill is collaborative —
-it asks questions before proposing options and iterates until the user approves
-a concept direction.
+`$brainstorm` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-In `full` review mode, four director gates spawn in parallel after the concept
-is drafted: CD-PILLARS (creative-director), AD-CONCEPT-VISUAL (art-director),
-TD-FEASIBILITY (technical-director), and PR-SCOPE (producer). In `lean` mode,
-all 4 inline gates are skipped (lean mode only runs PHASE-GATEs, and brainstorm
-has none). In `solo` mode, all gates are skipped. The skill asks "May I write"
-before writing `design/gdd/game-concept.md`.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -21,10 +31,10 @@ before writing `design/gdd/game-concept.md`.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: APPROVED, REJECTED, CONCERNS
-- [ ] Contains "May I write" collaborative protocol language (for game-concept.md)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$map-systems`)
 - [ ] Documents 4 director gates in full mode: CD-PILLARS, AD-CONCEPT-VISUAL, TD-FEASIBILITY, PR-SCOPE
 - [ ] Documents that all 4 gates are skipped in lean and solo modes
@@ -60,14 +70,14 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 4. Skill elaborates the chosen concept into a structured draft
 5. All 4 director gates spawn in parallel: CD-PILLARS, AD-CONCEPT-VISUAL, TD-FEASIBILITY, PR-SCOPE
 6. All 4 return APPROVED
-7. Skill asks "May I write `design/gdd/game-concept.md`?"
+7. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 8. Concept written after approval
 
 **Assertions:**
 - [ ] Exactly 3 concept options are presented (not 1, not 5+)
 - [ ] All 4 director gates spawn in parallel (not sequentially)
-- [ ] All 4 gates complete before the "May I write" ask
-- [ ] "May I write `design/gdd/game-concept.md`?" is asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Concept file is NOT written without user approval
 - [ ] Next-step handoff to `$map-systems` is present
 
@@ -110,13 +120,13 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 2. Concept is elaborated into a structured draft
 3. All 4 director gates are skipped — each noted: "[GATE-ID] skipped — lean mode"
 4. Skill asks user to confirm the concept is ready to write
-5. "May I write `design/gdd/game-concept.md`?" asked after confirmation
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Concept written after approval
 
 **Assertions:**
 - [ ] All 4 gate skip notes appear: "CD-PILLARS skipped — lean mode", "AD-CONCEPT-VISUAL skipped — lean mode", "TD-FEASIBILITY skipped — lean mode", "PR-SCOPE skipped — lean mode"
 - [ ] Concept is written after user confirmation only (no director approval needed in lean)
-- [ ] "May I write" is still asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -132,7 +142,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 1. Concept options are presented and user selects one
 2. Concept draft is shown to user
 3. All 4 director gates are skipped — each noted with "solo mode"
-4. "May I write `design/gdd/game-concept.md`?" asked
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Concept written after user approval
 
 **Assertions:**
@@ -160,7 +170,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 5. If concerns are accepted: concept is written with a "Scope Risk" note embedded
 
 **Assertions:**
-- [ ] PR-SCOPE concerns are shown to the user before the "May I write" ask
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill does NOT write concept without surfacing scope concerns
 - [ ] If user accepts: scope concerns are documented in the concept file
 - [ ] Skill does NOT auto-reject a concept due to PR-SCOPE CONCERNS (user decides)
@@ -173,7 +183,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 - [ ] User confirms concept direction before director gates are invoked
 - [ ] All 4 director gates spawn in parallel in full mode
 - [ ] All 4 gates skipped in lean AND solo mode — each noted by name
-- [ ] "May I write `design/gdd/game-concept.md`?" asked before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Ends with next-step handoff: `$map-systems`
 
 ---

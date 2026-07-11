@@ -1,20 +1,31 @@
 # Agent Test Spec: art-director
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/art-director.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 **Domain owned:** Visual identity, art bible authorship and enforcement, asset quality standards, UI/UX visual design, visual phase gate, concept art evaluation.
 **Does NOT own:** UX interaction flows and information architecture (ux-designer's domain), audio direction (audio-director), code implementation.
-**Model tier:** Sonnet (note: despite the "director" title, art-director is assigned Sonnet per coordination-rules.md — it handles individual system analysis, not multi-document phase gate synthesis at the Opus level).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 **Gate IDs handled:** AD-CONCEPT-VISUAL, AD-ART-BIBLE, AD-PHASE-GATE.
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified by reading the agent's `.codex/agents/art-director.md` frontmatter:
+Verified by parsing the runtime TOML profile `.codex/agents/art-director.toml`:
 
 - [ ] `description:` field is present and domain-specific (references visual identity, art bible, asset standards — not generic)
-- [ ] `allowed-tools:` list is read-focused; image review capability if supported; no Bash unless asset pipeline checks are justified
-- [ ] Model tier is `claude-sonnet-4-6` (NOT Opus — coordination-rules.md assigns Sonnet to art-director)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over UX interaction flows or audio direction
 
 ---

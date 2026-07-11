@@ -1,9 +1,20 @@
 # Agent Test Spec: ux-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/ux-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 Domain: User experience flows, interaction design, information architecture, input handling design, and onboarding UX.
 Does NOT own: visual art style (art-director), UI implementation code (ui-programmer).
-Model tier: Sonnet (default).
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 No gate IDs assigned.
 
 ---
@@ -11,8 +22,8 @@ No gate IDs assigned.
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references UX flows / interaction design / information architecture)
-- [ ] `allowed-tools:` list includes Read, Write, Edit, Glob, Grep
-- [ ] Model tier is Sonnet (default for specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over visual art direction or UI implementation code
 
 ---

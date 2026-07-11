@@ -1,9 +1,20 @@
 # Agent Test Spec: release-manager
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/release-manager.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Release pipeline management, platform certification checklists (Nintendo, Sony, Microsoft, Apple, Google), store submission workflows, platform technical requirements compliance, semantic version numbering, release branch management
 - **Does NOT own**: Game design decisions, QA test strategy or test case design (qa-lead), QA test execution (qa-tester), build infrastructure (devops-engineer)
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: May be invoked by `$gate-check` during Release phase; LAUNCH BLOCKED verdict is release-manager's primary escalation output
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references release pipeline, certification, store submission)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for production/releases/ directory; no game source or test tools)
-- [ ] Model tier is Sonnet (default for operations specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over QA strategy, game design, or build infrastructure
 
 ---

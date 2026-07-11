@@ -1,18 +1,29 @@
 # Skill Test Spec: $design-system
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/design-system/SKILL.md`
+- Runtime name: `design-system`
+- Runtime trigger description: `Collaboratively author or resume a game-system GDD one approved section at a time.`
+- Native invocation: `$design-system`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$design-system` guides the user through section-by-section authoring of a Game
-Design Document (GDD) for a single game system. All 8 required sections must be
-authored: Overview, Player Fantasy, Detailed Rules, Formulas, Edge Cases,
-Dependencies, Tuning Knobs, and Acceptance Criteria. The skill uses a
-skeleton-first approach — it creates the GDD file with all 8 section headers
-before filling any content — and writes each section individually after approval.
+`$design-system` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The CD-GDD-ALIGN gate (creative-director) runs in both `full` AND `lean` modes.
-It is only skipped in `solo` mode. If an existing GDD file is found, the skill
-offers a retrofit mode to update specific sections rather than rewriting the whole
-document.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ document.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION
-- [ ] Contains "May I write" collaborative protocol language (per-section approval)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
 - [ ] Documents skeleton-first approach (file created with headers before content)
 - [ ] Documents CD-GDD-ALIGN gate: active in full AND lean mode; skipped in solo only
@@ -60,14 +71,14 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 2. For each section: discusses with user, drafts content, shows draft
 3. CD-GDD-ALIGN gate runs on each section draft (lean mode — gate is active)
 4. Gate returns APPROVED for each section
-5. "May I write [section]?" asked after gate approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Section written to file after user approval
 7. Process repeats for all 8 sections
 
 **Assertions:**
 - [ ] Skeleton file is created with all 8 section headers before any content is written
 - [ ] CD-GDD-ALIGN runs on each section in lean mode (not skipped)
-- [ ] "May I write" is asked per section (not once for all sections)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Each section is written individually after gate + user approval
 - [ ] All 8 sections are present in the final GDD file
 
@@ -84,7 +95,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 1. Skill detects existing GDD file and reads its current content
 2. Skill offers retrofit mode: "GDD already exists. Which section would you like to update?"
 3. User selects a specific section (e.g., Formulas)
-4. Skill authors only that section, runs CD-GDD-ALIGN, asks "May I write?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Only the selected section is updated — other sections are not modified
 
 **Assertions:**
@@ -92,7 +103,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 - [ ] User is asked which section to update — not asked to rewrite the whole document
 - [ ] Only the selected section is rewritten — others remain unchanged
 - [ ] CD-GDD-ALIGN still runs on the updated section
-- [ ] "May I write" is asked before updating the section
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -112,7 +123,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 4. Section is NOT written to file while MAJOR REVISION is unresolved
 5. User rewrites the section in collaboration with the skill
 6. CD-GDD-ALIGN runs again on the revised section
-7. If revised section passes, "May I write?" is asked and section is written
+7. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Section is NOT written when CD-GDD-ALIGN returns MAJOR REVISION
@@ -134,7 +145,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 1. Skeleton file is created with 8 section headers
 2. For each section: drafted, shown to user
 3. CD-GDD-ALIGN is skipped — noted per section: "CD-GDD-ALIGN skipped — solo mode"
-4. "May I write [section]?" asked after user reviews draft
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Section written after user approval
 6. No gate review at any stage
 
@@ -175,7 +186,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 - [ ] Skeleton file created with all 8 headers before any content is written
 - [ ] CD-GDD-ALIGN runs in both full AND lean mode (not just full)
 - [ ] CD-GDD-ALIGN skipped only in solo mode — noted per section
-- [ ] "May I write [section]?" asked per section (not once for the whole document)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] MAJOR REVISION from CD-GDD-ALIGN blocks section write until resolved
 - [ ] Only approved, non-empty sections are written to the file
 - [ ] Ends with next-step handoff: `$review-all-gdds` or `$map-systems next`
@@ -185,7 +196,7 @@ In `solo` mode: CD-GDD-ALIGN is skipped. Output notes:
 ## Coverage Notes
 
 - The 8 required sections are validated against the project's design document
-  standards defined in `CLAUDE.md` — not re-enumerated here.
+  standards defined in `AGENTS.md` — not re-enumerated here.
 - The skill's internal section-ordering logic (which section to author first) is
   not independently tested — the order follows the standard GDD template.
 - Pillar alignment checking within CD-GDD-ALIGN is evaluated holistically by

@@ -1,19 +1,29 @@
 # Skill Test Spec: $review-all-gdds
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/review-all-gdds/SKILL.md`
+- Runtime name: `review-all-gdds`
+- Runtime trigger description: `Review all game design documents together for cross-system consistency and design-theory risks.`
+- Native invocation: `$review-all-gdds`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$review-all-gdds` is an Opus-tier skill that performs a holistic cross-GDD review
-across all files in `design/gdd/`. It runs two complementary review phases in
-parallel: Phase 1 checks for consistency (contradictions, formula mismatches,
-stale references, competing ownership), and Phase 2 checks design theory (dominant
-strategies, pillar drift, cognitive overload, economic imbalance). Because the two
-phases are independent, they are spawned simultaneously to save time. The skill
-produces a CONSISTENT / MINOR ISSUES / MAJOR ISSUES verdict and is read-only — no
-files are written without explicit user approval.
+`$review-all-gdds` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill is itself the holistic review gate in the pipeline. It is invoked after
-individual GDDs are complete and before architecture work begins. It does NOT spawn
-any director gate agents (it IS the director-level review).
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -21,10 +31,10 @@ any director gate agents (it IS the director-level review).
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥5 phase headings (complex multi-phase skill)
 - [ ] Contains verdict keywords: CONSISTENT, MINOR ISSUES, MAJOR ISSUES
-- [ ] Does NOT require "May I write" language (read-only skill)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
 - [ ] Documents parallel phase spawning (Phase 1 and Phase 2 are independent)
 
@@ -161,7 +171,7 @@ review; delegating to a director gate would create a circular dependency.
 ## Protocol Compliance
 
 - [ ] Phase 1 (consistency) and Phase 2 (design theory) spawned in parallel — not sequentially
-- [ ] Does NOT write any files without "May I write" approval
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Findings table shown before any write ask
 - [ ] Verdict is one of exactly: CONSISTENT, MINOR ISSUES, MAJOR ISSUES
 - [ ] Ends with appropriate handoff: MAJOR ISSUES → fix and re-run; MINOR ISSUES → may proceed with awareness; CONSISTENT → `$create-architecture`

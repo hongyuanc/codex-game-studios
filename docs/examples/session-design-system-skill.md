@@ -39,7 +39,9 @@
 > The GDD template has **8 required sections**. We'll go one at a time:
 > `Overview → Player Fantasy → Detailed Rules → Formulas → Edge Cases → Dependencies → Tuning Knobs → Acceptance Criteria`
 >
-> I'll show you a draft of each section, you approve or revise, then I write it to the file before we move on.
+> I'll present the complete document changeset for approval, then resolve
+> material section decisions with you and write them incrementally inside that
+> approved boundary.
 >
 > Creating the file skeleton now with empty section headers — may I write `design/gdd/movement-system.md` with placeholders?
 
@@ -67,7 +69,8 @@
 >
 > > The movement system is the player's primary interface with the world. It governs how the lone survivor walks, runs, rolls, and traverses alien terrain. Movement is physically grounded — the planet has heavier-than-Earth gravity, and the survivor is physically exhausted — but remains responsive enough to stay out of the player's way. Terrain surfaces apply friction and speed modifiers (slick rock, sand, shallow water) that make navigation a meaningful skill. The system feeds directly into exploration pacing, combat positioning, and the stamina system.
 >
-> May I write this to Section 1 in the file?
+> This section is inside the approved movement-GDD changeset. I will incorporate
+> it and continue to the next material decision.
 
 **User:**
 > Yes
@@ -177,7 +180,9 @@
 
 ## Turn 7–9: Sections 5, 6, 7
 
-*(These follow the same pattern — agent drafts, user approves or requests minor tweaks, agent writes each section to file before moving on. Abbreviated here.)*
+*(These follow the same phase-gated pattern: the document boundary is already
+approved, Codex resolves material decisions and writes each section before moving
+on. Abbreviated here.)*
 
 **Section 5 — Edge Cases** covered:
 - Player rolls into a wall (animation completes, no movement bonus)
@@ -261,7 +266,8 @@
 
 ## What This Example Demonstrates
 
-- **Incremental file writing**: each section written to disk immediately after approval — a session crash loses at most one in-progress section
+- **Incremental file writing**: each resolved section is written inside the
+  approved document phase, so a crash loses at most one in-progress section
 - **Template population**: the GDD template's 8 sections become concrete content through dialogue, not bulk generation
 - **Dependency signaling**: agent proactively surfaces downstream signal contracts (stamina, inventory) during the Dependencies section
 - **Technical feasibility pre-check**: agent notes Jolt physics change before design starts, not after implementation breaks

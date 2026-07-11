@@ -1,14 +1,29 @@
 # Skill Test Spec: $design-review
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/design-review/SKILL.md`
+- Runtime name: `design-review`
+- Runtime trigger description: `Review a game design document for completeness, consistency, implementability, and design quality.`
+- Native invocation: `$design-review`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$design-review` reads a game design document (GDD) and evaluates it against
-the project's 8-section design standard (Overview, Player Fantasy, Detailed
-Rules, Formulas, Edge Cases, Dependencies, Tuning Knobs, Acceptance Criteria).
-It checks for internal consistency, implementability, and cross-system
-conflicts. It produces a verdict of APPROVED, NEEDS REVISION, or MAJOR
-REVISION NEEDED. It is a read-only skill (no file writes) and runs as a
-`context: fork` subagent.
+`$design-review` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -16,10 +31,10 @@ REVISION NEEDED. It is a read-only skill (no file writes) and runs as a
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings or numbered steps
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION NEEDED
-- [ ] Does NOT require "May I write" language (read-only skill — `allowed-tools` excludes Write/Edit)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Output format is documented (review template shown in skill body)
 
 ---
@@ -39,7 +54,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Expected behavior:**
 1. Skill reads the target document in full
-2. Skill reads CLAUDE.md for project context and standards
+2. Skill reads AGENTS.md for project context and standards
 3. Skill evaluates all 8 required sections (present/absent check)
 4. Skill checks internal consistency (formulas match described behavior)
 5. Skill checks implementability (rules are precise enough to code)

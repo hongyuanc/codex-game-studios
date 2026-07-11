@@ -11,7 +11,7 @@ These show what runs before and after each skill, and what artifacts flow betwee
 PHASE 1: CONCEPT
   $start ──────────────────────────────────────────────────────► routes to A/B/C/D
   $brainstorm ──────────────────────────────────────────────────► design/gdd/game-concept.md
-  $setup-engine ────────────────────────────────────────────────► CLAUDE.md + technical-preferences.md
+  $setup-engine ────────────────────────────────────────────────► .codex/studio.toml + technical-preferences.md
   $prototype [core-mechanic] ───────────────────────────────────► prototypes/[name]-concept/REPORT.md
         │ PROCEED                                                  (validate idea BEFORE writing GDDs)
         ▼
@@ -133,8 +133,8 @@ $design-system [name]
         ├── Pre-check: feasibility table + engine risk flags
         │
         ├── Section cycle × 8:
-        │     question → options → decision → draft → approval → WRITE
-        │     [each section written to file immediately after approval]
+        │     question → options → decision → draft → write within phase
+        │     [sections written incrementally inside one approved GDD phase]
         │
         └── Output: design/gdd/[system].md (complete, all 8 sections)
                 │

@@ -1,0 +1,647 @@
+{
+  "version": 1,
+  "source_commit": "7bad60b7e0e71723b4b745e36950492d714595a3",
+  "source_root": "CCGS Skill Testing Framework",
+  "source_file_count": 127,
+  "contract_sha256": "64c28b7715ddf487e3e63325fcf561e2b5953a71203dd71a08286f27799f37a4",
+  "entries": [
+    {
+      "source": "CLAUDE.md",
+      "source_sha256": "734903ccfd6452b45cc8316d3e08e25a11a07e40d0c5ba59ccaa277515e20571",
+      "destination": "Codex Studio Testing Framework/AGENTS.md"
+    },
+    {
+      "source": "README.md",
+      "source_sha256": "1fcd047b79f556e11f947e019dd2c9d2c69b434266fe2b5d62eeff15a0867405",
+      "destination": "Codex Studio Testing Framework/README.md"
+    },
+    {
+      "source": "agents/directors/art-director.md",
+      "source_sha256": "3cda32ee31f71379bb5a0bafe9f88fc28f42da81c8723aed26b0738cac4d4b01",
+      "destination": "Codex Studio Testing Framework/agents/directors/art-director.md"
+    },
+    {
+      "source": "agents/directors/creative-director.md",
+      "source_sha256": "b9b0c66940cbc97b4cec5883dbec40f999bf22cea8a78697a089a7d627cd280d",
+      "destination": "Codex Studio Testing Framework/agents/directors/creative-director.md"
+    },
+    {
+      "source": "agents/directors/producer.md",
+      "source_sha256": "77355e16f61462defe25965b1c1b24674c2a8bdb09cc78b87cfd4579f6478761",
+      "destination": "Codex Studio Testing Framework/agents/directors/producer.md"
+    },
+    {
+      "source": "agents/directors/technical-director.md",
+      "source_sha256": "88742440ffd93dad67a001843f321fd465ecd6e2d9e71afe77c15e8e743b4df5",
+      "destination": "Codex Studio Testing Framework/agents/directors/technical-director.md"
+    },
+    {
+      "source": "agents/engine/godot/godot-csharp-specialist.md",
+      "source_sha256": "2f71cd4525f0d9d5b0d39bf89434945a1581a20f01bed21bec796c16e9cf0c58",
+      "destination": "Codex Studio Testing Framework/agents/engine/godot/godot-csharp-specialist.md"
+    },
+    {
+      "source": "agents/engine/godot/godot-gdextension-specialist.md",
+      "source_sha256": "f29bb45d5c9e419c69e7ebc357770e0748cc9de8e3b0e780fd1b172e5455179d",
+      "destination": "Codex Studio Testing Framework/agents/engine/godot/godot-gdextension-specialist.md"
+    },
+    {
+      "source": "agents/engine/godot/godot-gdscript-specialist.md",
+      "source_sha256": "b1f1f3972a6962b87e5cb4fb8b31bb3c5a21ef7fdcb931a2476dacf6fc69cdae",
+      "destination": "Codex Studio Testing Framework/agents/engine/godot/godot-gdscript-specialist.md"
+    },
+    {
+      "source": "agents/engine/godot/godot-shader-specialist.md",
+      "source_sha256": "5b684c43796f3998919076d0e35a2e8f4c2304ebab2d1cbb0be095c921dac9a4",
+      "destination": "Codex Studio Testing Framework/agents/engine/godot/godot-shader-specialist.md"
+    },
+    {
+      "source": "agents/engine/godot/godot-specialist.md",
+      "source_sha256": "e2f1f001122082002f9e51802936d087de3ea6eff800dec9c77f9942876f3179",
+      "destination": "Codex Studio Testing Framework/agents/engine/godot/godot-specialist.md"
+    },
+    {
+      "source": "agents/engine/unity/unity-addressables-specialist.md",
+      "source_sha256": "3738a040bcf71498b7e4b1e4611de4fc571f5f770e12a0e61918e982b10e086a",
+      "destination": "Codex Studio Testing Framework/agents/engine/unity/unity-addressables-specialist.md"
+    },
+    {
+      "source": "agents/engine/unity/unity-dots-specialist.md",
+      "source_sha256": "7b77d2da47951d1dd774996a505f5cef0b30c618db14b0f66e8ba2fb96e8047a",
+      "destination": "Codex Studio Testing Framework/agents/engine/unity/unity-dots-specialist.md"
+    },
+    {
+      "source": "agents/engine/unity/unity-shader-specialist.md",
+      "source_sha256": "a020c005a7da2dd98f495eb0c5e96a071a8a8ee08212c8e377d9080eee1b0f5b",
+      "destination": "Codex Studio Testing Framework/agents/engine/unity/unity-shader-specialist.md"
+    },
+    {
+      "source": "agents/engine/unity/unity-specialist.md",
+      "source_sha256": "6c64035ff5abe7b31fdff1dda3788ac1efe28166b26ffdda117d308efac3e90b",
+      "destination": "Codex Studio Testing Framework/agents/engine/unity/unity-specialist.md"
+    },
+    {
+      "source": "agents/engine/unity/unity-ui-specialist.md",
+      "source_sha256": "ff428e583f414e3ca05d089d7da313cbe4fce2d0d7609085a68dd17e24bffce8",
+      "destination": "Codex Studio Testing Framework/agents/engine/unity/unity-ui-specialist.md"
+    },
+    {
+      "source": "agents/engine/unreal/ue-blueprint-specialist.md",
+      "source_sha256": "76d6d6aaa2b4bc612a532fe42118595829ab60a6a883ea54490901aa6d4973b2",
+      "destination": "Codex Studio Testing Framework/agents/engine/unreal/ue-blueprint-specialist.md"
+    },
+    {
+      "source": "agents/engine/unreal/ue-gas-specialist.md",
+      "source_sha256": "d0472d807e7dd735ff642ae71f24cabc8137c774d7de6d091aa6cd41b67fe0d2",
+      "destination": "Codex Studio Testing Framework/agents/engine/unreal/ue-gas-specialist.md"
+    },
+    {
+      "source": "agents/engine/unreal/ue-replication-specialist.md",
+      "source_sha256": "cd7b5d3a617278bf4270b642d3a8002d69861887928644cc0b0249eb4515f96f",
+      "destination": "Codex Studio Testing Framework/agents/engine/unreal/ue-replication-specialist.md"
+    },
+    {
+      "source": "agents/engine/unreal/ue-umg-specialist.md",
+      "source_sha256": "ca8ed50971138f8db08e11afd8257f7bcfd7306b55d73c95a24c7ce26ee88c16",
+      "destination": "Codex Studio Testing Framework/agents/engine/unreal/ue-umg-specialist.md"
+    },
+    {
+      "source": "agents/engine/unreal/unreal-specialist.md",
+      "source_sha256": "e8eb9fd68bf51286163c10ad02bb5437cf96311561b150c2152877bc3ed265aa",
+      "destination": "Codex Studio Testing Framework/agents/engine/unreal/unreal-specialist.md"
+    },
+    {
+      "source": "agents/leads/audio-director.md",
+      "source_sha256": "8c40e4e9442023b2fa835306ee5f23624d665e0f426f3309fcfa7c67f510904a",
+      "destination": "Codex Studio Testing Framework/agents/leads/audio-director.md"
+    },
+    {
+      "source": "agents/leads/game-designer.md",
+      "source_sha256": "f2e51f425db6b201fca620a1ac85f418b321d4d3642fe17aef53eb918c19697b",
+      "destination": "Codex Studio Testing Framework/agents/leads/game-designer.md"
+    },
+    {
+      "source": "agents/leads/lead-programmer.md",
+      "source_sha256": "f4838607f9c9b11835520e21e3f5a29b069d8c4913d9aae50eec43a2d704ff31",
+      "destination": "Codex Studio Testing Framework/agents/leads/lead-programmer.md"
+    },
+    {
+      "source": "agents/leads/level-designer.md",
+      "source_sha256": "a4c78eb5763b8081ba447a18bdc928867922732b58fd97a1cb3556ba399de3d0",
+      "destination": "Codex Studio Testing Framework/agents/leads/level-designer.md"
+    },
+    {
+      "source": "agents/leads/narrative-director.md",
+      "source_sha256": "8236c959f601446c831a7786b7d622d245c53e7c68bac35c8978cd4b39352c50",
+      "destination": "Codex Studio Testing Framework/agents/leads/narrative-director.md"
+    },
+    {
+      "source": "agents/leads/qa-lead.md",
+      "source_sha256": "cafc573075e3fe5b58eb708a7ba1b53eac379ecea705ee7a3d885c13698c7a03",
+      "destination": "Codex Studio Testing Framework/agents/leads/qa-lead.md"
+    },
+    {
+      "source": "agents/leads/systems-designer.md",
+      "source_sha256": "edce85064697342d9890d6f79f92952f0e0de0cf840333618316ef3d5bf4f940",
+      "destination": "Codex Studio Testing Framework/agents/leads/systems-designer.md"
+    },
+    {
+      "source": "agents/operations/analytics-engineer.md",
+      "source_sha256": "0cf3a0cfe46d73e1306e79ac9f033828beda92a3363d0d3f0aeaef1070cfd8d1",
+      "destination": "Codex Studio Testing Framework/agents/operations/analytics-engineer.md"
+    },
+    {
+      "source": "agents/operations/community-manager.md",
+      "source_sha256": "60dd4a98143b66f6acb23c757a2c2ae32f7c930a3c50fc35f15e68bcf9075225",
+      "destination": "Codex Studio Testing Framework/agents/operations/community-manager.md"
+    },
+    {
+      "source": "agents/operations/devops-engineer.md",
+      "source_sha256": "1f657b6e9b657e8ceffa2d421934a48722aa7a79889179fa3d78dd6d60ed335b",
+      "destination": "Codex Studio Testing Framework/agents/operations/devops-engineer.md"
+    },
+    {
+      "source": "agents/operations/economy-designer.md",
+      "source_sha256": "f06f9a9c71d9ebdad433d50cdb85b18dc816a55985f0bbf8bb94894b3bcdc5eb",
+      "destination": "Codex Studio Testing Framework/agents/operations/economy-designer.md"
+    },
+    {
+      "source": "agents/operations/live-ops-designer.md",
+      "source_sha256": "2916d02843f8f93f61283261cc733c054c872d8c462f776bf86fa389dd0bfc3e",
+      "destination": "Codex Studio Testing Framework/agents/operations/live-ops-designer.md"
+    },
+    {
+      "source": "agents/operations/localization-lead.md",
+      "source_sha256": "0a250ca0be4660daab17260d1c88dfc5e876f328f3223bffca1824574b089774",
+      "destination": "Codex Studio Testing Framework/agents/operations/localization-lead.md"
+    },
+    {
+      "source": "agents/operations/release-manager.md",
+      "source_sha256": "c7de52293f6f7f4333d3e362d83a5283d42258ae7a858827952eef192f762427",
+      "destination": "Codex Studio Testing Framework/agents/operations/release-manager.md"
+    },
+    {
+      "source": "agents/qa/accessibility-specialist.md",
+      "source_sha256": "10a509119711733c0c5d74d02bc5d792681ebb99bee3062bfcacabaee2b89c3e",
+      "destination": "Codex Studio Testing Framework/agents/qa/accessibility-specialist.md"
+    },
+    {
+      "source": "agents/qa/qa-tester.md",
+      "source_sha256": "d25008f554030c5d45a42468251e6350fc09ec9c7a8ac8df00ed2c9da5c33838",
+      "destination": "Codex Studio Testing Framework/agents/qa/qa-tester.md"
+    },
+    {
+      "source": "agents/qa/security-engineer.md",
+      "source_sha256": "f54686301b2e91ce8cefefcb10d079c8cf74b51f6adac1a22d3d4664c622d756",
+      "destination": "Codex Studio Testing Framework/agents/qa/security-engineer.md"
+    },
+    {
+      "source": "agents/specialists/ai-programmer.md",
+      "source_sha256": "b3dbab29deea2ea3d4e5ee199dfcc75eef71ce3e9ea6ca7fc17659ca263d74a1",
+      "destination": "Codex Studio Testing Framework/agents/specialists/ai-programmer.md"
+    },
+    {
+      "source": "agents/specialists/engine-programmer.md",
+      "source_sha256": "1cd05f39fe5c2401f0e0536ca073449c631472f3e5d304dc15d3f7b2f69aed52",
+      "destination": "Codex Studio Testing Framework/agents/specialists/engine-programmer.md"
+    },
+    {
+      "source": "agents/specialists/gameplay-programmer.md",
+      "source_sha256": "a59d9e2f1ba9c2094b8d1785afe9084124e06262de612e997daf2c258397ac95",
+      "destination": "Codex Studio Testing Framework/agents/specialists/gameplay-programmer.md"
+    },
+    {
+      "source": "agents/specialists/network-programmer.md",
+      "source_sha256": "7c090b419056b88ae51d28005d81a59276afd6bf6d5f160aa75ac6e71b016eca",
+      "destination": "Codex Studio Testing Framework/agents/specialists/network-programmer.md"
+    },
+    {
+      "source": "agents/specialists/performance-analyst.md",
+      "source_sha256": "1860fb3e3efe32496678be775cf71f071c51556d53a49a10fb218f1755ca1925",
+      "destination": "Codex Studio Testing Framework/agents/specialists/performance-analyst.md"
+    },
+    {
+      "source": "agents/specialists/prototyper.md",
+      "source_sha256": "b91698e844bfb1c7f64500a24df46efb869df6d48fdcb0b0e0b81bef35fb6ab2",
+      "destination": "Codex Studio Testing Framework/agents/specialists/prototyper.md"
+    },
+    {
+      "source": "agents/specialists/sound-designer.md",
+      "source_sha256": "0e3909d6c7dd4be3ff2a0d1469f51655a5529fc186a70151aa763ac3a881898b",
+      "destination": "Codex Studio Testing Framework/agents/specialists/sound-designer.md"
+    },
+    {
+      "source": "agents/specialists/technical-artist.md",
+      "source_sha256": "5ba738688dae693e3d490ee773f04e4a009f35e4d412080c9d9577114d5dc513",
+      "destination": "Codex Studio Testing Framework/agents/specialists/technical-artist.md"
+    },
+    {
+      "source": "agents/specialists/tools-programmer.md",
+      "source_sha256": "a729112486e2cd7d32037340f7cad3a6e06f7af5ec61aa2fc8bd18023060726a",
+      "destination": "Codex Studio Testing Framework/agents/specialists/tools-programmer.md"
+    },
+    {
+      "source": "agents/specialists/ui-programmer.md",
+      "source_sha256": "b5d62493dfb6c13f5d1101b1f6cecc9c2ba9f8ab39cf488c736e98dde7c35030",
+      "destination": "Codex Studio Testing Framework/agents/specialists/ui-programmer.md"
+    },
+    {
+      "source": "agents/specialists/ux-designer.md",
+      "source_sha256": "35e2b287502c7e715e857e365ad7940a72bb22d371a58737b7fad4279fbed8bd",
+      "destination": "Codex Studio Testing Framework/agents/specialists/ux-designer.md"
+    },
+    {
+      "source": "agents/specialists/world-builder.md",
+      "source_sha256": "3be79abca1c505f1f79fae81ac1a327f9c649b711c4f441e513036c9244ab16d",
+      "destination": "Codex Studio Testing Framework/agents/specialists/world-builder.md"
+    },
+    {
+      "source": "agents/specialists/writer.md",
+      "source_sha256": "0a7858755fd0326287f53c7a3ca516fc50918095af50b14e9199a4bb1f3bbe22",
+      "destination": "Codex Studio Testing Framework/agents/specialists/writer.md"
+    },
+    {
+      "source": "catalog.yaml",
+      "source_sha256": "c8e66955e244f2235f597994edcb07fbb8f17debb413ea696cfaad49a8c11313",
+      "destination": "Codex Studio Testing Framework/catalog.yaml"
+    },
+    {
+      "source": "quality-rubric.md",
+      "source_sha256": "fa23e7eb1d9ecc5bf477462f1459f96c8b3352ca26a3a0e92d7f3755f920cda2",
+      "destination": "Codex Studio Testing Framework/quality-rubric.md"
+    },
+    {
+      "source": "skills/analysis/asset-audit.md",
+      "source_sha256": "c7a7e03e28c13f7984e9b1c52f190ba91f697883705c3a50c5a7e532f26477da",
+      "destination": "Codex Studio Testing Framework/skills/analysis/asset-audit.md"
+    },
+    {
+      "source": "skills/analysis/balance-check.md",
+      "source_sha256": "57dd79c77fd1bf040121b50a796e532763ac2aa463fe5c0f03649da59715d76c",
+      "destination": "Codex Studio Testing Framework/skills/analysis/balance-check.md"
+    },
+    {
+      "source": "skills/analysis/code-review.md",
+      "source_sha256": "8a9919b81e295f1a9955b103e25d852ce314342b57efb743f778b7654597bcab",
+      "destination": "Codex Studio Testing Framework/skills/analysis/code-review.md"
+    },
+    {
+      "source": "skills/analysis/consistency-check.md",
+      "source_sha256": "fc90222ec6996b886232d38e01d10a141d7aa3642646fcf0d01672e2d0f853e6",
+      "destination": "Codex Studio Testing Framework/skills/analysis/consistency-check.md"
+    },
+    {
+      "source": "skills/analysis/content-audit.md",
+      "source_sha256": "6d4b5bd458afdd9993fa2e857c27404b2624dcd9e5b39d50988426387800a765",
+      "destination": "Codex Studio Testing Framework/skills/analysis/content-audit.md"
+    },
+    {
+      "source": "skills/analysis/estimate.md",
+      "source_sha256": "0e04fb057a70450cfb80c29f3f5213f0add9cbf63afef5be04e211a81da52af6",
+      "destination": "Codex Studio Testing Framework/skills/analysis/estimate.md"
+    },
+    {
+      "source": "skills/analysis/perf-profile.md",
+      "source_sha256": "d983d33a971cc5649a5756ed4db040c2694c2b840fe6eafa4b9f060a188f42b9",
+      "destination": "Codex Studio Testing Framework/skills/analysis/perf-profile.md"
+    },
+    {
+      "source": "skills/analysis/scope-check.md",
+      "source_sha256": "3d3117cc60f74b1e74c2a428edb03065332fa3d906f3be563143af3e262f1e5b",
+      "destination": "Codex Studio Testing Framework/skills/analysis/scope-check.md"
+    },
+    {
+      "source": "skills/analysis/security-audit.md",
+      "source_sha256": "eebf28ac649cbd476dcae41a266d770e2f384ed654207e5a1bed2b2eecc5b666",
+      "destination": "Codex Studio Testing Framework/skills/analysis/security-audit.md"
+    },
+    {
+      "source": "skills/analysis/tech-debt.md",
+      "source_sha256": "f8768c982c0a2b7dcdf4c6228a842a9d02571ed7b9df57d5544dbe92c21f918b",
+      "destination": "Codex Studio Testing Framework/skills/analysis/tech-debt.md"
+    },
+    {
+      "source": "skills/analysis/test-evidence-review.md",
+      "source_sha256": "1f4cd3ed842df9a387a1c9fc59b8d8356b9257235cb954af17c025af700c53e7",
+      "destination": "Codex Studio Testing Framework/skills/analysis/test-evidence-review.md"
+    },
+    {
+      "source": "skills/analysis/test-flakiness.md",
+      "source_sha256": "c59cb41099451ec698147defb4f2a09f09c70bff816ec1653722f7247829ebd0",
+      "destination": "Codex Studio Testing Framework/skills/analysis/test-flakiness.md"
+    },
+    {
+      "source": "skills/authoring/architecture-decision.md",
+      "source_sha256": "1504829dc83fffa98b43df5770b47b1eb05c60a7fe56844975b7c6229234ef58",
+      "destination": "Codex Studio Testing Framework/skills/authoring/architecture-decision.md"
+    },
+    {
+      "source": "skills/authoring/art-bible.md",
+      "source_sha256": "04bfe8ceff1ca43a73410e12805b41d4d601528ec401a6a71693f482593872a3",
+      "destination": "Codex Studio Testing Framework/skills/authoring/art-bible.md"
+    },
+    {
+      "source": "skills/authoring/create-architecture.md",
+      "source_sha256": "70619c5296fe0651ff251b5a65c0029612cf6925c81ecf223d35672d9c143b58",
+      "destination": "Codex Studio Testing Framework/skills/authoring/create-architecture.md"
+    },
+    {
+      "source": "skills/authoring/design-system.md",
+      "source_sha256": "48bee91c3f2e59387f6368577cae6c2aa1bc715fb1acc4a4973c39768496cae7",
+      "destination": "Codex Studio Testing Framework/skills/authoring/design-system.md"
+    },
+    {
+      "source": "skills/authoring/quick-design.md",
+      "source_sha256": "bc39c341c0f0a0fff39bd3c38cd347b5e8b443934a45c6a1aaa0479f3bef957d",
+      "destination": "Codex Studio Testing Framework/skills/authoring/quick-design.md"
+    },
+    {
+      "source": "skills/authoring/ux-design.md",
+      "source_sha256": "429f4352451a4f6fcecf49c05279b6e8438dd0255232605e9510c068d0fe3276",
+      "destination": "Codex Studio Testing Framework/skills/authoring/ux-design.md"
+    },
+    {
+      "source": "skills/authoring/ux-review.md",
+      "source_sha256": "9a060e199cbda6185fa404ef3b52b6dd4557f48f17ce10f987bfbf3a0d025b06",
+      "destination": "Codex Studio Testing Framework/skills/authoring/ux-review.md"
+    },
+    {
+      "source": "skills/gate/gate-check.md",
+      "source_sha256": "8f5c80522bcb3e2295d05c4560c320c97e297bc0bda8abc4239e027907dc4532",
+      "destination": "Codex Studio Testing Framework/skills/gate/gate-check.md"
+    },
+    {
+      "source": "skills/pipeline/create-control-manifest.md",
+      "source_sha256": "64b009c5804c0c8e23673ea9d80d8d9bd93eb18dcdac7e490df05b61ab6a02db",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/create-control-manifest.md"
+    },
+    {
+      "source": "skills/pipeline/create-epics.md",
+      "source_sha256": "7673d97336ce4068e5903c2085c6b10348ca0b54452a6aa022abbe985c299004",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/create-epics.md"
+    },
+    {
+      "source": "skills/pipeline/create-stories.md",
+      "source_sha256": "bfe00a65d96bf8df9fb2b013e64b9c044b2a9e372cb97e93ad8ec2b8bf908d35",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/create-stories.md"
+    },
+    {
+      "source": "skills/pipeline/dev-story.md",
+      "source_sha256": "a6e30fe4f49f81b837d63bf49d3b3c1d5fab851e3ac8d8f41f422c92e471571d",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/dev-story.md"
+    },
+    {
+      "source": "skills/pipeline/map-systems.md",
+      "source_sha256": "e279b984a67cacf6d75b800647d4a4910fe2ba666dea1e4e64cbf5142b21f484",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/map-systems.md"
+    },
+    {
+      "source": "skills/pipeline/propagate-design-change.md",
+      "source_sha256": "a7a8c993e135713ae46f154b3ff934aecd3a18acdaae2c8851ac2f1c689a955b",
+      "destination": "Codex Studio Testing Framework/skills/pipeline/propagate-design-change.md"
+    },
+    {
+      "source": "skills/readiness/story-done.md",
+      "source_sha256": "55b8353f820d85d8e43609829d461fa4f241236fc224eac59ef1fc6b452d20dc",
+      "destination": "Codex Studio Testing Framework/skills/readiness/story-done.md"
+    },
+    {
+      "source": "skills/readiness/story-readiness.md",
+      "source_sha256": "7de9105ba74c932fe1760eaacc2e036e26dcd8b5f238870f46f6848045736f9d",
+      "destination": "Codex Studio Testing Framework/skills/readiness/story-readiness.md"
+    },
+    {
+      "source": "skills/review/architecture-review.md",
+      "source_sha256": "c9530673728283c1b813321109207ca24b876a7171048199194193783161051c",
+      "destination": "Codex Studio Testing Framework/skills/review/architecture-review.md"
+    },
+    {
+      "source": "skills/review/design-review.md",
+      "source_sha256": "ee005d4d1782e1d23d18831d3f43816819c83039e552cf54bf51a21c5b04193b",
+      "destination": "Codex Studio Testing Framework/skills/review/design-review.md"
+    },
+    {
+      "source": "skills/review/review-all-gdds.md",
+      "source_sha256": "bb69f3731d21dc11d8ec136ffdabd26e20f90332070ce7a8279d0531dbeb52cc",
+      "destination": "Codex Studio Testing Framework/skills/review/review-all-gdds.md"
+    },
+    {
+      "source": "skills/sprint/changelog.md",
+      "source_sha256": "f074282eb5b4fa9ad484dd4878d6c45d524049560664e42bab974fa1a1729b9d",
+      "destination": "Codex Studio Testing Framework/skills/sprint/changelog.md"
+    },
+    {
+      "source": "skills/sprint/milestone-review.md",
+      "source_sha256": "1c0a48d190b643c5fc8edaf30e03f968e45283d9223e5acad86dbc47605700a6",
+      "destination": "Codex Studio Testing Framework/skills/sprint/milestone-review.md"
+    },
+    {
+      "source": "skills/sprint/patch-notes.md",
+      "source_sha256": "ace5dbf6815236b85f8634bfb861906652f8373bb19191b0da75e143f7a6f962",
+      "destination": "Codex Studio Testing Framework/skills/sprint/patch-notes.md"
+    },
+    {
+      "source": "skills/sprint/retrospective.md",
+      "source_sha256": "53b8248f740a0beb269f91c13caf17005110327951060cbce16d0dba83039c35",
+      "destination": "Codex Studio Testing Framework/skills/sprint/retrospective.md"
+    },
+    {
+      "source": "skills/sprint/sprint-plan.md",
+      "source_sha256": "d68fb933363d5905d1827fbc9089f8a5691cfbc556df5bf65032d39a76ff2c0c",
+      "destination": "Codex Studio Testing Framework/skills/sprint/sprint-plan.md"
+    },
+    {
+      "source": "skills/sprint/sprint-status.md",
+      "source_sha256": "a5f2f7944f062b176bc377b536e29c33e4f361f632b3b61ef1aefc740334ee18",
+      "destination": "Codex Studio Testing Framework/skills/sprint/sprint-status.md"
+    },
+    {
+      "source": "skills/team/team-audio.md",
+      "source_sha256": "85925c80210fbcc024794437fc91fd3040e71a34239b2c841c53ca79e1f04952",
+      "destination": "Codex Studio Testing Framework/skills/team/team-audio.md"
+    },
+    {
+      "source": "skills/team/team-combat.md",
+      "source_sha256": "8e66ceb67c857482d4b83779d4cd21628b43739cb753a95627e2e096a334e7f8",
+      "destination": "Codex Studio Testing Framework/skills/team/team-combat.md"
+    },
+    {
+      "source": "skills/team/team-level.md",
+      "source_sha256": "8128b7e87f43b4c6994bfd8e4edacf15137c87e0c53ac61376af7e8f3662fe80",
+      "destination": "Codex Studio Testing Framework/skills/team/team-level.md"
+    },
+    {
+      "source": "skills/team/team-live-ops.md",
+      "source_sha256": "943afa0fcf40e783ad8588a5e66d82cc120f02152303aa96d798090f71038a1a",
+      "destination": "Codex Studio Testing Framework/skills/team/team-live-ops.md"
+    },
+    {
+      "source": "skills/team/team-narrative.md",
+      "source_sha256": "3723065da0beb5c0e304167686a564b88a10a80da7d3535240be2673fed7fa16",
+      "destination": "Codex Studio Testing Framework/skills/team/team-narrative.md"
+    },
+    {
+      "source": "skills/team/team-polish.md",
+      "source_sha256": "9959a94e221f6eb02c89b9c21755cc47c034b22aacd37d5004f4355473168b80",
+      "destination": "Codex Studio Testing Framework/skills/team/team-polish.md"
+    },
+    {
+      "source": "skills/team/team-qa.md",
+      "source_sha256": "91505cd9d70f38319b275fe3fe77c37e7f22f0dead63ee7b94c96d07ae99e48b",
+      "destination": "Codex Studio Testing Framework/skills/team/team-qa.md"
+    },
+    {
+      "source": "skills/team/team-release.md",
+      "source_sha256": "14ea5847b6f8da74c5acf2ae6b01218c4b7e548e9391b3d4504c3306fafc7d25",
+      "destination": "Codex Studio Testing Framework/skills/team/team-release.md"
+    },
+    {
+      "source": "skills/team/team-ui.md",
+      "source_sha256": "a6401a50f451e4529643f6b9442d8e5995ae32983fe36d4981e1933671fd053f",
+      "destination": "Codex Studio Testing Framework/skills/team/team-ui.md"
+    },
+    {
+      "source": "skills/utility/adopt.md",
+      "source_sha256": "f570b2b622304a0511ec2c299b7b8ef086e908cc750da1704e7c23344f3aa61d",
+      "destination": "Codex Studio Testing Framework/skills/utility/adopt.md"
+    },
+    {
+      "source": "skills/utility/asset-spec.md",
+      "source_sha256": "a114ea71c1c88fe35853e6ea86c1e4bac391244855511fce026c5d5b97f2e63a",
+      "destination": "Codex Studio Testing Framework/skills/utility/asset-spec.md"
+    },
+    {
+      "source": "skills/utility/brainstorm.md",
+      "source_sha256": "08078d99d960d0561d976cba292b3ab482184300ced6ea2b0127483e08e920fc",
+      "destination": "Codex Studio Testing Framework/skills/utility/brainstorm.md"
+    },
+    {
+      "source": "skills/utility/bug-report.md",
+      "source_sha256": "24dda375578b19498b3905e49c82e8c663a558f1797f0a345d4b9ef4c44dcecc",
+      "destination": "Codex Studio Testing Framework/skills/utility/bug-report.md"
+    },
+    {
+      "source": "skills/utility/bug-triage.md",
+      "source_sha256": "6b672df781ee8fd28f46c9e0ad430f836e6d53ed76cb09170f8fd9016d23e4c7",
+      "destination": "Codex Studio Testing Framework/skills/utility/bug-triage.md"
+    },
+    {
+      "source": "skills/utility/day-one-patch.md",
+      "source_sha256": "e2db43bbd7f111815335345664c3327a962878c2ac1c485db03cd03a3e678df9",
+      "destination": "Codex Studio Testing Framework/skills/utility/day-one-patch.md"
+    },
+    {
+      "source": "skills/utility/help.md",
+      "source_sha256": "43668bea75b8310927f3a5fd80482698b76839fb10cafece4296edecfb90c3da",
+      "destination": "Codex Studio Testing Framework/skills/utility/help.md"
+    },
+    {
+      "source": "skills/utility/hotfix.md",
+      "source_sha256": "16c1cfa8faf7c9ef1c12bcf960435dda0ea023c17588be4e38b1792600c290df",
+      "destination": "Codex Studio Testing Framework/skills/utility/hotfix.md"
+    },
+    {
+      "source": "skills/utility/launch-checklist.md",
+      "source_sha256": "27cd27dd340981868e2780f3159273bcce995ea32640eba3bebf049103175852",
+      "destination": "Codex Studio Testing Framework/skills/utility/launch-checklist.md"
+    },
+    {
+      "source": "skills/utility/localize.md",
+      "source_sha256": "5579797640b71fbd1e539a1cc3a1ff043989a7d907d0b551c74d15828d7943dc",
+      "destination": "Codex Studio Testing Framework/skills/utility/localize.md"
+    },
+    {
+      "source": "skills/utility/onboard.md",
+      "source_sha256": "7926fcf910c18fa6cc32bbf82ba6b57de342240b633f3348a790fbc190cba771",
+      "destination": "Codex Studio Testing Framework/skills/utility/onboard.md"
+    },
+    {
+      "source": "skills/utility/playtest-report.md",
+      "source_sha256": "e4bd0d4b04e7afe2288a3241c7776000c82b161cb3edf4e6733c5af97b597ce1",
+      "destination": "Codex Studio Testing Framework/skills/utility/playtest-report.md"
+    },
+    {
+      "source": "skills/utility/project-stage-detect.md",
+      "source_sha256": "2ae82ee2162398ade40797fe4bf4b34bed677f4dfcfabec74fc6949b9144bdf7",
+      "destination": "Codex Studio Testing Framework/skills/utility/project-stage-detect.md"
+    },
+    {
+      "source": "skills/utility/prototype.md",
+      "source_sha256": "0fffedcdfd8013083bfbfb4e53d11f6afa0bda0c345f1d24dbee44abd1a5434e",
+      "destination": "Codex Studio Testing Framework/skills/utility/prototype.md"
+    },
+    {
+      "source": "skills/utility/qa-plan.md",
+      "source_sha256": "4fa635ab012dd3c80b47da01aec68659979d0b2a381c067effb67b29845fa57b",
+      "destination": "Codex Studio Testing Framework/skills/utility/qa-plan.md"
+    },
+    {
+      "source": "skills/utility/regression-suite.md",
+      "source_sha256": "5a34530d598ba9ff3b38f5cead890972e0ba40d2ee8b3b036558bc8515cfa4f7",
+      "destination": "Codex Studio Testing Framework/skills/utility/regression-suite.md"
+    },
+    {
+      "source": "skills/utility/release-checklist.md",
+      "source_sha256": "49557bc731bcdc10ca3b6164ea7b7deee9f088dc8ff5b4b117c52cad8439111c",
+      "destination": "Codex Studio Testing Framework/skills/utility/release-checklist.md"
+    },
+    {
+      "source": "skills/utility/reverse-document.md",
+      "source_sha256": "13c845c04481e9df2f002fabea6873d5e81730f03404b9342406283bfa0ce404",
+      "destination": "Codex Studio Testing Framework/skills/utility/reverse-document.md"
+    },
+    {
+      "source": "skills/utility/setup-engine.md",
+      "source_sha256": "c49af96f733bb9f387532b17fa0230fe51519f8e5ca24ee140cf54366fcfff59",
+      "destination": "Codex Studio Testing Framework/skills/utility/setup-engine.md"
+    },
+    {
+      "source": "skills/utility/skill-improve.md",
+      "source_sha256": "85ede0728f7d8b1214f736d93c9e54978e013a0112a4173525068aa1a277425f",
+      "destination": "Codex Studio Testing Framework/skills/utility/skill-improve.md"
+    },
+    {
+      "source": "skills/utility/skill-test.md",
+      "source_sha256": "8e1edfa9d357c5b41d3adaa9ac4ed49dadfa6d75b8be87eba0fa639a4942d35c",
+      "destination": "Codex Studio Testing Framework/skills/utility/skill-test.md"
+    },
+    {
+      "source": "skills/utility/smoke-check.md",
+      "source_sha256": "520db193e66067e3436d88279457e23c433f231ff4fa7e298683a7adf780fce3",
+      "destination": "Codex Studio Testing Framework/skills/utility/smoke-check.md"
+    },
+    {
+      "source": "skills/utility/soak-test.md",
+      "source_sha256": "b8e9c73ce10899ee7a9c6cfc82b8bc1d28c78ca705eeb69e350c20a71296dd1f",
+      "destination": "Codex Studio Testing Framework/skills/utility/soak-test.md"
+    },
+    {
+      "source": "skills/utility/start.md",
+      "source_sha256": "9b6e21f49a4adb576730512c33bfbbe489ae48099cbd44583c4ae417b66fc9bc",
+      "destination": "Codex Studio Testing Framework/skills/utility/start.md"
+    },
+    {
+      "source": "skills/utility/test-helpers.md",
+      "source_sha256": "ddb31593a2dc15f660b13f46c20e0e324f71c2b60868dfc71b348cba40032e48",
+      "destination": "Codex Studio Testing Framework/skills/utility/test-helpers.md"
+    },
+    {
+      "source": "skills/utility/test-setup.md",
+      "source_sha256": "4720ed07187ee2df70e7de707e3526fd9d5497d6d1a69e77e9fe3b7abb5d2213",
+      "destination": "Codex Studio Testing Framework/skills/utility/test-setup.md"
+    },
+    {
+      "source": "templates/agent-test-spec.md",
+      "source_sha256": "617df903efef99f8ab9ee2a9449ad055907f18d976e0cec80cdc295e5f99019a",
+      "destination": "Codex Studio Testing Framework/templates/agent-test-spec.md"
+    },
+    {
+      "source": "templates/skill-test-spec.md",
+      "source_sha256": "343d165cc2966151700985ab5f3cfc27ce831e2234ac63c22e14d2142bf490fd",
+      "destination": "Codex Studio Testing Framework/templates/skill-test-spec.md"
+    }
+  ],
+  "native_extensions": [
+    "Codex Studio Testing Framework/skills/utility/vertical-slice.md"
+  ]
+}

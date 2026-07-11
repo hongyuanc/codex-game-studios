@@ -46,7 +46,7 @@ publication without explicit user instruction.
 See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
 
 > **First session?** If the project has no engine configured and no game concept,
-> run `/start` to begin the guided onboarding flow.
+> invoke `$start` to begin the guided onboarding flow.
 
 ## Coding Standards
 

@@ -1,16 +1,29 @@
 # Skill Test Spec: $help
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/help/SKILL.md`
+- Runtime name: `help`
+- Runtime trigger description: `Orient the user from current repository state and recommend the next applicable Codex Game Studios workflow.`
+- Native invocation: `$help`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$help` analyzes what has been done and what comes next in the project workflow.
-It runs on the Haiku model (read-only, formatting task) and reads `production/stage.txt`,
-the active sprint file, and recent session state to produce a concise situational
-guidance summary. The skill optionally accepts a context query (e.g., `$help testing`)
-to surface relevant skills for a specific topic.
+`$help` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The output is always informational — no files are written and no director gates
-are invoked. The verdict is always HELP COMPLETE. The skill serves as a workflow
-navigator, suggesting 2-3 next skills based on the current project state.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -18,10 +31,10 @@ navigator, suggesting 2-3 next skills based on the current project state.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: HELP COMPLETE
-- [ ] Does NOT contain "May I write" language (skill is read-only)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (suggests 2-3 relevant skills based on state)
 
 ---

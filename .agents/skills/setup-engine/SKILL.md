@@ -1,6 +1,6 @@
 ---
 name: setup-engine
-description: Configure and safely activate one native Codex engine-specialist pack for Godot, Unity, or Unreal.
+description: Use when you need to configure and safely activate one native Codex engine-specialist pack for Godot, Unity, or Unreal.
 ---
 
 # Setup Engine

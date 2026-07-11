@@ -1,18 +1,29 @@
 # Skill Test Spec: $bug-report
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/bug-report/SKILL.md`
+- Runtime name: `bug-report`
+- Runtime trigger description: `"Use when a defect needs structured documentation, reproduction steps, severity assessment, verification, or closure."`
+- Native invocation: `$bug-report`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$bug-report` creates a structured bug report document from a user description.
-It produces a report with the following required fields: Title, Repro Steps,
-Expected Behavior, Actual Behavior, Severity (CRITICAL/HIGH/MEDIUM/LOW), Affected
-System(s), and Build/Version. If the user's initial description is missing any
-required field, the skill asks follow-up questions to fill the gaps before
-producing the draft.
+`$bug-report` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-The skill checks for possibly duplicate reports (by comparing to existing files
-in `production/bugs/`) and offers to link rather than create a new report. Each
-report is written to `production/bugs/bug-[date]-[slug].md` after a "May I write"
-ask. No director gates are used — bug reporting is an operational utility.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -20,10 +31,10 @@ ask. No director gates are used — bug reporting is an operational utility.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before writing the report
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., `$bug-triage` to reprioritize, `$hotfix` for critical)
 
 ---
@@ -50,14 +61,14 @@ None. `$bug-report` is an operational documentation skill. No director gates app
 3. Skill confirms repro steps, expected (no crash), actual (crash), affected system
    (arena/boss), and build version with the user
 4. Skill drafts the full structured report
-5. Skill asks "May I write to `production/bugs/bug-2026-04-06-game-crashes-boss-arena.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. File is written on approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] All 7 required fields are present in the report
 - [ ] Severity is CRITICAL for a crash report
 - [ ] Filename follows the `bug-[date]-[slug].md` convention
-- [ ] "May I write" is asked with the full file path
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -77,7 +88,7 @@ None. `$bug-report` is an operational documentation skill. No director gates app
    or in a structured prompt)
 3. User provides answers
 4. Skill compiles complete report from answers
-5. Skill asks "May I write?" and writes on approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] At least 3 follow-up questions are asked to fill missing fields
@@ -100,13 +111,13 @@ None. `$bug-report` is an operational documentation skill. No director gates app
 2. Skill reports: "A similar bug report exists: bug-2026-03-20-audio-cut-out.md"
 3. Skill presents options: link as duplicate (add note to existing), create new anyway
 4. If user chooses link: skill adds a cross-reference note to the existing file
-   (asks "May I update the existing report?")
+   The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. If user chooses create new: normal report creation proceeds
 
 **Assertions:**
 - [ ] Existing similar report is surfaced before creating a new one
 - [ ] User is given the choice (not forced to link or create)
-- [ ] If linking: "May I update" is asked before modifying the existing file
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE in either path
 
 ---
@@ -123,7 +134,7 @@ None. `$bug-report` is an operational documentation skill. No director gates app
 1. Skill identifies 2 affected systems from the description: Save System and UI
 2. Report is drafted with both systems listed under Affected System(s)
 3. Severity is assessed (likely HIGH — data loss risk from save freeze)
-4. Skill asks "May I write" with the appropriate filename
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Report is written with both systems tagged; verdict is COMPLETE
 
 **Assertions:**
@@ -158,7 +169,7 @@ None. `$bug-report` is an operational documentation skill. No director gates app
 - [ ] Collects all 7 required fields before drafting the report
 - [ ] Asks follow-up questions for any missing required fields
 - [ ] Checks for similar existing reports before creating a new one
-- [ ] Asks "May I write to `production/bugs/bug-[date]-[slug].md`?" before writing
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when the report file is written
 
 ---

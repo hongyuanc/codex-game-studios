@@ -7,6 +7,23 @@ A metric is PASS when the skill's written instructions clearly satisfy the crite
 A metric is FAIL when the instructions are absent, ambiguous, or contradictory.
 A metric is WARN when the instructions partially address the criterion.
 
+## Codex-Native Baseline
+
+Every category inherits these checks before its domain metrics are scored:
+
+- Skill discovery matches the exact runtime `name` and trigger `description` in
+  `.agents/skills/<name>/SKILL.md`; invocation uses `$name`.
+- A structured `request_user_input` call has 1–3 questions and each question has
+  2–3 options. The workflow asks one decision per turn.
+- Delegation selects direct child custom agents only. The maximum delegation
+  depth is 1; children return scoped evidence and the parent agent synthesizes
+  the user-facing result.
+- Writes stay inside one complete approved changeset. A new path or material
+  scope expansion requires a revised proposal and fresh approval.
+- Agent model labels and IDs come from the actual TOML profile: Sol (`gpt-5.6`),
+  Terra (`gpt-5.6-terra`), or Luna (`gpt-5.6-luna`). Organizational tier never
+  overrides the runtime route.
+
 ---
 
 ## Skill Categories
@@ -21,10 +38,10 @@ auto-advancing stage and must respect the three review modes.
 | Metric | PASS criteria |
 |---|---|
 | **G1 — Review mode read** | Skill reads `production/session-state/review-mode.txt` (or equivalent) before deciding which directors to spawn |
-| **G2 — Full mode: all 4 directors spawn** | In `full` mode, all 4 Tier-1 directors (CD, TD, PR, AD) PHASE-GATE prompts are invoked in parallel |
+| **G2 — Full mode: direct-child panel** | In `full` mode, the 4 directors (CD, TD, PR, AD) are independent direct-child custom-agent delegations; the parent waits for and synthesizes every verdict |
 | **G3 — Lean mode: PHASE-GATE only** | In `lean` mode, only `*-PHASE-GATE` gates run; inline gates (CD-PILLARS, TD-ARCHITECTURE, etc.) are skipped |
 | **G4 — Solo mode: no directors** | In `solo` mode, no director gates spawn; each is noted as "skipped — Solo mode" |
-| **G5 — No auto-advance** | Skill never writes `production/stage.txt` without explicit user confirmation via "May I write" |
+| **G5 — No auto-advance** | Skill never changes `production/stage.txt` unless that path and transition are part of one complete approved changeset |
 
 ---
 
@@ -37,14 +54,14 @@ read-only and must not trigger director gates during the analysis phase.
 
 | Metric | PASS criteria |
 |---|---|
-| **R1 — Read-only enforcement** | Skill does not modify the reviewed document without explicit user approval; any write operations (review logs, index updates) are gated behind "May I write" |
+| **R1 — Read-only enforcement** | Review analysis is read-only. Any optional review log, index update, or document revision is listed in one complete proposed changeset and requires approval before editing |
 | **R2 — 8-section check** | Skill evaluates all 8 required GDD sections (or equivalent architectural sections) explicitly |
 | **R3 — Correct verdict vocabulary** | Verdict is exactly one of: APPROVED / NEEDS REVISION / MAJOR REVISION NEEDED (design) or PASS / CONCERNS / FAIL (architecture) |
 | **R4 — No director gates during analysis** | Skill does not spawn director gates during its analysis phases; post-analysis director review (as in architecture-review) is acceptable when the skill's scope and stakes warrant it |
 | **R5 — Structured findings** | Output contains a per-section status table or checklist before the final verdict |
 
 > **Exceptions:**
-> - `design-review`: Has `Write, Edit` in allowed-tools to support an optional "Revise now" path (all writes gated behind user approval) and to write review logs. R1 is satisfied because the reviewed document is never silently modified.
+> - `design-review`: Its optional “Revise now” path and review log remain compliant only when every target is in the approved changeset; the reviewed document is never silently modified.
 > - `architecture-review`: Spawns TD-ARCHITECTURE and LP-FEASIBILITY gates after its analysis is complete. This is intentional — architecture review is high-stakes and benefits from director sign-off. R4 is satisfied because the gates run post-analysis, not during it.
 
 ---
@@ -60,7 +77,7 @@ a single-draft pattern appropriate to their smaller scope.
 | Metric | PASS criteria |
 |---|---|
 | **A1 — Section-by-section cycle** | Full authoring skills (design-system, ux-design, art-bible) author one section at a time, presenting content for approval before proceeding to the next. Lightweight skills (quick-design, architecture-decision, create-architecture) may draft the complete document then ask for approval — single-draft is acceptable for documents under ~4 hours of implementation scope. |
-| **A2 — May-I-write per section** | Full authoring skills ask "May I write this to [filepath]?" before each section write. Lightweight skills ask once for the complete document. |
+| **A2 — Bounded authoring approval** | Before editing, the skill presents the complete current section or lightweight-document changeset with every target path; scope expansion requires fresh approval |
 | **A3 — Retrofit mode** | Skill detects if the target file already exists and offers to update specific sections rather than overwriting the whole document. Lightweight skills (quick-design) that always create new files are exempt. |
 | **A4 — Director gate at correct tier** | If a director gate is defined for this skill (e.g., CD-GDD-ALIGN, TD-ADR), it runs at the correct mode threshold (full/lean) — NOT in solo |
 | **A5 — Skeleton-first** | Full authoring skills create a file skeleton with all section headers before filling content, to preserve progress on session interruption. Lightweight skills are exempt. |
@@ -99,7 +116,7 @@ with correct schema, respect layer/priority ordering, and gate before writing.
 |---|---|
 | **P1 — Correct output schema** | Each produced file follows the project template (EPIC.md, story frontmatter, etc.); skill references the template path |
 | **P2 — Layer/priority ordering** | Skills that produce epics or stories respect layer ordering (core → extended → meta) and priority fields |
-| **P3 — May-I-write before each artifact** | Skill asks "May I write [artifact]?" before creating each output file, not batch-approving all files at once |
+| **P3 — Complete artifact changeset** | The skill lists every output path and material edit in one bounded proposal; approval covers that set and no unlisted artifact |
 | **P4 — Director gate at correct tier** | In-scope gates (PR-EPIC, QL-STORY-READY, LP-CODE-REVIEW, etc.) run in `full`, skip in `lean`/`solo` with noted skip |
 | **P5 — Reads before writes** | Skill reads the relevant GDD/ADR/manifest before producing artifacts to ensure alignment |
 
@@ -117,7 +134,7 @@ analysis and must ask before recommending any file writes.
 |---|---|
 | **AN1 — Read-only scan** | Analysis phase uses only Read/Glob/Grep tools; no Write or Edit during the scan itself |
 | **AN2 — Structured findings table** | Output includes a findings table or checklist (not prose only) with severity/priority per finding |
-| **AN3 — No auto-write** | Any suggested file writes (e.g., tech-debt register, fix patches) are gated behind "May I write" |
+| **AN3 — No auto-write** | Analysis is read-only; an optional report or remediation patch is a complete proposed changeset approved after findings are shown |
 | **AN4 — No director gates during analysis** | Analysis skills do not spawn director gates; they produce findings for human review |
 
 ---
@@ -132,10 +149,10 @@ spawn the right agents, run independent ones in parallel, and surface blocks imm
 
 | Metric | PASS criteria |
 |---|---|
-| **T1 — Named agent list** | Skill explicitly names which agents it spawns and in what order |
-| **T2 — Parallel where independent** | Agents whose inputs don't depend on each other are spawned in parallel (single message, multiple Task calls) |
+| **T1 — Named direct-child list** | Skill names each direct child profile, its bounded input, expected evidence, and dependency order |
+| **T2 — Parallel where independent** | Independent profiles run as sibling direct-child delegations with maximum depth 1; dependent work waits for prerequisites |
 | **T3 — BLOCKED surfacing** | If any spawned agent returns BLOCKED or fails, skill surfaces it immediately and halts dependent work — never silently skips |
-| **T4 — Collect all verdicts before proceeding** | Dependent phases wait for all parallel agents to complete before proceeding |
+| **T4 — Parent synthesis** | The parent collects all sibling results, preserves partial evidence, and synthesizes the verdict before proceeding or asking the user |
 | **T5 — Usage error on no argument** | If required argument (e.g., feature name) is missing, skill outputs usage hint and stops without spawning agents |
 
 ---
@@ -152,7 +169,7 @@ They have a PR-SPRINT or PR-MILESTONE gate at specific mode thresholds.
 | **SP1 — Reads sprint/milestone state** | Skill reads `production/sprints/` or `production/milestones/` before producing output |
 | **SP2 — Correct sprint gate** | PR-SPRINT (for planning) or PR-MILESTONE (for milestone review) gate runs in `full` mode, skips in `lean`/`solo` |
 | **SP3 — Structured output** | Output uses a consistent structure (velocity table, risk list, action items) rather than free prose |
-| **SP4 — No auto-commit** | Skill never writes sprint files or milestone records without "May I write" |
+| **SP4 — No auto-commit** | Sprint files, milestone records, commits, and publication are never implicit; each mutation uses its applicable approved boundary |
 
 ---
 
@@ -187,7 +204,7 @@ Used to validate agent spec files in `tests/agents/`.
 | **D1 — Correct verdict vocabulary** | Returns APPROVE / CONCERNS / REJECT (or domain equivalent: REALISTIC/CONCERNS/UNREALISTIC for producer) |
 | **D2 — Domain boundary respected** | Does not make binding decisions outside its declared domain |
 | **D3 — Conflict escalation** | When two departments conflict, escalates to correct parent (creative-director or technical-director) rather than unilaterally deciding |
-| **D4 — Opus model tier** | Agent is assigned Opus model per coordination-rules.md |
+| **D4 — Exact runtime route** | The spec reads the director's TOML and matches its exact Sol or Terra label, model ID, and reasoning effort |
 
 ### `lead`
 
@@ -198,7 +215,7 @@ systems-designer, level-designer
 |---|---|
 | **L1 — Domain verdict** | Returns a domain-specific verdict (e.g., FEASIBLE/INFEASIBLE for lead-programmer, PASS/FAIL for qa-lead) |
 | **L2 — Escalates to shared parent** | Out-of-domain conflicts escalate to creative-director (design) or technical-director (tech) |
-| **L3 — Sonnet model tier** | Agent is assigned Sonnet model (default) per coordination-rules.md |
+| **L3 — Exact runtime route** | The spec reads the lead's TOML and matches its exact Terra label, `gpt-5.6-terra` ID, and reasoning effort |
 
 ### `specialist`
 
@@ -246,4 +263,4 @@ analytics-engineer, economy-designer, localization-lead
 |---|---|
 | **O1 — Domain ownership clear** | Agent description clearly states what it owns (pipeline, releases, economy, etc.) |
 | **O2 — Defers implementation** | Does not write game logic or engine code; delegates to appropriate specialist |
-| **O3 — Toolset matches role** | `allowed-tools` in frontmatter matches the operational (not coding) nature of the role |
+| **O3 — Runtime instructions match role** | TOML `developer_instructions` and sandbox expectations match the operational domain and do not claim unrelated game-code authority |

@@ -1,9 +1,20 @@
 # Agent Test Spec: live-ops-designer
 
+## Codex Runtime Contract
+
+- Runtime profile: `.codex/agents/live-ops-designer.toml`
+- Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
+- Model route: **Terra** (`gpt-5.6-terra`)
+- Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
+- Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
+
+---
+
+
 ## Agent Summary
 - **Domain**: Post-launch content strategy, seasonal events (design and structure), battle pass design, content cadence planning, player retention mechanic design, live service feature roadmaps
 - **Does NOT own**: Economy math and reward value calculations (economy-designer), analytics tracking implementation (analytics-engineer), narrative content within events (writer), code implementation
-- **Model tier**: Sonnet
+Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - **Gate IDs**: None; escalates monetization concerns to creative-director for brand/ethics review
 
 ---
@@ -11,8 +22,8 @@
 ## Static Assertions (Structural)
 
 - [ ] `description:` field is present and domain-specific (references live ops, seasonal events, battle pass, retention)
-- [ ] `allowed-tools:` list matches the agent's role (Read/Write for design/live-ops/ documents; no code or analytics tools)
-- [ ] Model tier is Sonnet (default for design specialists)
+- [ ] The profile relies on Codex sandbox policy and its parent task boundary; it defines no per-profile tool allowlist.
+- [ ] Runtime model label, ID, and reasoning effort match the Codex Runtime Contract above.
 - [ ] Agent definition does not claim authority over economy math, analytics pipelines, or narrative direction
 
 ---

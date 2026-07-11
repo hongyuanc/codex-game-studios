@@ -1,17 +1,29 @@
 # Skill Test Spec: $adopt
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/adopt/SKILL.md`
+- Runtime name: `adopt`
+- Runtime trigger description: `Audit an existing game project for Codex Game Studios artifact compatibility and produce a prioritized migration plan.`
+- Native invocation: `$adopt`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$adopt` audits an existing project's artifacts — GDDs, ADRs, stories, infrastructure
-files, and `technical-preferences.md` — for format compliance with the template's
-skill pipeline. It classifies every gap by severity (BLOCKING / HIGH / MEDIUM / LOW),
-composes a numbered, ordered migration plan, and writes it to `docs/adoption-plan-[date].md`
-after explicit user approval via `request_user_input`.
+`$adopt` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-This skill is distinct from `$project-stage-detect` (which checks what exists).
-`$adopt` checks whether what exists will actually work with the template's skills.
-
-No director gates apply. The skill does NOT invoke any director agents.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -19,10 +31,10 @@ No director gates apply. The skill does NOT invoke any director agents.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains severity tier keywords: BLOCKING, HIGH, MEDIUM, LOW
-- [ ] Contains "May I write" or `request_user_input` language before writing the adoption plan
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (e.g., offering to fix the highest-priority gap immediately)
 
 ---

@@ -1,12 +1,29 @@
 # Skill Test Spec: $changelog
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/changelog/SKILL.md`
+- Runtime name: `changelog`
+- Runtime trigger description: `"Use when an internal or player-facing changelog must be drafted from repository and production history."`
+- Native invocation: `$changelog`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$changelog` is a Haiku-tier skill that auto-generates a developer-facing
-changelog by reading git commit history and closed sprint stories since the
-last release tag. It organizes entries into features, fixes, and known issues.
-No director gates are used. The skill asks "May I write to `docs/CHANGELOG.md`?"
-before persisting. Verdict is always COMPLETE.
+`$changelog` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -14,10 +31,10 @@ before persisting. Verdict is always COMPLETE.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" language (skill writes changelog)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., run $patch-notes for player-facing version)
 
 ---
@@ -45,14 +62,14 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 2. Skill reads sprint stories to cross-reference task IDs
 3. Skill compiles entries into Features, Fixes, and Known Issues sections
 4. Skill presents draft to user
-5. Skill asks "May I write to `docs/CHANGELOG.md`?"
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. User approves; file written; verdict COMPLETE
 
 **Assertions:**
 - [ ] Changelog covers commits since the most recent git tag
 - [ ] Entries are organized into Features / Fixes / Known Issues sections
 - [ ] Sprint story references are used to enrich commit descriptions
-- [ ] "May I write" prompt appears before file write
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE after write
 
 ---
@@ -70,7 +87,7 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 2. Skill uses all commits in history as the baseline
 3. Skill notes in the output: "No version tag found — using full commit history; version baseline is unset"
 4. Skill still compiles organized changelog from available commits
-5. Skill asks "May I write" and writes on approval
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Skill does not error when no git tags exist
@@ -116,14 +133,14 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 1. Skill detects that `docs/CHANGELOG.md` already exists
 2. Skill compiles new entries for the period since `v0.3.0`
 3. Skill presents draft with new section prepended above existing content
-4. Skill asks "May I write to `docs/CHANGELOG.md`?" (confirming prepend strategy)
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. User approves; new content is prepended, old entries intact; verdict COMPLETE
 
 **Assertions:**
 - [ ] Skill reads existing changelog before writing to detect prior content
 - [ ] New section is prepended (not appended or overwriting) existing entries
 - [ ] Old changelog entries for v0.2.0 and v0.3.0 are preserved in the written file
-- [ ] "May I write" prompt reflects the prepend operation
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
 
@@ -138,13 +155,13 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 **Expected behavior:**
 1. Skill compiles changelog in full mode
 2. No director gate is invoked (changelog generation is compilation, not a delivery gate)
-3. Skill runs on Haiku model — fast compilation
+3. Skill runs on Luna model — fast compilation
 4. Skill asks user for approval and writes file on confirmation
 
 **Assertions:**
 - [ ] No director gate is invoked regardless of review mode
 - [ ] Output does not reference any gate result
-- [ ] Skill proceeds directly from compilation to "May I write" prompt
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE
 
 ---
@@ -152,10 +169,10 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 ## Protocol Compliance
 
 - [ ] Reads git log and sprint story files before compiling
-- [ ] Always asks "May I write" before writing changelog
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked
 - [ ] Verdict is always COMPLETE
-- [ ] Runs on Haiku model tier (fast, low-cost)
+- [ ] Runs on Luna model tier (fast, low-cost)
 
 ---
 

@@ -1,16 +1,29 @@
 # Skill Test Spec: $test-helpers
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/test-helpers/SKILL.md`
+- Runtime name: `test-helpers`
+- Runtime trigger description: `"Use when repeated test setup, assertions, factories, or engine-specific fixtures are creating boilerplate across test files."`
+- Native invocation: `$test-helpers`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-`$test-helpers` generates engine-specific test helper utilities for the project's
-test suite. Helpers include factory functions (for creating test entities with
-known state), fixture loaders, assertion helpers, and mock stubs for external
-dependencies. Generated helpers follow the naming and structure conventions in
-`coding-standards.md` and are written to `tests/helpers/`.
+`$test-helpers` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
 
-Each helper file is gated behind a "May I write" ask. If a helper file already
-exists, the skill offers to extend it rather than replace. No director gates
-apply. The verdict is COMPLETE when helper files are written.
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
@@ -18,10 +31,10 @@ apply. The verdict is COMPLETE when helper files are written.
 
 Verified automatically by `$skill-test static` — no fixture needed.
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] Contains "May I write" collaborative protocol language before writing helpers
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff (e.g., write a test using the generated helper)
 
 ---
@@ -50,7 +63,7 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
    - `create_player(health: int = 100, speed: float = 200.0)` function
    - Returns a player node pre-configured to a known state
    - Uses dependency injection (no singletons)
-3. Skill asks "May I write to `tests/helpers/player_factory.gd`?"
+3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 4. File is written on approval; verdict is COMPLETE
 
 **Assertions:**
@@ -97,13 +110,13 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
 2. Skill presents options: add `create_enemy()` to existing factory or create
    `tests/helpers/enemy_factory.gd`
 3. User selects extend; skill drafts the `create_enemy()` function
-4. Skill asks "May I extend `tests/helpers/player_factory.gd`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Function is added on approval; verdict is COMPLETE
 
 **Assertions:**
 - [ ] Existing helper is detected and surfaced
 - [ ] User is given extend vs. new file choice
-- [ ] "May I extend" language is used (not "May I write" for replacement)
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Existing `create_player()` is preserved in the extended file
 - [ ] Verdict is COMPLETE
 
@@ -124,7 +137,7 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
 3. Skill generates an `inventory_factory.gd` with generic placeholder values
    (item_count = 0, max_capacity = 20) and a comment: "# TODO: align defaults
    with inventory GDD when written"
-4. Skill asks "May I write to `tests/helpers/inventory_factory.gd`?"
+4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. File is written; verdict is COMPLETE with advisory note
 
 **Assertions:**
@@ -160,7 +173,7 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
 - [ ] Reads GDD for default values when available
 - [ ] Notes missing GDD context rather than blocking
 - [ ] Detects existing helper files and offers extend rather than replace
-- [ ] Asks "May I write" (or "May I extend") before any file operation
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when helper is written
 
 ---

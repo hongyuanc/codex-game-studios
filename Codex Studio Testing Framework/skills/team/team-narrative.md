@@ -1,27 +1,40 @@
 # Skill Test Spec: $team-narrative
 
+## Codex Runtime Contract
+
+- Runtime skill: `.agents/skills/team-narrative/SKILL.md`
+- Runtime name: `team-narrative`
+- Runtime trigger description: `"Use when story content, world lore, writing, and level narrative need coordinated development."`
+- Native invocation: `$team-narrative`
+- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
+- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
+- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
+
+---
+
+
 ## Skill Summary
 
-Orchestrates the narrative team through a five-phase pipeline: narrative direction
-(narrative-director) → world foundation + dialogue drafting (world-builder and writer
-in parallel) → level narrative integration (level-designer) → consistency review
-(narrative-director) → polish + localization compliance (writer, localization-lead,
-and world-builder in parallel). Uses `request_user_input` at each phase transition to
-present proposals as selectable options. Produces a narrative summary report and
-delivers narrative documents via subagents that each enforce the "May I write?"
-protocol. Verdict is COMPLETE when all phases succeed, or BLOCKED when a dependency
-is unresolved.
+`$team-narrative` is tested against the exact runtime discovery contract above. The five
+cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
+modes, and edge conditions.
+
+Validation is read-only. If the workflow writes, the parent first presents one
+complete proposed changeset containing every target path and material edit; any
+new path or scope expansion requires fresh approval. If it delegates, direct
+children return scoped evidence and the parent synthesizes the result.
 
 ---
 
 ## Static Assertions (Structural)
 
-- [ ] Has required frontmatter fields: `name`, `description`, `argument-hint`, `user-invocable`, `allowed-tools`
+- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED
 - [ ] Contains "File Write Protocol" section
-- [ ] File writes are delegated to sub-agents — orchestrator does not write files directly
-- [ ] Sub-agents enforce "May I write to [path]?" before any write
+- [ ] File writes are delegated to child custom agents — orchestrator does not write files directly
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (references `$design-review`, `$localize extract`, `$dev-story`)
 - [ ] Error Recovery Protocol section is present
 - [ ] `request_user_input` is used at phase transitions before proceeding
@@ -52,13 +65,13 @@ is unresolved.
 7. Phase 4: narrative-director reviews all dialogue against voice profiles, verifies lore consistency, confirms pacing; approves or flags issues
 8. `request_user_input` presents review results; user approves before Phase 5 begins
 9. Phase 5: writer, localization-lead, and world-builder are spawned in parallel; writer performs final self-review; localization-lead validates i18n compliance; world-builder finalizes canon levels
-10. Final summary report is presented; subagent asks "May I write the narrative document to [path]?" before writing
+10. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 11. Verdict: COMPLETE
 
 **Assertions:**
 - [ ] narrative-director is spawned in Phase 1 before any other agents
 - [ ] `request_user_input` appears after Phase 1 output and before Phase 2 launch
-- [ ] world-builder and writer Task calls are issued simultaneously in Phase 2 (not sequentially)
+- [ ] world-builder and writer child-agent delegations are issued simultaneously in Phase 2 (not sequentially)
 - [ ] level-designer is not launched until Phase 2 `request_user_input` is approved
 - [ ] narrative-director is re-spawned in Phase 4 for consistency review
 - [ ] Phase 5 spawns all three agents (writer, localization-lead, world-builder) simultaneously
@@ -93,7 +106,7 @@ is unresolved.
 **Assertions:**
 - [ ] Contradiction is surfaced before Phase 3 begins
 - [ ] Orchestrator does not silently resolve the contradiction by picking one version
-- [ ] `request_user_input` presents at least 3 options including "stop and resolve first"
+- [ ] `request_user_input` presents exactly 3 options including "stop and resolve first"
 - [ ] Writer's draft output is preserved in the partial report, not discarded
 - [ ] Phase 3 (level-designer) is not launched until the user resolves the contradiction
 - [ ] Verdict is BLOCKED (not COMPLETE) if the user stops to resolve the contradiction
@@ -175,7 +188,7 @@ is unresolved.
 - [ ] Writer block is surfaced before Phase 3 begins
 - [ ] world-builder's completed lore output is preserved in the partial report
 - [ ] Missing prerequisite (voice profiles) is named specifically (character names and expected file path)
-- [ ] `request_user_input` offers at least one option to resolve the missing prerequisite
+- [ ] `request_user_input` offers 2–3 options to resolve the missing prerequisite
 - [ ] Orchestrator does not fabricate voice profiles or invent character voices
 - [ ] Phase 3 is not launched while writer is BLOCKED without explicit user authorization
 
@@ -184,9 +197,9 @@ is unresolved.
 ## Protocol Compliance
 
 - [ ] `request_user_input` is used after every phase output before the next phase launches
-- [ ] Parallel spawning: Phase 2 (world-builder + writer) and Phase 5 (writer + localization-lead + world-builder) issue all Task calls before waiting for results
-- [ ] No files are written by the orchestrator directly — all writes are delegated to sub-agents
-- [ ] Each sub-agent enforces the "May I write to [path]?" protocol before any write
+- [ ] Parallel spawning: Phase 2 (world-builder + writer) and Phase 5 (writer + localization-lead + world-builder) issue all child-agent delegations before waiting for results
+- [ ] No files are written by the orchestrator directly — all writes are delegated to child custom agents
+- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] BLOCKED status from any agent is surfaced immediately — not silently skipped
 - [ ] A partial report is always produced when some agents complete and others block
 - [ ] Verdict is exactly COMPLETE or BLOCKED — no other verdict values used
