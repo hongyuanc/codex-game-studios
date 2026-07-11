@@ -65,7 +65,7 @@ GIT_GLOBAL_FLAG_OPTIONS = {
     "--no-lazy-fetch",
     "--no-advice",
 }
-GIT_GLOBAL_TERMINAL_OPTIONS = {"--version", "--help", "-h", "--html-path", "--man-path", "--info-path"}
+GIT_GLOBAL_TERMINAL_OPTIONS = {"--version", "-v", "--help", "-h", "--html-path", "--man-path", "--info-path"}
 PROTECTED_BRANCHES = {"develop", "main", "master"}
 DYNAMIC_TOKEN_PREFIX = "__CGS_DYNAMIC_"
 QUOTED_VARIABLE_PREFIX = "__CGS_QUOTED_VARIABLE_"
@@ -82,6 +82,11 @@ PUSH_VALUE_OPTIONS = {
 }
 CLEAN_VALUE_OPTIONS = {"--exclude", "-e"}
 RESET_VALUE_OPTIONS = {"--pathspec-from-file"}
+COMMIT_VALUE_OPTIONS = {
+    "-m", "--message", "-F", "--file", "-C", "--reuse-message",
+    "-c", "--reedit-message", "--fixup", "--squash", "--author",
+    "--date", "--template", "--trailer", "--pathspec-from-file",
+}
 GIT_OPTION_NAMES = {
     "reset": {
         "--hard", "--help", "--keep", "--merge", "--mixed", "--no-refresh",
@@ -104,22 +109,29 @@ GIT_OPTION_NAMES = {
 # Security boundary: only documented built-ins are analyzed as direct Git commands.
 # Anything outside this allowlist may be an alias or git-* executable and is blocked.
 KNOWN_GIT_SUBCOMMANDS = {
-    "add", "am", "annotate", "apply", "archive", "bisect", "blame", "branch",
+    "add", "am", "annotate", "apply", "archive", "backfill", "bisect", "blame", "branch",
     "bugreport", "bundle", "cat-file", "check-attr", "check-ignore", "check-mailmap",
-    "check-ref-format", "checkout", "checkout-index", "cherry", "cherry-pick", "clean", "clone", "column",
+    "check-ref-format", "checkout", "checkout--worker", "checkout-index", "cherry", "cherry-pick", "clean", "clone", "column",
     "commit", "commit-graph", "commit-tree", "config", "count-objects", "credential",
-    "describe", "diagnose", "diff", "diff-files", "diff-index", "diff-tree", "difftool",
+    "credential-cache", "credential-cache--daemon", "credential-store",
+    "describe", "diagnose", "diff", "diff-files", "diff-index", "diff-pairs", "diff-tree", "difftool",
     "fast-export", "fast-import", "fetch", "fetch-pack", "filter-branch", "fmt-merge-msg",
-    "for-each-ref", "for-each-repo", "format-patch", "fsck", "gc", "grep", "hash-object",
-    "help", "index-pack", "init", "interpret-trailers", "log", "ls-files", "ls-remote",
+    "for-each-ref", "for-each-repo", "format-patch", "fsck", "fsck-objects", "fsmonitor--daemon",
+    "gc", "get-tar-commit-id", "grep", "hash-object", "hook",
+    "help", "index-pack", "init", "init-db", "interpret-trailers", "log", "ls-files", "ls-remote",
     "ls-tree", "mailinfo", "mailsplit", "maintenance", "merge", "merge-base", "merge-file",
-    "merge-index", "merge-one-file", "merge-tree", "mergetool", "mktag", "mktree", "multi-pack-index", "mv",
-    "name-rev", "notes", "pack-objects", "pack-redundant", "pack-refs", "patch-id", "prune",
+    "merge-index", "merge-one-file", "merge-ours", "merge-recursive", "merge-recursive-ours",
+    "merge-recursive-theirs", "merge-subtree", "merge-tree", "mergetool", "mktag", "mktree",
+    "multi-pack-index", "mv",
+    "name-rev", "notes", "pack-objects", "pack-redundant", "pack-refs", "patch-id", "pickaxe", "prune",
     "prune-packed", "pull", "push", "range-diff", "read-tree", "rebase", "reflog", "refs",
-    "remote", "repack", "replace", "request-pull", "rerere", "reset", "restore", "rev-list",
-    "rev-parse", "revert", "rm", "scalar", "send-pack", "shortlog", "show", "show-branch", "show-index", "show-ref",
-    "sparse-checkout", "stage", "stash", "status", "stripspace", "submodule", "switch",
-    "symbolic-ref", "tag", "unpack-file", "unpack-objects", "update-index", "update-ref", "var",
+    "remote", "remote-ext", "remote-fd", "repack", "replace", "request-pull", "rerere",
+    "reset", "restore", "rev-list",
+    "receive-pack", "rev-parse", "revert", "replay", "rm", "scalar", "send-pack", "shortlog",
+    "show", "show-branch", "show-index", "show-ref",
+    "sparse-checkout", "stage", "stash", "status", "stripspace", "submodule", "submodule--helper", "switch",
+    "symbolic-ref", "tag", "unpack-file", "unpack-objects", "update-index", "update-ref",
+    "update-server-info", "upload-archive", "upload-archive--writer", "upload-pack", "var",
     "verify-commit", "verify-pack", "verify-tag", "version", "whatchanged", "worktree", "write-tree",
 }
 ENV_VALUE_OPTIONS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
@@ -684,9 +696,7 @@ def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> 
     subcommand = tokens[index]
     args = tuple(token for token in tokens[index + 1 :] if token != "--%")
     dynamic_subcommand = DYNAMIC_TOKEN_PREFIX in subcommand or "$" in subcommand
-    ambiguous = dynamic_executable or (
-        dynamic_subcommand and _dynamic_destructive_intent(args)
-    )
+    ambiguous = dynamic_executable or dynamic_subcommand
     return GitInvocation(
         subcommand,
         args,
@@ -920,6 +930,8 @@ def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
         if invocation.subcommand.lower() == "clean"
         else RESET_VALUE_OPTIONS
         if invocation.subcommand.lower() == "reset"
+        else COMMIT_VALUE_OPTIONS
+        if invocation.subcommand.lower() == "commit"
         else set()
     )
     options: list[str] = []

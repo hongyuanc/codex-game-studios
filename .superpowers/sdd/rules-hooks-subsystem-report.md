@@ -74,6 +74,14 @@ Finite ambiguous-policy completion review:
   plumbing commands, while dashed git-* extensions and every deferred execution
   path remain intentionally ambiguous.
 
+Direct-classification table completion:
+
+- RED: four focused methods reproduced 25 failures across unresolved dynamic
+  subcommands, commit help/value disambiguation, global version terminals, and
+  Git's current built-in inventory.
+- GREEN: all 59 hook tests pass. When supported, the suite asserts that
+  `git --list-cmds=builtins` is a subset of the static allowlist.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -135,8 +143,9 @@ global-option parsing. It:
   precisely; every unknown subcommand, possible configured alias, git-* extension,
   `--config-env=alias.*` execution, or unresolved destructive dynamic form blocks
   with instructions to rerun an explicit direct Git built-in command.
-- Supports Git's `-P`/`--no-pager` and `--no-lazy-fetch` global flags. Unknown
-  global options fail closed when they prevent precise direct analysis.
+- Supports Git's `-P`/`--no-pager` and `--no-lazy-fetch` global flags, plus
+  terminal `-v`/`--version`. Unknown global options fail closed when they
+  prevent precise direct analysis.
 - Applies Git-compatible unique long-option abbreviation matching. Ambiguous
   prefixes remain unrecognized; abbreviations such as `--har`, `--for`,
   `--mir`, `--force-with-l`, `--force-if-i`, and `--dry-r` are classified.
@@ -160,8 +169,8 @@ global-option parsing. It:
   paths—and PowerShell's call operator, and removes PowerShell `--%` before
   native Git argument analysis. `builtin git ...` is correctly treated as
   non-executing.
-- Recognizes `git` and `git.exe` case-insensitively. Ambiguous dynamic execution
-  with destructive, commit, or push intent fails closed. Executable basenames
+- Recognizes `git` and `git.exe` case-insensitively. Every unresolved dynamic
+  Git subcommand fails closed regardless of its arguments. Executable basenames
   matching `git-*` or `git-*.exe` are deliberately ambiguous extensions.
 - Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
 - Treats dry-run/force flags as options only before `--`, skipping option values.
@@ -169,6 +178,10 @@ global-option parsing. It:
   `--pathspec-from-file` operands so option-looking values do not false-block.
   Short option clusters containing `h` are terminal before `--` for direct
   known subcommands, including commit and push.
+- Commit help detection first consumes message, file, reuse/reedit, fixup,
+  squash, author, date, template, trailer, and pathspec-file operands, including
+  compact and equals forms, so option-looking values still trigger staged
+  validation rather than being mistaken for terminal help.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain
@@ -228,7 +241,7 @@ find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
 git ls-files .claude/hooks .claude/settings.json
 ```
 
-Final evidence: 61 focused and 135 studio tests pass; JSON/Python and whitespace
+Final evidence: 62 focused and 136 studio tests pass; JSON/Python and whitespace
 checks pass; runtime forbidden scans return no matches; neither hook tree
 contains shell scripts; the tracked legacy hook/settings inventory is empty.
 

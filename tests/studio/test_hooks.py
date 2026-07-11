@@ -261,6 +261,7 @@ class HookParserTests(unittest.TestCase):
             'git "${mode}" --har',
             'git "${mode}" --for -d',
             'git "${mode}" --mir origin',
+            'git "${mode}" --help --har',
         ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
@@ -275,7 +276,6 @@ class HookParserTests(unittest.TestCase):
             r"\$tool reset --hard",
             "echo '$tool reset --hard'",
             r'echo "\$tool reset --hard"',
-            'git "${mode}" --help --har',
         ):
             with self.subTest(inert=command):
                 result = HOOKS.handle(
@@ -358,7 +358,12 @@ class HookParserTests(unittest.TestCase):
                 self.assertEqual(2, result.exit_code)
                 self.assertIn("explicit direct Git", result.stderr)
 
-        for command in ("git -P status", "git --no-lazy-fetch status"):
+        for command in (
+            "git -P status",
+            "git --no-lazy-fetch status",
+            "git -v reset --hard",
+            "git --version clean -fd",
+        ):
             with self.subTest(safe=command):
                 result = HOOKS.handle(
                     "validate-command", {"tool_input": {"command": command}}, ROOT
@@ -381,6 +386,9 @@ class HookParserTests(unittest.TestCase):
             '"${tool}" push origin main',
             'git "${mode}" commit -m test',
             'git "${mode}" push origin main',
+            'git "$(printf commit)" -m x',
+            'mode=$(printf commit); git "${mode}" -m x',
+            'git "$(printf push)" origin main',
             "git-reset --hard",
             "/usr/local/bin/git-clean -fd",
             r"C:\Git\bin\git-push.exe -f origin feature",
@@ -511,6 +519,48 @@ class HookParserTests(unittest.TestCase):
         self.assertEqual(0, commit_help.exit_code)
         validator.assert_not_called()
 
+    def test_commit_help_is_terminal_only_after_option_values_are_consumed(self):
+        value_forms = (
+            "git commit -m -h",
+            "git commit -m --help",
+            "git commit -m-h",
+            "git commit --message=--help",
+            "git commit -F -h",
+            "git commit -F-h",
+            "git commit -C -h",
+            "git commit -CHEAD",
+            "git commit -c -h",
+            "git commit --reuse-message=--help",
+            "git commit --reedit-message=--help",
+            "git commit --fixup --help",
+            "git commit --squash --help",
+            "git commit --author --help",
+            "git commit --date --help",
+            "git commit --template --help",
+            "git commit --trailer --help",
+            "git commit --pathspec-from-file --help",
+        )
+        sentinel = HOOKS.HookResult(2, stderr="commit option sentinel\n")
+        for command in value_forms:
+            with self.subTest(command=command):
+                with mock.patch.object(
+                    HOOKS, "_validate_commit", return_value=sentinel
+                ) as validator:
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                self.assertEqual(2, result.exit_code)
+                validator.assert_called_once_with(ROOT)
+
+        for command in ("git commit -h", "git commit --help", "git commit -qh"):
+            with self.subTest(terminal=command):
+                with mock.patch.object(HOOKS, "_validate_commit") as validator:
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                self.assertEqual(0, result.exit_code)
+                validator.assert_not_called()
+
     def test_known_builtin_allowlist_includes_reviewed_plumbing_commands(self):
         for command in (
             "git pack-refs --all",
@@ -518,12 +568,30 @@ class HookParserTests(unittest.TestCase):
             "git checkout-index --all",
             "git send-pack origin refs/heads/feature",
             "git scalar list",
+            "git backfill --help",
+            "git hook list",
+            "git replay --help",
+            "git receive-pack --help",
+            "git update-server-info",
+            "git upload-pack --help",
         ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
                     "validate-command", {"tool_input": {"command": command}}, ROOT
                 )
                 self.assertEqual(0, result.exit_code)
+
+        inventory = subprocess.run(
+            ["git", "--list-cmds=builtins"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if inventory.returncode == 0:
+            self.assertEqual(
+                set(),
+                set(inventory.stdout.split()) - HOOKS.KNOWN_GIT_SUBCOMMANDS,
+            )
 
     def test_variable_expansion_respects_shell_word_splitting_and_quotes(self):
         destructive = (
