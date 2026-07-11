@@ -481,7 +481,7 @@ reparse-point cases.
 ## Final automated gate
 
 - `python3 -m unittest discover -s tests -v`:
-  **251 tests, OK; zero skips**.
+  **252 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,

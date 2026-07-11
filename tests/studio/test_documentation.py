@@ -121,6 +121,55 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("activates exactly one", combined)
         self.assertIn("without asking before every file edit", combined)
 
+    def test_gate_coverage_table_matches_runtime_and_framework_modes(self):
+        table = (CODEX_DOCS / "director-gates.md").read_text(encoding="utf-8")
+
+        def gate_set(stage: str, column: int) -> set[str]:
+            row = next(
+                line for line in table.splitlines()
+                if line.startswith(f"| **{stage}** |")
+            )
+            cell = row.split("|")[column]
+            return {
+                re.match(r"[A-Z]+-[A-Z0-9-]+", item.strip()).group(0)
+                for item in cell.split(",")
+            }
+
+        self.assertEqual(
+            {"TD-SYSTEM-BOUNDARY", "CD-SYSTEMS", "PR-SCOPE"},
+            gate_set("Systems Design", 2),
+        )
+        self.assertEqual(
+            {"CD-GDD-ALIGN", "ND-CONSISTENCY", "AD-VISUAL"},
+            gate_set("Systems Design", 3),
+        )
+        self.assertEqual(
+            {"TD-ARCHITECTURE", "TD-ADR"},
+            gate_set("Technical Setup", 2),
+        )
+        self.assertEqual(
+            {"LP-FEASIBILITY", "AD-ART-BIBLE", "TD-ENGINE-RISK"},
+            gate_set("Technical Setup", 3),
+        )
+
+        runtime = {
+            name: (ROOT / f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
+            for name in ("design-system", "create-architecture", "art-bible", "architecture-decision")
+        }
+        framework = {
+            name: (ROOT / f"Codex Studio Testing Framework/skills/authoring/{name}.md").read_text(encoding="utf-8")
+            for name in ("design-system", "create-architecture", "art-bible")
+        }
+        self.assertIn("CD-GDD-ALIGN is optional and runs only in full mode", runtime["design-system"])
+        self.assertIn("CD-GDD-ALIGN is optional: run it only in `full`", framework["design-system"])
+        self.assertIn("TD-ARCHITECTURE is mandatory in full, lean, and solo modes", runtime["create-architecture"])
+        self.assertIn("TD-ARCHITECTURE is mandatory in `full`, `phase-gated`, and `solo`", framework["create-architecture"])
+        self.assertIn("LP-FEASIBILITY is optional and runs only in full mode", runtime["create-architecture"])
+        self.assertIn("LP-FEASIBILITY is optional: run it only in `full`", framework["create-architecture"])
+        self.assertIn("AD-ART-BIBLE is optional and runs only in full mode", runtime["art-bible"])
+        self.assertIn("AD-ART-BIBLE delegates to `art-director` and is optional", framework["art-bible"])
+        self.assertIn("TD-ADR is required in full, lean, and solo modes", runtime["architecture-decision"])
+
     def test_skill_references_use_codex_invocation_syntax(self):
         names = {
             path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")
