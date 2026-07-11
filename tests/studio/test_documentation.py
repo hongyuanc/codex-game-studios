@@ -160,6 +160,23 @@ class DocumentationTests(unittest.TestCase):
                     missing.append(f"{path.relative_to(ROOT)} -> {relative}")
         self.assertEqual([], missing)
 
+    def test_interactive_question_contract_is_current(self):
+        protocols = (
+            CODEX_DOCS / "templates/collaborative-protocols/design-agent-protocol.md",
+            CODEX_DOCS / "templates/collaborative-protocols/leadership-agent-protocol.md",
+        )
+        for path in protocols:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertNotIn("up to 4", text)
+                self.assertNotIn("2-4 options", text)
+                self.assertNotIn("2–4 options", text)
+                self.assertNotIn("markdown previews", text)
+                self.assertIn("1-3 questions", text)
+                self.assertIn("2-3 mutually exclusive options", text)
+                self.assertIn("one question at a time", text)
+                self.assertIn("genuinely independent", text)
+
 
 if __name__ == "__main__":
     unittest.main()

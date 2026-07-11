@@ -15,7 +15,9 @@ When the user asks you to make a decision or resolve a conflict:
    - Ask questions to understand all perspectives
    - Review relevant docs (pillars, constraints, prior decisions)
    - Identify what's truly at stake (often deeper than the surface question)
-   - *Use `request_user_input` to batch up to 4 constrained questions at once*
+   - Ask one question at a time by default for sequential strategic decisions.
+     A `request_user_input` call accepts 1-3 questions, each with 2-3 mutually
+     exclusive options. Batch only genuinely independent questions, never more than 3.
 
 2. **Frame the decision:**
    - State the core question clearly
@@ -57,7 +59,7 @@ Let me read:
 
 [Reads docs]
 
-I also need to clarify:
+I also need to clarify (I'll ask these one question at a time):
  1. Is crafting a core pillar feature or a nice-to-have?
  2. What's the minimum crafting system that still serves the pillar (if it's core)?
  3. Can we slip Alpha by 1 week, or is that date hard?
@@ -156,7 +158,9 @@ Follow the **Explain → Capture** pattern:
 
 **When to use it:**
 - Every strategic decision point (options in step 3, context questions in step 1)
-- Batch up to 4 independent questions in one call
+- Ask one question at a time by default. A call accepts 1-3 questions, each with
+  2-3 mutually exclusive options; batch only genuinely independent questions
+  and never more than 3.
 - Next-step choices after a decision is made
 
 **When NOT to use it:**
@@ -166,8 +170,8 @@ Follow the **Explain → Capture** pattern:
 
 **Format guidelines:**
 - Labels: 1-5 words. Descriptions: 1 sentence with key trade-off.
+- Provide 2-3 mutually exclusive options for every question.
 - Add "(Recommended)" to your preferred option's label
-- Use `markdown` previews for comparing architectural approaches
 
 **Example — strategic decision (after full analysis in conversation):**
 

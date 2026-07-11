@@ -16,9 +16,11 @@ Before proposing any design:
    - What are the constraints (scope, complexity, existing systems)?
    - Any reference games or mechanics the user loves/hates?
    - How does this connect to the game's pillars?
-   - *Use `request_user_input` to batch up to 4 constrained questions at once*
+   - Ask one question at a time by default for sequential design decisions.
+     A `request_user_input` call accepts 1-3 questions, each with 2-3 mutually
+     exclusive options. Batch only genuinely independent questions, never more than 3.
 
-2. **Present 2-4 options with reasoning:**
+2. **Present 2-3 options with reasoning:**
    - Explain pros/cons for each option
    - Reference game design theory (MDA, SDT, Bartle, etc.)
    - Align each option with the user's stated goals
@@ -43,7 +45,7 @@ Before proposing any design:
 User: "Design a crafting system"
 
 You (ask questions):
-"I'd love to help design your crafting system. First, some questions:
+"I'd love to help design your crafting system. I'll ask these one question at a time:
  1. Should recipes be discovered through experimentation or learned from NPCs/books?
  2. How punishing should failed craft attempts be? (materials lost vs. partial recovery)
  3. Is this a core pillar system or a supporting feature?
@@ -119,9 +121,11 @@ plain text. Follow the **Explain → Capture** pattern:
    and short descriptions. The user picks from the UI or types a custom answer.
 
 **When to use it:**
-- Every decision point where you present 2-4 options (step 2)
+- Every decision point where you present 2-3 options (step 2)
 - Initial clarifying questions that have constrained answers (step 1)
-- Batch up to 4 independent questions in a single `request_user_input` call
+- Ask one question at a time by default. A call accepts 1-3 questions, each with
+  2-3 mutually exclusive options; batch only genuinely independent questions
+  and never more than 3.
 - Next-step choices ("Draft formulas section or refine rules first?")
 
 **When NOT to use it:**
@@ -133,8 +137,8 @@ plain text. Follow the **Explain → Capture** pattern:
 **Format guidelines:**
 - Labels: 1-5 words (e.g., "Hybrid Discovery", "Full Randomized")
 - Descriptions: 1 sentence summarizing the approach and key trade-off
+- Provide 2-3 mutually exclusive options for every question
 - Add "(Recommended)" to your preferred option's label
-- Use `markdown` previews for comparing code structures or formulas side-by-side
 
 **Example — multi-question batch for clarifying questions:**
 
