@@ -57,30 +57,26 @@ Before designing anything, read and synthesize:
 > "interaction-patterns.md does not exist — no existing patterns to reuse."
 
 Then use `request_user_input` with options:
-- (a) Run `$ux-design patterns` first to establish the pattern library, then continue
-- (b) Proceed without the pattern library — ui-programmer will treat all patterns created as new and add each to a new `design/ux/interaction-patterns.md` at completion
+- (a) Have `ux-designer` return a read-only in-memory pattern-library draft intended for `design/ux/interaction-patterns.md`
+- (b) Stop here and establish the pattern library in a separately approved workflow
 
-Do NOT invent or assume patterns from the feature name or GDD alone. If the user chooses (b), explicitly instruct ui-programmer in Phase 3 to treat all patterns as new and document them in `design/ux/interaction-patterns.md` when implementation is complete. Note the pattern library status (created / absent / updated) in the final summary report.
+Do NOT invent or assume patterns from the feature name or GDD alone. If the user chooses (a), the draft is not written and its exact path/content must enter the parent changeset gate. If the user chooses (b), stop without invoking another skill.
 
 Summarize the context in a brief for the ux-designer: what the player is doing, what they need, what constraints apply, and which existing patterns are relevant.
 
 ### Phase 1b: UX Spec Authoring
 
-Invoke `$ux-design [feature name]` in draft-only mode OR delegate to ux-designer to return an in-memory draft intended for `design/ux/[feature-name].md` following the `ux-spec.md` template.
+Delegate only to `ux-designer` for a read-only in-memory UX artifact draft. Do not invoke a write-capable skill. The delegate reads these references without modifying them:
 
-If designing the HUD, use the `hud-design.md` template instead of `ux-spec.md`.
+- `.codex/docs/templates/ux-spec.md` for screens and flows
+- `.codex/docs/templates/hud-design.md` for HUD work
+- `.codex/docs/templates/interaction-pattern-library.md` when a pattern-library draft is required
 
-> **Notes on special cases:**
-> - For HUD design specifically, invoke `$ux-design` with `argument: hud` (e.g., `$ux-design hud`).
-> - For the interaction pattern library, run `$ux-design patterns` once at project start and update it whenever new patterns are introduced during later phases.
+The `ux-designer` returns the complete draft, its exact intended path such as `design/ux/[feature-name].md`, the template used, and any unresolved decisions. It writes no file and does not expand scope.
 
-Output: `design/ux/[feature-name].md` with all required spec sections filled.
+### Phase 1c: Draft Readiness Check
 
-### Phase 1c: UX Review
-
-After the spec is complete, invoke `$ux-review design/ux/[feature-name].md`.
-
-**Gate**: Do not proceed to Phase 2 until the verdict is APPROVED. If the verdict is NEEDS REVISION, the ux-designer must address the flagged issues and re-run the review. The user may explicitly accept a NEEDS REVISION risk and proceed, but this must be a conscious decision — present the specific concerns via `request_user_input` before asking whether to proceed.
+Have `ux-designer` compare the in-memory artifact against the selected template and return a section-completeness checklist. Keep the artifact and checklist in memory for parent synthesis; no skill or agent writes pre-gate.
 
 ### Phase 2: Visual Design
 
@@ -99,6 +95,8 @@ The parent synthesizes the UX, visual, engine, implementation, and pattern-libra
 ## Approved Execution
 
 Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
+
+First, the parent writes the approved UX artifact and any approved pattern-library artifact to their exact paths. Then run the read-only `$ux-review` on the saved UX path. If review requires material revision, stop and return the revised exact diff to `## Parent Changeset Gate`; do not continue implementation under stale approval.
 
 ### Phase 3: Implementation
 

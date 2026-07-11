@@ -51,8 +51,9 @@ Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 
 Delegate to **producer**:
 - Confirm all milestone acceptance criteria are met
 - Identify any scope items deferred from this release
-- Set the target release date and communicate to team
-- Output: release authorization with scope confirmation
+- Return a proposed release date and stakeholder communication draft
+- Do not communicate to the team, stakeholders, stores, or community in this phase
+- Output: release-scope proposal, proposed date, and communication draft
 
 ### Phase 2: Release Candidate
 Delegate to **release-manager**:
@@ -106,6 +107,8 @@ The parent synthesizes the release-candidate plan, version changes, release reco
 ## Approved Execution
 
 Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. First process the separately authorized branch operation and approved version-file changes; then verify before any separately authorized commit or push.
+
+Only after approval and explicit communication authorization, the parent communicates the approved release date and message to the exact approved recipients. Delegated agents never send the pre-gate draft.
 
 ### Phase 6: Deployment (if GO)
 Delegate to **release-manager** + **devops-engineer**:

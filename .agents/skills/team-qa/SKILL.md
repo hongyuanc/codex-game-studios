@@ -55,6 +55,8 @@ Before doing anything else, gather the full scope:
 3. Count stories found and report to the user:
    > "QA cycle starting for [sprint/feature]. Found [N] stories. Current stage: [stage]. Ready to begin QA strategy?"
 
+Ask that single readiness question and wait for the answer. If the answer is not an explicit yes, do not continue to Phase 2.
+
 ### Phase 2: QA Strategy (qa-lead)
 
 Delegate to `qa-lead` through Codex custom-agent delegation to review all in-scope stories and produce a QA strategy.
@@ -241,5 +243,5 @@ Verdict: **BLOCKED** — smoke check failed or critical blocker prevented cycle 
 Only when `production/session-state/active.md` and this exact comment were listed in the approved changeset, the parent appends after the sign-off report is saved. Never append silently, and do not change session state for a draft-only or unapproved BLOCKED result.
 
 ```
-<!-- QA RUN: [date] | Sprint: [sprint identifier or "ad-hoc"] | Verdict: [PASS/FAIL/CONCERNS] | Report: production/qa/qa-[date].md -->
+<!-- QA RUN: [date] | Sprint: [sprint identifier or "ad-hoc"] | Verdict: [PASS/FAIL/CONCERNS] | Report: production/qa/qa-signoff-[sprint]-[date].md -->
 ```

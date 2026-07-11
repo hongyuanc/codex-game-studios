@@ -152,8 +152,8 @@ class OperationsSkillTests(unittest.TestCase):
             with self.subTest(skill=name):
                 self.assertIn("## Parent Changeset Gate", text)
                 self.assertIn("## Approved Execution", text)
-                gate_at = text.index("## Parent Changeset Gate")
-                execute_at = text.index("## Approved Execution")
+                gate_at = text.index("\n## Parent Changeset Gate\n") + 1
+                execute_at = text.index("\n## Approved Execution\n") + 1
                 self.assertLess(gate_at, execute_at)
                 before_gate = text[:gate_at]
                 self.assertIn("read-only or draft-only", before_gate)
@@ -264,6 +264,58 @@ class OperationsSkillTests(unittest.TestCase):
         for block in re.findall(r"```\nquestion:.*?```", text, flags=re.S):
             options = re.findall(r'^  - "', block, flags=re.MULTILINE)
             self.assertLessEqual(len(options), 3, block)
+
+    def test_team_ui_preflight_does_not_invoke_incremental_writer(self):
+        ux_design = self.skill_text("ux-design")
+        self.assertIn("Incremental writing", ux_design)
+        self.assertIn("written to file immediately after approval", ux_design)
+
+        team_ui = self.skill_text("team-ui")
+        pre_gate = team_ui.split("\n## Parent Changeset Gate\n", 1)[0]
+        self.assertNotIn("$ux-design", pre_gate)
+        self.assertIn("Delegate only to `ux-designer`", pre_gate)
+        self.assertIn("read-only in-memory UX artifact draft", pre_gate)
+        for reference in (
+            ".codex/docs/templates/ux-spec.md",
+            ".codex/docs/templates/hud-design.md",
+            ".codex/docs/templates/interaction-pattern-library.md",
+        ):
+            self.assertIn(reference, pre_gate)
+        execution = team_ui.split("\n## Approved Execution\n", 1)[1]
+        self.assertIn("parent writes the approved UX artifact", execution)
+
+    def test_team_release_communication_is_draft_before_gate(self):
+        text = self.skill_text("team-release")
+        pre_gate = text.split("\n## Parent Changeset Gate\n", 1)[0]
+        self.assertIn("proposed release date", pre_gate)
+        self.assertIn("communication draft", pre_gate)
+        self.assertIn("Do not communicate", pre_gate)
+        self.assertNotIn("Set the target release date and communicate to team", pre_gate)
+        execution = text.split("\n## Approved Execution\n", 1)[1]
+        self.assertIn("explicit communication authorization", execution)
+        self.assertIn("the parent communicates", execution)
+
+    def test_team_qa_waits_and_records_exact_signoff_path(self):
+        text = self.skill_text("team-qa")
+        readiness = text.split("Ready to begin QA strategy?", 1)[1].split(
+            "### Phase 2", 1
+        )[0]
+        self.assertIn("wait for the answer", readiness)
+        self.assertIn("do not continue", readiness)
+        self.assertIn(
+            "Report: production/qa/qa-signoff-[sprint]-[date].md",
+            text,
+        )
+        self.assertNotIn("Report: production/qa/qa-[date].md", text)
+
+    def test_report_inventory_includes_validator_and_current_ui_claim(self):
+        report = (ROOT / ".superpowers/sdd/operations-subsystem-report.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("tools/codex_studio/validate.py", report)
+        self.assertIn("native validator", report)
+        self.assertNotIn("one focused test file, and this report only", report)
+        self.assertIn("does not invoke the incrementally writing `$ux-design` skill pre-gate", report)
 
     def test_release_mutations_require_separate_step_authorization(self):
         exact = (

@@ -26,7 +26,7 @@ Converted exactly these 21 skills:
 - `.agents/skills/team-release/SKILL.md`
 - `.agents/skills/team-ui/SKILL.md`
 
-Focused contract coverage is in `tests/studio/test_operations_skills.py`.
+Supporting runtime validation is in `tools/codex_studio/validate.py`; focused contract coverage is in `tests/studio/test_operations_skills.py`.
 
 ## TDD Evidence
 
@@ -86,7 +86,7 @@ Existing checklist fields, report tables, severity/verdict vocabularies, output 
 
 ## Self-Review and Concerns
 
-- Scoped inventory: 21/21 skills, one focused test file, and this report only.
+- Scoped inventory: 21/21 skills, the native validator, one focused test file, and this report.
 - Exact roster audit: 9/9.
 - No child agent is authorized to commit, publish, deploy, release, or expand scope.
 - `Codex Studio Testing Framework/` is intentionally a guarded staged dependency until the later documentation/cleanup subsystem migrates it; static skill validation already works natively.
@@ -103,7 +103,7 @@ The first review found that several team pipelines stated a gate contract but pl
 
 ### Remediation GREEN
 
-- `team-audio`, `team-combat`, `team-polish`, and `team-ui` now perform only read-only/draft work before a parent changeset gate; implementation follows `## Approved Execution`.
+- `team-audio`, `team-combat`, and `team-polish` perform only read-only/draft work before a parent changeset gate; implementation follows `## Approved Execution`.
 - `team-qa` keeps plans, cases, bug reports, sign-off, and session updates as drafts until one parent gate; it no longer silently appends session state and now asks one schema-sized decision per turn.
 - `team-release` keeps branch/version/build/report/milestone/deployment/publication work draft-only until the parent gate, then retains separate authorization for each release mutation.
 - `day-one-patch`, `hotfix`, `localize`, and `security-audit` now require independent bounded delegation, exact return artifacts, `agents.max_depth = 1`, parent synthesis, and no child commits/publication/scope expansion.
@@ -116,11 +116,19 @@ The first review found that several team pipelines stated a gate contract but pl
 
 Follow-up changed files: `changelog`, `day-one-patch`, `hotfix`, `localize`, `onboard`, `patch-notes`, `reverse-document`, `security-audit`, `skill-test`, `team-audio`, `team-combat`, `team-level`, `team-narrative`, `team-polish`, `team-qa`, `team-release`, and `team-ui`, plus the native validator, focused operations tests, and this report.
 
+### Final Preflight Remediation
+
+- Cross-skill RED verified that `$ux-design` performs incremental file writes and that `$team-ui` incorrectly invoked it before the parent gate. The narrow RED run had 26 focused tests with four failures covering UI preflight, release communication, QA session evidence, and report inventory claims.
+- `$team-ui` now delegates bounded read-only in-memory UX drafting only to `ux-designer`, using native templates as read-only references. It does not invoke the incrementally writing `$ux-design` skill pre-gate. The parent writes exact approved UX paths after the gate and runs read-only `$ux-review` only after the artifact exists.
+- `$team-release` keeps the proposed date and communication as drafts; only the parent communicates after gate approval and explicit communication authorization.
+- `$team-qa` waits after its readiness question and records the exact `production/qa/qa-signoff-[sprint]-[date].md` evidence path in session state.
+- Narrow final changed files: `team-ui`, `team-release`, `team-qa`, focused operations tests, and this report.
+
 ## Final Verification
 
-- Focused operations suite: 22 tests passed.
-- Complete studio suite: 70 tests passed.
+- Focused operations suite: 26 tests passed.
+- Complete studio suite: 74 tests passed.
 - Expanded forbidden-pattern scan, including task-call variants: clean (no matches).
 - Literal native dependencies: 21/21 skills resolved; guarded future framework excluded by its explicit staged-dependency gate.
 - Exact roster audit: 9/9 rosters, with no extra or missing configured role anywhere in each team skill.
-- Whitespace and scoped-diff review: clean across the 20 follow-up files before commit.
+- Whitespace and scoped-diff review: clean across the five narrow final-fix files before commit.
