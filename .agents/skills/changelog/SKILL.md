@@ -148,7 +148,12 @@ Output both changelogs to the user. The internal changelog is the primary workin
 
 ## Phase 7: Complete Proposed Changeset
 
-Present the internal and player-facing drafts first. Then list every requested output path and ask once whether to approve the complete proposed changeset. Write only the approved paths; do not append or create another artifact without a revised approval.
+Present the internal and player-facing drafts first. The canonical saved output is `docs/CHANGELOG.md`. Show the exact insertion as the complete proposed changeset and ask once for approval.
+
+- If `docs/CHANGELOG.md` exists, append the new version section without replacing prior history and place newest entries first at the top of the version list.
+- If it does not exist, create it with the new version section.
+- Keep the player-facing variant in conversation for `$patch-notes`; do not invent a second changelog path.
+- Write only the approved insertion. Any different path or changed content requires revised approval.
 
 After an approved write: Verdict: **CHANGELOG WRITTEN**. If declined: Verdict: **COMPLETE** — changelog generated in conversation.
 ---

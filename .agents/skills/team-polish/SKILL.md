@@ -41,6 +41,8 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 profiles and returns evidence; it makes no source, asset, test, report, or session change.
+
 ### Phase 1: Assessment
 Delegate to **performance-analyst**:
 - Profile the target feature/area using `$perf-profile`
@@ -49,18 +51,23 @@ Delegate to **performance-analyst**:
 - Benchmark against target hardware specs
 - Output: performance report with prioritized optimization list
 
-### Phase 2: Optimization
-Delegate to **performance-analyst** (with relevant programmers as needed):
-- Fix performance hotspots identified in Phase 1
-- Optimize draw calls, reduce overdraw
-- Fix memory leaks and reduce allocation pressure
-- Verify optimizations don't change gameplay behavior
-- Output: optimized code with before/after metrics
+## Parent Changeset Gate
 
-If Phase 1 identified engine-level root causes (rendering pipeline, resource loading, memory allocator), delegate those fixes to **technical-artist** in parallel:
-- Optimize hot paths in engine systems
-- Fix allocation pressure in core loops
-- Output: engine-level fixes with profiler validation
+The parent synthesizes the performance evidence and every proposed polish change before any mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new path or material change requires a revised proposal.
+
+## Approved Execution
+
+Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
+
+### Phase 2: Optimization
+Delegate to **performance-analyst** to review the approved diffs, define before/after measurements, and validate results. This role recommends and measures; it does not implement optimizations.
+
+Delegate approved rendering, shader, VFX, asset-pipeline, and visual resource changes to **technical-artist**:
+- Apply only the exact approved technical-art diffs
+- Optimize draw calls, overdraw, visual resource loading, and asset memory within that role's boundary
+- Return the changed-file list plus profiler evidence
+
+For gameplay, AI, networking, core-engine, or other code bottlenecks outside the four-role roster, return a bounded `$dev-story` handoff with exact recommended paths and acceptance metrics. Do not implement those changes in `$team-polish`.
 
 ### Phase 3: Visual Polish (parallel with Phase 2)
 Delegate to **technical-artist**:
@@ -111,9 +118,6 @@ Common blockers:
 - Scope too large → split into two stories via `$create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
-## Changeset Gate
-
-Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Output
 
 A summary report covering: performance before/after metrics, visual polish changes, audio polish changes, test results, and release readiness assessment.

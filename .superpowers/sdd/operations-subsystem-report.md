@@ -92,11 +92,35 @@ Existing checklist fields, report tables, severity/verdict vocabularies, output 
 - `Codex Studio Testing Framework/` is intentionally a guarded staged dependency until the later documentation/cleanup subsystem migrates it; static skill validation already works natively.
 - No push, merge, deployment, release, or publication was performed.
 
+## Review Remediation
+
+The first review found that several team pipelines stated a gate contract but placed the operative gate after implementation or mutation phases. It also identified missing non-team delegation boundaries, non-native task-call wording, dropped canonical paths, unresolved reverse-document templates, batched questions, and ambiguous saved/draft verdicts.
+
+### Remediation RED
+
+- Added semantic ordering, exact-path, task-call validator, delegation-depth, roster-leakage, template-resolution, sequential-question, discovered-count, and saved/draft regression tests first.
+- Focused RED result: 21 tests run with 17 expected failures across the reproduced review categories.
+
+### Remediation GREEN
+
+- `team-audio`, `team-combat`, `team-polish`, and `team-ui` now perform only read-only/draft work before a parent changeset gate; implementation follows `## Approved Execution`.
+- `team-qa` keeps plans, cases, bug reports, sign-off, and session updates as drafts until one parent gate; it no longer silently appends session state and now asks one schema-sized decision per turn.
+- `team-release` keeps branch/version/build/report/milestone/deployment/publication work draft-only until the parent gate, then retains separate authorization for each release mutation.
+- `day-one-patch`, `hotfix`, `localize`, and `security-audit` now require independent bounded delegation, exact return artifacts, `agents.max_depth = 1`, parent synthesis, and no child commits/publication/scope expansion.
+- The validator rejects `Task call`, `Task calls`, and hyphenated task-call variants. Remaining team wording is native.
+- Canonical outputs were restored for changelog, hotfix, onboarding, and both patch-note destinations; patch-note input uses the canonical release changelog path.
+- Reverse documentation resolves all three templates under `.codex/docs/templates/` and gathers intent one decision per turn.
+- `$skill-test` uses audit as its no-argument default and reports discovered counts rather than stale 52/72 constants.
+- `team-polish` delegates only to its exact four-role roster; non-technical-art code optimizations become bounded `$dev-story` handoffs rather than unspecified programmer delegation.
+- Patch notes and security audits distinguish saved artifacts from unsaved conversation drafts.
+
+Follow-up changed files: `changelog`, `day-one-patch`, `hotfix`, `localize`, `onboard`, `patch-notes`, `reverse-document`, `security-audit`, `skill-test`, `team-audio`, `team-combat`, `team-level`, `team-narrative`, `team-polish`, `team-qa`, `team-release`, and `team-ui`, plus the native validator, focused operations tests, and this report.
+
 ## Final Verification
 
-- Focused operations suite: 14 tests passed.
-- Complete studio suite: 62 tests passed.
-- Forbidden-pattern scan: clean (no matches).
+- Focused operations suite: 22 tests passed.
+- Complete studio suite: 70 tests passed.
+- Expanded forbidden-pattern scan, including task-call variants: clean (no matches).
 - Literal native dependencies: 21/21 skills resolved; guarded future framework excluded by its explicit staged-dependency gate.
 - Exact roster audit: 9/9 rosters, with no extra or missing configured role anywhere in each team skill.
-- Whitespace and scoped-diff review: clean across the 23 scoped files before commit.
+- Whitespace and scoped-diff review: clean across the 20 follow-up files before commit.

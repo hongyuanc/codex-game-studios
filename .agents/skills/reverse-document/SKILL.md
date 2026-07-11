@@ -76,26 +76,9 @@ $reverse-document concept prototypes/vehicle-combat
 
 ## Phase 3: Ask Clarifying Questions
 
-**DO NOT** just describe the code. **ASK** about intent:
+Do not merely describe the code; identify unresolved intent such as resource purpose, pillar status, scaling intent, architecture trade-offs, or emergent prototype behavior.
 
-**Design questions**:
-- "I see a [resource] system that depletes during [activity]. Was this for:
-  - Pacing (prevent spam)?
-  - Resource management (strategic depth)?
-  - Or something else?"
-- "The [mechanic] seems central. Is this a core pillar, or supporting feature?"
-- "[Value] scales exponentially with [factor]. Intentional design, or needs rebalancing?"
-
-**Architecture questions**:
-- "You're using a service locator pattern. Was this chosen for:
-  - Testability (mock dependencies)?
-  - Decoupling (reduce hard references)?
-  - Or inherited from existing code?"
-- "I see manual memory management instead of smart pointers. Performance requirement, or legacy?"
-
-**Concept questions**:
-- "The prototype emphasizes stealth over combat. Is that the intended pillar?"
-- "Players seem to exploit the grappling hook for speed. Feature or bug?"
+Ask the first unresolved intent question and wait for the answer. Record that answer. Then ask the next unresolved intent question and wait again. Continue sequentially until every material uncertainty is resolved or explicitly marked unknown. Never batch multiple intent decisions into one prompt.
 
 ## Phase 4: Present Findings
 
@@ -114,15 +97,15 @@ FORMULAS DISCOVERED:
 - [Output] = [formula using discovered variables]
 - [Secondary output] = [formula]
 
-UNCLEAR INTENT AREAS:
-1. [Resource] system — pacing or resource management?
-2. [Mechanic] — core pillar or supporting feature?
-3. [Value] scaling — intentional design or needs tuning?
+UNRESOLVED INTENT QUEUE:
+- [Resource] system purpose
+- [Mechanic] pillar status
+- [Value] scaling intent
 
-Before I draft the design doc, could you clarify these points?
+Next question (one only): [first unresolved intent question]
 ```
 
-Wait for user to clarify intent before drafting.
+Wait for the answer, update the queue, and return to Phase 3 for the next single question before drafting.
 
 ## Phase 5: Draft Document Using Template
 
@@ -130,9 +113,9 @@ Based on type, use appropriate template:
 
 | Type | Template | Output Path |
 |------|----------|-------------|
-| `design` | `templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
-| `architecture` | `templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
-| `concept` | `templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
+| `design` | `.codex/docs/templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
+| `architecture` | `.codex/docs/templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
+| `concept` | `.codex/docs/templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
 
 **Draft structure**:
 - Capture **what exists** (mechanics, patterns, implementation)
@@ -198,7 +181,7 @@ FOLLOW-UP RECOMMENDED:
    - Stagger state during dodge
 4. Extend design doc when weapon variety is implemented
 
-Would you like me to tackle any of these now?
+Next decision (one only): Should I prepare the `$balance-check` handoff first?
 ```
 
 ---
@@ -207,49 +190,32 @@ Would you like me to tackle any of these now?
 
 | If analyzing... | Use template... | Because... |
 |----------------|-----------------|------------|
-| `src/gameplay/*` | design-doc-from-implementation.md | Gameplay mechanics → GDD |
-| `src/core/*`, `src/ai/*` | architecture-doc-from-code.md | Core systems → ADR |
-| `prototypes/*` | concept-doc-from-prototype.md | Experiments → concept doc |
-| `src/networking/*` | architecture-doc-from-code.md | Technical systems → ADR |
-| `src/ui/*` | design-doc-from-implementation.md | UI/UX → design spec |
+| `src/gameplay/*` | `.codex/docs/templates/design-doc-from-implementation.md` | Gameplay mechanics → GDD |
+| `src/core/*`, `src/ai/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Core systems → ADR |
+| `prototypes/*` | `.codex/docs/templates/concept-doc-from-prototype.md` | Experiments → concept doc |
+| `src/networking/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Technical systems → ADR |
+| `src/ui/*` | `.codex/docs/templates/design-doc-from-implementation.md` | UI/UX → design spec |
 
 ---
 
-## Example Session: Reverse-Document a System
+## Example Session: Sequential Intent Clarification
 
-```
+```text
 User: $reverse-document design src/gameplay/[system]
 
-Agent: I'll analyze your [system] implementation to create a design doc.
-       [Reads code, discovers mechanics, formulas]
+Agent: I found three unresolved intent areas. First question: Is the resource system primarily for pacing or strategic management?
 
-Agent: I've analyzed src/gameplay/[system]/. Here's what I found:
-       [Shows mechanics, formulas, unclear areas]
+User: Pacing; it should prevent repeated high-power actions.
 
-       Before drafting, could you clarify:
-       1. [Resource] system intent?
-       2. Is [mechanic] a core pillar?
-       3. [Value] scaling — intentional or needs tuning?
+Agent: Recorded. Next question: Is the central mechanic a core pillar or a supporting feature?
 
-User: 1. [Resource] is for pacing, prevent [unwanted behavior]
-      2. [Mechanic] is core — I want [design intent]
-      3. Yeah, exponential is too much, should be linear
+User: Core pillar.
 
-Agent: Perfect, that clarifies the vision. Let me draft the design doc.
-       [Shows draft with clarified intent]
+Agent: Recorded. Next question: Should the current exponential scaling remain, or should the document mark it for tuning?
 
-       Proposed complete changeset: design/gdd/[system-name].md. Approve it?
+User: Mark it for linear tuning.
 
-User: Yes, write it.
-
-Agent: ✅ Written to design/gdd/[system-name].md
-       ✅ Marked as [REVERSE-DOCUMENTED]
-       ✅ Flagged [value] scaling for rebalancing
-
-       Next steps:
-       - Update [formula] to [corrected scaling]
-       - Run $balance-check to validate [curve]
-       - Document [mechanic] as core pillar in game-pillars.md
+Agent: All material intent questions are resolved. Here is the draft and its one complete proposed changeset.
 ```
 
 ---

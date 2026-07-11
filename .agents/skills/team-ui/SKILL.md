@@ -42,6 +42,8 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 returns context, UX, and review drafts; no agent writes specs, assets, source, tests, or pattern files.
+
 ### Phase 1a: Context Gathering
 
 Before designing anything, read and synthesize:
@@ -64,7 +66,7 @@ Summarize the context in a brief for the ux-designer: what the player is doing, 
 
 ### Phase 1b: UX Spec Authoring
 
-Invoke `$ux-design [feature name]` skill OR delegate directly to ux-designer to produce `design/ux/[feature-name].md` following the `ux-spec.md` template.
+Invoke `$ux-design [feature name]` in draft-only mode OR delegate to ux-designer to return an in-memory draft intended for `design/ux/[feature-name].md` following the `ux-spec.md` template.
 
 If designing the HUD, use the `hud-design.md` template instead of `ux-spec.md`.
 
@@ -88,7 +90,15 @@ Delegate to **art-director**:
 - Check that visual design preserves accessibility compliance: verify color contrast ratios, and confirm color is never the only indicator of state (shape, text, or icon must reinforce it)
 - Specify all asset requirements needed from the art pipeline: icons at specified sizes, background textures, fonts, decorative elements — with precise dimensions and format requirements
 - Ensure consistency with existing implemented UI screens
-- Output: visual design spec with style notes and asset manifest
+- Output: visual design-spec draft with style notes and asset manifest
+
+## Parent Changeset Gate
+
+The parent synthesizes the UX, visual, engine, implementation, and pattern-library proposals before any mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new path or material change requires a revised proposal.
+
+## Approved Execution
+
+Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
 
 ### Phase 3: Implementation
 
@@ -154,9 +164,6 @@ Common blockers:
 - Scope too large → split into two stories via `$create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
-## Changeset Gate
-
-Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Output
 
 A summary report covering: UX spec status, UX review verdict, visual design status, implementation status, accessibility compliance, input method support, interaction pattern library update status, and any outstanding issues.

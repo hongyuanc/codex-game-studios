@@ -39,6 +39,8 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 loads context only; QA plans, cases, bug reports, and sign-off reports remain in memory until the parent gate.
+
 ### Phase 1: Load Context
 
 Before doing anything else, gather the full scope:
@@ -79,10 +81,8 @@ Present the qa-lead's full strategy to the user, then use `request_user_input`:
 question: "QA Strategy Review"
 options:
   - "Looks good — proceed to test plan"
-  - "Adjust story types before proceeding"
-  - "Skip blocked stories and proceed with the rest"
-  - "Smoke check failed — fix issues and re-run $team-qa"
-  - "Cancel — resolve blockers first"
+  - "Revise strategy or remove blocked stories"
+  - "Stop — resolve blockers or smoke failures first"
 ```
 
 If smoke check **FAIL**: do not proceed to Phase 3. Surface the failures from the smoke check report and stop. The user must fix them, re-run `$smoke-check sprint`, and then re-run `$team-qa`.
@@ -115,7 +115,7 @@ Delegate to `qa-tester` through Codex custom-agent delegation for each story (ru
 - The story file path
 - The relevant section of the QA plan for that story
 - The GDD acceptance criteria for the system being tested (if available)
-- Instructions to write detailed test cases covering all acceptance criteria
+- Instructions to draft detailed test cases covering all acceptance criteria
 
 Each test case set should include:
 - **Preconditions**: game state required before testing begins
@@ -124,34 +124,35 @@ Each test case set should include:
 - **Actual Result**: field left blank for the tester to fill in
 - **Pass/Fail**: field left blank
 
-Present the test cases to the user for review before execution. Group by story.
+Present the test cases to the user for review before execution, one story per turn.
 
-Use `request_user_input` per story group (batched 3-4 at a time):
+Use `request_user_input` for one story, wait for the answer, then continue to the next story:
 
 ```
-question: "Test cases ready for [Story Group]. Review before manual QA begins?"
+question: "Test cases ready for [Story]. Review before manual QA begins?"
 options:
-  - "Approved — begin manual QA for these stories"
-  - "Revise test cases for [story name]"
-  - "Skip manual QA for [story name] — not ready"
+  - "Approved — begin manual QA for this story"
+  - "Revise this story's test cases"
+  - "Skip this story — not ready"
 ```
 
 ### Phase 5: Manual QA Execution
 
-Walk through each story in the approved manual QA list.
+Walk through each story in the approved manual QA list, one story per turn.
 
-Batch stories into groups of 3-4 and use `request_user_input` for each:
+Use `request_user_input` for the current story and wait before moving to another:
 
 ```
 question: "Manual QA — [Story Title]\n[brief description of what to test]"
 options:
   - "PASS — all acceptance criteria verified"
-  - "PASS WITH NOTES — minor issues found (describe after)"
   - "FAIL — criteria not met (describe after)"
   - "BLOCKED — cannot test yet (reason)"
 ```
 
-After each FAIL result: use `request_user_input` to collect the failure description, then delegate to `qa-tester` through Codex custom-agent delegation to write a formal bug report in `production/qa/bugs/`.
+After PASS, ask separately whether there are non-blocking notes and wait for that answer before the next story.
+
+After each FAIL result: use `request_user_input` to collect the failure description, then delegate to `qa-tester` to return a formal bug-report draft plus its exact intended path in `production/qa/bugs/`. Do not write it yet.
 
 Bug report naming: `BUG-[NNN]-[short-slug].md` (increment NNN from existing bugs in the directory).
 
@@ -202,6 +203,14 @@ Next step guidance by verdict:
 
 Return the sign-off draft and `production/qa/qa-signoff-[sprint]-[date].md` to the parent for inclusion in the one consolidated complete changeset approval. Do not write from the delegated task.
 
+## Parent Changeset Gate
+
+The parent synthesizes the QA plan, test cases, bug-report drafts, sign-off report, and session update before any file mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new bug path, report path, or material change requires a revised proposal.
+
+## Approved Execution
+
+Only after approval may the parent write or delegate the exact approved QA artifacts and session update. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths and content; manual QA evidence remains attributable to the parent run.
+
 ## Error Recovery Protocol
 
 If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, errors, or cannot complete:
@@ -229,7 +238,7 @@ Verdict: **BLOCKED** — smoke check failed or critical blocker prevented cycle 
 
 ## Session State Update
 
-After the final phase completes (sign-off report written or BLOCKED verdict reached), silently append to `production/session-state/active.md`:
+Only when `production/session-state/active.md` and this exact comment were listed in the approved changeset, the parent appends after the sign-off report is saved. Never append silently, and do not change session state for a draft-only or unapproved BLOCKED result.
 
 ```
 <!-- QA RUN: [date] | Sprint: [sprint identifier or "ad-hoc"] | Verdict: [PASS/FAIL/CONCERNS] | Report: production/qa/qa-[date].md -->

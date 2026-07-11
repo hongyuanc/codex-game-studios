@@ -41,6 +41,8 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 returns direction notes; no agent writes files or implementation.
+
 ### Step 1: Audio Direction (audio-director)
 Delegate to the `audio-director` agent to:
 - Define the sonic identity for this feature/area
@@ -64,7 +66,7 @@ Delegate to the `sound-designer` agent in parallel to:
 - Review the audio event list for any that could cause issues for players with auditory sensitivities (high-frequency alerts, sudden loud events)
 - Output: audio accessibility requirements list integrated into the audio event spec
 
-### Step 3: Technical Implementation (parallel)
+### Step 3: Technical Plan (draft-only, parallel)
 Delegate to the `technical-artist` agent to:
 - Design the audio middleware integration (Wwise/FMOD/native)
 - Define audio bus structure and routing
@@ -79,6 +81,14 @@ Have `technical-artist` also read the configured Engine Specialists guidance in 
 - Output: engine audio integration notes merged into the technical-artist's plan
 
 If no engine is configured, mark the engine-specific subsection N/A.
+
+## Parent Changeset Gate
+
+The parent synthesizes all direction, asset, technical, and code-plan drafts before any mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new path or material change requires a revised proposal.
+
+## Approved Execution
+
+Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
 
 ### Step 4: Code Integration (gameplay-programmer)
 Delegate to the `gameplay-programmer` agent to:
@@ -103,9 +113,6 @@ If the pipeline stops because a dependency is unresolved (e.g., critical accessi
 
 Verdict: **BLOCKED** — [reason]
 
-## Changeset Gate
-
-Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Next Steps
 
 - Review the audio design doc with the audio-director before implementation begins.

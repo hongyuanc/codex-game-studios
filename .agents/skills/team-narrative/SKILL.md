@@ -50,7 +50,7 @@ Delegate to **narrative-director**:
 - Output: narrative brief with story requirements
 
 ### Phase 2: World Foundation (parallel)
-Delegate in parallel — issue all three Task calls simultaneously before waiting for any result:
+Delegate the three independent, bounded briefs concurrently and collect every result before parent synthesis:
 - **world-builder**: Create or update lore entries for factions, locations, and history relevant to this content. Cross-reference against existing lore for contradictions. Set canon level for new entries.
 - **writer**: Draft character dialogue using voice profiles. Ensure all lines are under 120 characters, use named placeholders for variables, and are localization-ready.
 - **world-builder**: Define character visual design direction for key characters appearing in this content (silhouette, visual archetype, distinguishing features). Specify environmental visual storytelling elements for each key space (prop composition, lighting notes, spatial arrangement). Define tone palette and cinematic direction for any cutscenes or scripted sequences.

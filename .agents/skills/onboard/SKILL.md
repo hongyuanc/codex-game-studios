@@ -87,7 +87,7 @@ Read recent changes (git log if available) to understand current momentum.
 
 ## Phase 4: Complete Proposed Changeset
 
-Show the onboarding draft and its exact path. Ask once whether to approve the complete proposed changeset before writing. Write only that approved file.
+Show the onboarding draft and canonical path `production/onboarding/onboard-[role]-[date].md`. Ask once whether to approve that complete proposed changeset before writing. Write only that approved file.
 ---
 
 ## Phase 5: Next Steps

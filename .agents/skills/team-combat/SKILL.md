@@ -43,10 +43,12 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 returns a design draft and no agent writes files or implementation.
+
 ### Phase 1: Design
 Delegate to **game-designer**:
 - Create or update the design document in `design/gdd/` covering: mechanic overview, player fantasy, detailed rules, formulas with variable definitions, edge cases, dependencies, tuning knobs with safe ranges, and acceptance criteria
-- Output: completed design document
+- Output: completed design-document draft
 
 ### Phase 2: Architecture
 Delegate to **gameplay-programmer** (with **ai-programmer** if AI is involved):
@@ -62,13 +64,21 @@ Then have `technical-artist` read the configured engine guidance in `.codex/docs
 - Output: engine architecture notes — incorporate into the architecture before Phase 3 begins
 
 Use `request_user_input`:
-- Prompt: "Architecture sketch complete. Approve to proceed with parallel implementation."
+- Prompt: "Architecture sketch complete. Continue to the parent changeset gate?"
 - Options:
-  - `[A] Proceed — delegate to implementation agents (gameplay-programmer, ai-programmer, technical-artist, sound-designer)`
+  - `[A] Continue — prepare the consolidated changeset`
   - `[B] Revise the architecture first — I'll describe what needs to change`
   - `[C] Stop here — I'll continue later`
 
-Only delegate to implementation agents if user selects [A].
+If [A], continue to the parent gate without writing or implementing. If [B] or [C], revise or stop.
+
+## Parent Changeset Gate
+
+The parent synthesizes the design and architecture drafts before any mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new path or material change requires a revised proposal.
+
+## Approved Execution
+
+Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
 
 ### Phase 3: Implementation (parallel where possible)
 Delegate in parallel:
@@ -112,9 +122,6 @@ Common blockers:
 - Scope too large → split into two stories via `$create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
-## Changeset Gate
-
-Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Output
 
 A summary report covering: design completion status, implementation status per team member, test results, and any open issues.

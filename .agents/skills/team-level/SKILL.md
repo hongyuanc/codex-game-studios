@@ -45,7 +45,7 @@ Read `.codex/studio.toml` as the only persistent review-mode source. Map `review
 
 ### Step 1: Narrative + Visual Direction (narrative-director + world-builder + art-director, parallel)
 
-Delegate to all three agents simultaneously — issue all three Task calls before waiting for any result.
+Delegate all three independent, bounded briefs concurrently and collect every result before parent synthesis.
 
 Delegate to the `narrative-director` agent to:
 - Define the narrative purpose of this area (what story beats happen here?)

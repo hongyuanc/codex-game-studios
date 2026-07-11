@@ -15,6 +15,15 @@ description: "Use when game strings, translations, cultural review, VO, RTL supp
 
 Scanning, validation, status, cultural review, RTL checks, and QA are read-only. Before modifying source or locale files, show the extracted-string diff, every target file, and the complete proposed changeset; apply only that approved set.
 
+## Delegation Contract
+
+- Delegate only work that is independent and bounded.
+- Name the custom-agent role and the exact artifact or evidence it must return.
+- Delegated agents must not spawn additional agents (`agents.max_depth = 1`).
+- The parent synthesizes every result and presents all exact paths and changes to the user.
+- No subagent commits, publishes, or expands scope.
+- Before an approved changeset, delegated work is read-only or draft-only.
+
 # Localization Pipeline
 
 Localization is not just translation — it is the full process of making a game

@@ -45,6 +45,8 @@ The parent must obtain explicit user authorization immediately before every bran
 
 ## Pipeline
 
+Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 1 returns a release-scope draft; no branch, file, build, report, milestone, session, deployment, release, or publication mutation occurs.
+
 ### Phase 1: Release Planning
 Delegate to **producer**:
 - Confirm all milestone acceptance criteria are met
@@ -58,12 +60,12 @@ Delegate to **release-manager**:
 - Do not create or switch branches, edit files, commit, or push
 - Output: release-candidate plan and complete proposed changeset
 
-The parent requests explicit user authorization for the branch operation immediately before it. Version-file changes then use one complete changeset approval; any commit and push are separate later authorization steps.
+Hold the branch and version plan for the parent changeset gate; do not execute it in this phase.
 
 ### Phase 3: Quality Gate (parallel)
 Delegate in parallel:
 - **qa-lead**: Execute full regression test suite. Test all critical paths. Verify no S1/S2 bugs. Sign off on quality.
-- **devops-engineer**: Build release artifacts for all target platforms. Verify builds are clean and reproducible. Run automated tests in CI.
+- **devops-engineer**: Review existing build/CI evidence and return the exact build and verification plan. Do not create release artifacts yet.
 - **qa-lead** *(if game has online features, multiplayer, or player data)*: Conduct pre-release security audit. Review authentication, anti-cheat, data privacy compliance. Sign off on security posture.
 - **qa-lead** *(if game has multiplayer)*: Sign off on netcode stability. Verify lag compensation, reconnect handling, and bandwidth usage under load.
 
@@ -94,8 +96,16 @@ Delegate to **producer**:
 After the user selects "Override NO-GO with documented rationale":
 - Ask (plain text, not widget): "Please describe the justification for overriding the NO-GO verdict. This will be embedded in the release record."
 - Wait for the user's written justification.
-- Embed the justification text in the partial approval record before Phase 6: append a "⚠️ Override Justification: [user's text]" field.
+- Include the justification text in the in-memory approval-record draft as `⚠️ Override Justification: [user's text]`.
 - Only then proceed to Phase 6.
+
+## Parent Changeset Gate
+
+The parent synthesizes the release-candidate plan, version changes, release records, deployment commands, rollback commands, communications, and post-release tracking before any mutation. Present one complete proposal containing exact file paths, exact diffs, tests and evidence, and all session-state, report, and milestone writes (use `None` where no such write exists). Obtain approval for the whole changeset; a new path or material change requires a revised proposal. Branch, commit, push, deployment, release, and publication still require their separate step authorization immediately before execution.
+
+## Approved Execution
+
+Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. First process the separately authorized branch operation and approved version-file changes; then verify before any separately authorized commit or push.
 
 ### Phase 6: Deployment (if GO)
 Delegate to **release-manager** + **devops-engineer**:
@@ -137,9 +147,6 @@ Common blockers:
 - Scope too large → split into two stories via `$create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
-## Changeset Gate
-
-Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Output
 
 A summary report covering: release version, scope, quality gate results, go/no-go decision, deployment status, and monitoring plan.

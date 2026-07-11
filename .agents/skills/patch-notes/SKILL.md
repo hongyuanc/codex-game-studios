@@ -26,14 +26,14 @@ If no version is provided, ask the user before proceeding.
 
 ## Phase 2: Gather Change Data
 
-- Read the internal changelog at `production/releases/[version]$changelog.md` if it exists
+- Read the internal changelog at `production/releases/[version]/changelog.md` if it exists
 - Also check `docs/CHANGELOG.md` for the relevant version entry
 - Run `git log` between the previous release tag and current tag/HEAD as a fallback
 - Read sprint retrospectives in `production/sprints/` for context
 - Read any balance change documents in `design/balance/`
 - Read bug fix records from QA if available
 
-**If no changelog data is available** (neither `production/releases/[version]$changelog.md`
+**If no changelog data is available** (neither `production/releases/[version]/changelog.md`
 nor a `docs/CHANGELOG.md` entry for this version exists, and git log is empty or unavailable):
 
 > "No changelog data found for [version]. Run `$changelog [version]` first to generate the
@@ -175,12 +175,19 @@ Check the generated notes for:
 
 ## Phase 6: Complete Proposed Changeset
 
-Show the full draft and exact destination path. Ask once whether to approve that complete proposed changeset. Write only after approval; if another path or content change is needed, present a revised changeset.
+Show the full draft and both canonical destinations as one complete proposed changeset:
+
+- `docs/patch-notes/[version].md`
+- `production/releases/[version]/patch-notes.md`
+
+Ask once whether to approve both exact writes. Write both only after approval; if either path or the content changes, present a revised changeset.
 ---
 
 ## Phase 7: Next Steps
 
-Verdict: **COMPLETE** — patch notes generated and saved.
+If both approved files were written: Verdict: **SAVED** — patch notes generated and saved to both canonical paths.
+
+If approval was declined or no file was written: Verdict: **DRAFT COMPLETE — NOT SAVED** — patch notes remain in conversation only.
 
 - Run `$release-checklist` to verify all other release gates are met before publishing.
 - Share the patch notes draft with the community-manager for tone review before posting publicly.

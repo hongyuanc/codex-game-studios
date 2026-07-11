@@ -15,6 +15,15 @@ description: "Use when game code or data flows need a diagnostic security review
 
 The audit is read-only against project source and produces prioritized findings with evidence. It does not remediate. Any remediation is a separately authorized complete proposed changeset; an optional saved report is also separately authorized.
 
+## Delegation Contract
+
+- Delegate only work that is independent and bounded.
+- Name the custom-agent role and the exact artifact or evidence it must return.
+- Delegated agents must not spawn additional agents (`agents.max_depth = 1`).
+- The parent synthesizes every result and presents all exact paths and changes to the user.
+- No subagent commits, publishes, or expands scope.
+- Before an approved changeset, delegated work is read-only or draft-only.
+
 # Security Audit
 
 Security is not optional for any shipped game. Even single-player games have
@@ -226,6 +235,10 @@ Present the report summary (executive summary + CRITICAL/HIGH findings only) in 
 
 If the user wants the report saved, present `production/security/security-audit-[date].md` and its content as a separately authorized complete proposed changeset. The audit remains diagnostic and performs no remediation.
 
+If the approved report was written: Verdict: **SAVED** — diagnostic report saved; no remediation performed.
+
+If approval was declined or no file was written: Verdict: **DRAFT COMPLETE — NOT SAVED** — findings remain in conversation; no remediation performed.
+
 ---
 
 ## Phase 7: Gate Integration
@@ -237,8 +250,10 @@ After remediating findings, re-run: `$security-audit quick` to confirm CRITICAL/
 If CRITICAL findings exist:
 > "⛔ CRITICAL security findings must be resolved before any public release. Do not proceed to `$launch-checklist` until these are addressed."
 
-If no CRITICAL/HIGH findings:
-> "✅ No blocking security findings. Report written to `production/security/`. Include this path when running `$gate-check release`."
+If no CRITICAL/HIGH findings and the report was saved:
+> "✅ No blocking security findings. Report saved to `production/security/`. Include this path when running `$gate-check release`."
+
+If no CRITICAL/HIGH findings and the report was not saved, state that the audit evidence is still a draft and cannot be referenced as a saved gate artifact.
 
 ---
 

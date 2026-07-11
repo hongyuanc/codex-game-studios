@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import tempfile
 import unittest
 
 from tools.codex_studio.validate import validate_skill
@@ -136,6 +137,133 @@ class OperationsSkillTests(unittest.TestCase):
                 self.assertIn(".codex/studio.toml", text)
                 self.assertIn('review_mode = "phase-gated"', text)
                 self.assertNotIn("production/review-mode.txt", text)
+
+    def test_team_mutations_follow_parent_changeset_gate(self):
+        dangerous_before_gate = {
+            "team-audio": ("Implement audio manager", "Write unit tests"),
+            "team-combat": ("Implement core combat", "Write test cases", "File bug reports"),
+            "team-polish": ("optimized code with before/after metrics", "relevant programmers"),
+            "team-ui": ("Implement the UI", "add it to `design/ux/interaction-patterns.md`"),
+            "team-qa": ("write a formal bug report", "silently append"),
+            "team-release": ("Update milestone tracking", "Generate release report"),
+        }
+        for name, forbidden in dangerous_before_gate.items():
+            text = self.skill_text(name)
+            with self.subTest(skill=name):
+                self.assertIn("## Parent Changeset Gate", text)
+                self.assertIn("## Approved Execution", text)
+                gate_at = text.index("## Parent Changeset Gate")
+                execute_at = text.index("## Approved Execution")
+                self.assertLess(gate_at, execute_at)
+                before_gate = text[:gate_at]
+                self.assertIn("read-only or draft-only", before_gate)
+                for phrase in forbidden:
+                    self.assertNotIn(phrase, before_gate)
+                gate = text[gate_at:execute_at]
+                for phrase in (
+                    "exact file paths",
+                    "exact diffs",
+                    "tests and evidence",
+                    "session-state, report, and milestone writes",
+                    "The parent synthesizes",
+                    "approval",
+                ):
+                    self.assertIn(phrase, gate)
+                execution = text[execute_at:]
+                self.assertIn("Only after approval", execution)
+                self.assertIn("No subagent commits, publishes, or expands scope", execution)
+
+    def test_operational_delegation_is_bounded(self):
+        for name in ("day-one-patch", "hotfix", "localize", "security-audit"):
+            text = self.skill_text(name)
+            with self.subTest(skill=name):
+                self.assertIn("## Delegation Contract", text)
+                for phrase in (
+                    "independent and bounded",
+                    "exact artifact or evidence",
+                    "must not spawn additional agents",
+                    "agents.max_depth = 1",
+                    "The parent synthesizes",
+                    "No subagent commits, publishes, or expands scope",
+                ):
+                    self.assertIn(phrase, text)
+
+    def test_task_call_syntax_is_forbidden(self):
+        for name in sorted(NAMES):
+            with self.subTest(skill=name):
+                self.assertIsNone(
+                    re.search(r"\bTask calls?\b|\btask-call(?:s|ing)?\b", self.skill_text(name), re.I)
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "SKILL.md"
+            fixture.write_text(
+                "---\nname: fixture\ndescription: Use when testing.\n---\n"
+                "Issue both Task calls before waiting.\n",
+                encoding="utf-8",
+            )
+            issues = validate_skill(fixture)
+        self.assertTrue(any("task-call" in issue.message.lower() for issue in issues))
+
+    def test_canonical_output_paths_and_semantics(self):
+        changelog = self.skill_text("changelog")
+        self.assertIn("docs/CHANGELOG.md", changelog)
+        self.assertIn("append", changelog.lower())
+        self.assertIn("newest entries first", changelog)
+
+        self.assertIn(
+            "production/hotfixes/hotfix-[date]-[short-name].md",
+            self.skill_text("hotfix"),
+        )
+        self.assertIn(
+            "production/onboarding/onboard-[role]-[date].md",
+            self.skill_text("onboard"),
+        )
+
+        patch_notes = self.skill_text("patch-notes")
+        for path in (
+            "production/releases/[version]/changelog.md",
+            "docs/patch-notes/[version].md",
+            "production/releases/[version]/patch-notes.md",
+        ):
+            self.assertIn(path, patch_notes)
+        self.assertIn("Verdict: **SAVED**", patch_notes)
+        self.assertIn("Verdict: **DRAFT COMPLETE — NOT SAVED**", patch_notes)
+
+    def test_reverse_document_uses_native_templates_and_sequential_questions(self):
+        text = self.skill_text("reverse-document")
+        for template in (
+            ".codex/docs/templates/design-doc-from-implementation.md",
+            ".codex/docs/templates/architecture-doc-from-code.md",
+            ".codex/docs/templates/concept-doc-from-prototype.md",
+        ):
+            self.assertIn(template, text)
+            self.assertTrue((ROOT / template).is_file())
+        self.assertNotRegex(text, r"(?<!\.codex/docs/)templates/")
+        self.assertIn("Ask the first unresolved intent question and wait for the answer", text)
+        self.assertIn("Then ask the next unresolved intent question", text)
+        self.assertNotIn("Before drafting, could you clarify:", text)
+        self.assertNotIn("Would you like me to tackle any of these now?", text)
+
+    def test_skill_test_counts_and_default_mode_are_discovered(self):
+        text = self.skill_text("skill-test")
+        self.assertIn("No argument → run `audit`", text)
+        for hardcoded in ("All 52 Skills", "SKILLS (72 total)", "72/72", "49/49"):
+            self.assertNotIn(hardcoded, text)
+        self.assertIn("discovered", text)
+
+    def test_diagnostic_completion_distinguishes_saved_from_draft(self):
+        security = self.skill_text("security-audit")
+        self.assertIn("Verdict: **SAVED**", security)
+        self.assertIn("Verdict: **DRAFT COMPLETE — NOT SAVED**", security)
+
+    def test_team_qa_decisions_are_sequential_and_schema_sized(self):
+        text = self.skill_text("team-qa")
+        self.assertNotIn("batched 3-4", text)
+        self.assertNotIn("Batch stories into groups", text)
+        for block in re.findall(r"```\nquestion:.*?```", text, flags=re.S):
+            options = re.findall(r'^  - "', block, flags=re.MULTILINE)
+            self.assertLessEqual(len(options), 3, block)
 
     def test_release_mutations_require_separate_step_authorization(self):
         exact = (

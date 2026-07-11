@@ -41,9 +41,10 @@ Determine mode from the first argument:
 - `spec [name]` → read skill + test spec, evaluate assertions
 - `category [name]` → run category-specific rubric from `Codex Studio Testing Framework/quality-rubric.md`
 - `category all` → run category rubric for every skill that has a `category:` in catalog
-- `audit` (or no argument) → read catalog, list all skills and agents, show coverage
+- `audit` → read catalog, list all skills and agents, show coverage
+- No argument → run `audit`
 
-If argument is missing or unrecognized, output usage and stop.
+If the argument is unrecognized, output usage and stop. A missing argument is not an error; it selects `audit`.
 
 For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet`; do not fall back to a legacy framework. Static mode remains available because it uses `.agents/skills/` and `tools/codex_studio/validate.py` directly.
 
@@ -116,7 +117,7 @@ Recommended: Add a "Follow-Up Actions" section at the end of the skill.
 
 For `static all`, produce a summary table then list any non-compliant skills:
 ```
-=== Skill Static Check: All 52 Skills ===
+=== Skill Static Check: All [discovered skill count] Skills ===
 
 Skill                  | Result       | Issues
 -----------------------|--------------|-------
@@ -302,8 +303,8 @@ For each agent in catalog's `agents:` section:
 === Skill Test Coverage Audit ===
 Date: [date]
 
-SKILLS (72 total)
-Specs written: 72 (100%) | Never static tested: 72 | Never category tested: 72
+SKILLS ([discovered skill count] total)
+Specs written: [spec count] ([percentage]%) | Never static tested: [count] | Never category tested: [count]
 
 Skill                  | Cat      | Has Spec | Last Static | S.Result | Last Cat | C.Result | Priority
 -----------------------|----------|----------|-------------|----------|----------|----------|----------
@@ -311,8 +312,8 @@ gate-check             | gate     | YES      | never       | —        | never 
 design-review          | review   | YES      | never       | —        | never    | —        | critical
 ...
 
-AGENTS (49 total)
-Agent specs written: 49 (100%)
+AGENTS ([discovered agent count] total)
+Agent specs written: [spec count] ([percentage]%)
 
 Agent                  | Category   | Has Spec | Last Spec   | Result
 -----------------------|------------|----------|-------------|--------
@@ -323,8 +324,8 @@ technical-director     | director   | YES      | never       | —
 Top 5 Priority Gaps (skills with no spec, critical/high priority):
 (none if all specs are written)
 
-Skill coverage:  72/72 specs (100%)
-Agent coverage:  49/49 specs (100%)
+Skill coverage:  [spec count]/[discovered skill count] specs ([percentage]%)
+Agent coverage:  [spec count]/[discovered agent count] specs ([percentage]%)
 ```
 
 No file writes in audit mode.

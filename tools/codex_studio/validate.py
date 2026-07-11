@@ -13,6 +13,7 @@ FORBIDDEN_SKILL_PATTERNS = {
     r"\bAskUserQuestion\b": "Claude interaction primitive",
     r"\bTodoWrite\b": "Claude task primitive",
     r"\bTask tool\b|\bsubagent_type\b": "Claude delegation primitive",
+    r"(?i:\bTask calls?\b|\btask-call(?:s|ing)?\b)": "non-native task-call syntax",
     r"\.Codex/|\.claude/": "non-native path",
     r"^model:\s*(opus|sonnet|haiku)\s*$": "Claude model metadata",
     r"^allowed-tools:": "Claude tool metadata",

@@ -15,6 +15,15 @@ description: "Use when a bounded launch patch must be scoped, implemented, QA-ga
 
 Creating or switching branches, committing, pushing, deploying, releasing, or publishing requires explicit user authorization at that step. Ask again immediately before each operation; approval for one step never authorizes another. Each destructive operation requires its own explicit authorization and rollback explanation.
 
+## Delegation Contract
+
+- Delegate only work that is independent and bounded.
+- Name the custom-agent role and the exact artifact or evidence it must return.
+- Delegated agents must not spawn additional agents (`agents.max_depth = 1`).
+- The parent synthesizes every result and presents all exact paths and changes to the user.
+- No subagent commits, publishes, or expands scope.
+- Before an approved changeset, delegated work is read-only or draft-only.
+
 # Day-One Patch
 
 Every shipped game has a day-one patch. Planning it before launch day prevents
