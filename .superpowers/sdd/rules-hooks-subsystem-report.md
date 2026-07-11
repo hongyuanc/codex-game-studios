@@ -42,6 +42,16 @@ Second hardening review:
 - GREEN: all 43 hook tests pass. Together with instruction coverage, the focused
   Rules/Hooks suite passes 46 tests; the complete studio suite passes 120 tests.
 
+Final destructive-Git parser review:
+
+- RED: eight focused regression methods reproduced 23 failures and one error across unique
+  long-option abbreviations, Git aliases, wrapper option operands, quote-aware
+  variable expansion, recursion fallback, broad protected pushes, and push
+  option values.
+- GREEN: all 51 hook tests pass. The cases use temporary Git repositories for
+  ordinary, shell, commit, dry-run, chained, looping, inline `-c`, and compact
+  `-c` aliases, plus forced parser-failure and deep-recursion paths.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -98,18 +108,37 @@ global-option parsing. It:
   refspecs with exit 2.
 - Recognizes real Git invocations after `-C`, `-c`, `--git-dir`, `--work-tree`,
   other supported global options, quoted tokens, and shell boundaries.
+- Applies Git-compatible unique long-option abbreviation matching. Ambiguous
+  prefixes remain unrecognized; abbreviations such as `--har`, `--for`,
+  `--mir`, `--force-with-l`, `--force-if-i`, and `--dry-r` are classified.
+- Resolves selected aliases from inline `git -c alias.name=value` overrides and
+  repository Git config, recursively handling ordinary and `!` shell aliases,
+  commit aliases, loops, depth limits, and config read failures. Alias lookup
+  preserves `-C`, `--git-dir`, and `--work-tree` repository context.
 - Recursively inspects literal backticks, `$()` substitutions, `bash -c`,
-  `sh -c`, `zsh -c`, and `eval`, and resolves simple same-command variables.
+  `sh -c`, `zsh -c`, and `eval`. Unquoted literal variables undergo shell word
+  splitting while quoted expansions remain one executable token.
+- Parses `env`, `sudo`, `command`, `builtin`, and `exec` wrappers with explicit
+  option-value tables, including split execution through `env -S` and the
+  `exec -a` display-name operand; `command -v`, `-V`, and `--version` are
+  inspection-only.
 - Recognizes `git` and `git.exe` case-insensitively. Ambiguous dynamic execution
   with destructive Git intent fails closed.
 - Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
 - Treats dry-run/force flags as options only before `--`, skipping option values.
+- On parser recursion/failure, performs a separately bounded structured
+  classification before falling back to conservative blocking, so reset,
+  clean, force/mirror push, and aliases fail closed while valid dry-runs remain
+  non-blocking.
 - Runs staged validation for every real `git commit` form.
 - Blocks a real commit when Git/index/subprocess/decode inspection cannot
   complete, including parser recursion and deterministic type/value failures;
   invalid staged JSON also blocks.
 - Warns for protected destinations including simple branches,
-  `HEAD:main`, and `refs/heads/*` destination refspecs.
+  `HEAD:main`, wildcard/matching destinations, and `--all`, `--branches`, or
+  dry-run `--mirror`; a tags-only push does not imply the current branch.
+- Skips operands for `--recurse-submodules`, `--receive-pack`, `--push-option`,
+  and `-o` when determining modes, remotes, and refspec destinations.
 - Evaluates every invocation in compound commands: any block wins, while commit
   context and every protected-push advisory are combined when non-blocking.
 
@@ -156,7 +185,7 @@ find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
 git ls-files .claude/hooks .claude/settings.json
 ```
 
-Final evidence: 46 focused and 120 studio tests pass; JSON/Python and whitespace
+Final evidence: 54 focused and 128 studio tests pass; JSON/Python and whitespace
 checks pass; runtime forbidden scans return no matches; neither hook tree
 contains shell scripts; the tracked legacy hook/settings inventory is empty.
 

@@ -281,6 +281,132 @@ class HookParserTests(unittest.TestCase):
                 )
                 self.assertEqual(2, result.exit_code)
 
+    def test_git_unique_long_option_abbreviations_follow_git_rules(self):
+        destructive = (
+            "git reset --har",
+            "git clean --for -d",
+            "git push --mir origin",
+            "git push --force-with-l origin feature",
+            "git push --force-if-i origin feature",
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+        safe = (
+            "git clean --dry-r --for -d",
+            "git push --dry-r --force-with-l origin feature",
+            "git push --fo origin feature",
+        )
+        for command in safe:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+        after_separator = HOOKS.handle(
+            "validate-command",
+            {"tool_input": {"command": "git clean --for -- --dry-r"}},
+            ROOT,
+        )
+        self.assertEqual(2, after_separator.exit_code)
+
+    def test_wrapper_option_values_and_command_inspection_are_parsed(self):
+        destructive = (
+            "sudo -u user git reset --hard",
+            "sudo --user user git clean -fd",
+            "env -u GIT_CONFIG git push -f origin feature",
+            "env --unset=GIT_CONFIG git reset --hard",
+            "env -S 'git reset --hard'",
+            "env -S'git clean -fd'",
+            "env --split-string='sudo -u user git clean -fd'",
+            "exec -a codex-git git push -f origin feature",
+            "command -- git clean -fd",
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+        for command in (
+            "command -v git reset --hard",
+            "command -V git clean -fd",
+            "command --version git push -f origin feature",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_variable_expansion_respects_shell_word_splitting_and_quotes(self):
+        destructive = (
+            "cmd='git reset'; $cmd --hard",
+            "cmd='git clean -fd'; $cmd",
+            "cmd='git push --force'; $cmd origin feature",
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+        for command in (
+            "cmd='git reset'; \"$cmd\" --hard",
+            "cmd='git clean -fd'; \"$cmd\"",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_deep_parser_fallback_classifies_destructive_and_dry_run_intent(self):
+        commands = {
+            "git reset --har": 2,
+            "git clean --for -d": 2,
+            "git push --mir origin": 2,
+            "git clean --dry-r --for -d": 0,
+        }
+        for inner, expected in commands.items():
+            nested = inner
+            for _ in range(HOOKS.MAX_SHELL_RECURSION + 2):
+                nested = f"$({nested})"
+            with self.subTest(inner=inner):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": nested}}, ROOT
+                )
+                self.assertEqual(expected, result.exit_code)
+
+        with mock.patch.object(
+            HOOKS, "git_invocations", side_effect=RecursionError("forced parser failure")
+        ):
+            for command, expected in commands.items():
+                with self.subTest(forced=command):
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                    self.assertEqual(expected, result.exit_code)
+
+        with mock.patch.object(
+            HOOKS, "git_invocations", side_effect=RecursionError("primary failure")
+        ), mock.patch.object(
+            HOOKS, "_recursive_invocations", side_effect=RecursionError("fallback failure")
+        ):
+            for command, expected in commands.items():
+                with self.subTest(conservative=command):
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                    self.assertEqual(expected, result.exit_code)
+
     def test_all_real_commit_forms_invoke_staged_validation(self):
         commands = (
             "git commit -m test",
@@ -431,6 +557,142 @@ class HookBehaviorTests(unittest.TestCase):
                 self.assertEqual(2, result.exit_code)
                 self.assertIn("staged", result.stderr.lower())
 
+    def test_git_aliases_are_resolved_from_inline_and_repository_config(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        aliases = {
+            "nuke": "reset --hard",
+            "scrub": "clean -fd",
+            "ship": "push --force origin feature",
+            "ci": "commit",
+            "boom": "!git reset --hard",
+            "shellpreview": "!git clean -fdn",
+            "preview": "clean -fdn",
+            "st": "status",
+        }
+        for name, value in aliases.items():
+            subprocess.run(
+                ["git", "-C", str(root), "config", f"alias.{name}", value],
+                check=True,
+            )
+
+        for command in ("git nuke", "git scrub", "git ship", "git boom"):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(2, result.exit_code)
+
+        for command in ("git preview", "git shellpreview", "git st"):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(0, result.exit_code)
+
+        blocked = HOOKS.HookResult(2, stderr="alias commit sentinel\n")
+        with mock.patch.object(HOOKS, "_validate_commit", return_value=blocked) as validator:
+            result = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git ci -m test"}}, root
+            )
+        self.assertEqual(2, result.exit_code)
+        validator.assert_called_once_with(root)
+
+        inline = (
+            "git -c 'alias.nuke=reset --hard' nuke",
+            "git '-calias.scrub=clean -fd' scrub",
+            "git -c 'alias.boom=!git push --mirror origin' boom",
+        )
+        for command in inline:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(2, result.exit_code)
+
+        with mock.patch.object(
+            HOOKS, "git_invocations", side_effect=RecursionError("forced parser failure")
+        ):
+            destructive_alias = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git nuke"}}, root
+            )
+            destructive_shell_alias = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git boom"}}, root
+            )
+            dry_alias = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git preview"}}, root
+            )
+            dry_shell_alias = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git shellpreview"}}, root
+            )
+        self.assertEqual(2, destructive_alias.exit_code)
+        self.assertEqual(2, destructive_shell_alias.exit_code)
+        self.assertEqual(0, dry_alias.exit_code)
+        self.assertEqual(0, dry_shell_alias.exit_code)
+
+    def test_git_alias_loops_depth_and_config_failures_do_not_bypass_or_crash(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        subprocess.run(["git", "-C", str(root), "config", "alias.a", "b"], check=True)
+        subprocess.run(["git", "-C", str(root), "config", "alias.b", "a"], check=True)
+        loop = HOOKS.handle(
+            "validate-command", {"tool_input": {"command": "git a"}}, root
+        )
+        self.assertEqual(0, loop.exit_code)
+        self.assertIn("alias", loop.stdout.lower())
+
+        chain_length = HOOKS.MAX_ALIAS_RECURSION + 2
+        for index in range(chain_length):
+            target = f"a{index + 1}" if index + 1 < chain_length else "reset --hard"
+            subprocess.run(
+                ["git", "-C", str(root), "config", f"alias.a{index}", target],
+                check=True,
+            )
+        deep = HOOKS.handle(
+            "validate-command", {"tool_input": {"command": "git a0"}}, root
+        )
+        self.assertEqual(2, deep.exit_code)
+
+        failure = subprocess.CompletedProcess(["git"], 128, "", "config unavailable")
+        with mock.patch.object(HOOKS, "_git", return_value=failure):
+            unreadable = HOOKS.handle(
+                "validate-command", {"tool_input": {"command": "git unknown"}}, root
+            )
+        self.assertEqual(0, unreadable.exit_code)
+        self.assertIn("alias", unreadable.stdout.lower())
+
+    def test_git_alias_lookup_honors_git_repository_context_options(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        other = root / "other"
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        subprocess.run(
+            ["git", "-C", str(other), "config", "alias.nuke", "reset --hard"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(other), "config", "alias.scrub", "clean -fd"],
+            check=True,
+        )
+
+        for command in (
+            "git -C other nuke",
+            "git --git-dir=other/.git --work-tree=other nuke",
+            "git --git-dir other/.git --work-tree other scrub",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(2, result.exit_code)
+
+        invalid_compact = HOOKS.handle(
+            "validate-command",
+            {"tool_input": {"command": "git -Cother scrub"}},
+            root,
+        )
+        self.assertEqual(0, invalid_compact.exit_code)
+
     def test_recursion_and_parser_failures_block_recognized_commits(self):
         for failure in (
             RecursionError("nested command limit"),
@@ -531,6 +793,72 @@ class HookBehaviorTests(unittest.TestCase):
                 )
                 self.assertEqual(0, result.exit_code)
                 self.assertIn("protected branch", json.loads(result.stdout)["systemMessage"])
+
+    def test_broad_push_modes_cover_protected_branches_and_tags_do_not(self):
+        broad = (
+            "git push --all origin",
+            "git push --branches origin",
+            "git push --dry-run --mirror origin",
+            "git push origin 'refs/heads/*:refs/heads/*'",
+            "git push origin ':'",
+            "git push origin 'feature:refs/heads/*'",
+        )
+        for command in broad:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+                self.assertIn("protected branch", json.loads(result.stdout)["systemMessage"])
+
+        option_values = (
+            "git push --recurse-submodules main origin feature",
+            "git push --recurse-submodules=main origin feature",
+            "git push --receive-pack main origin feature",
+            "git push --receive-pack=main origin feature",
+            "git push --push-option main origin feature",
+            "git push --push-option=main origin feature",
+            "git push -o main origin feature",
+            "git push -omain origin feature",
+            "git push origin 'refs/tags/*:refs/tags/*'",
+            "git push origin 'refs/heads/release/*:refs/heads/release/*'",
+        )
+        for command in option_values:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+                self.assertEqual("", result.stdout)
+
+        branch = subprocess.CompletedProcess(["git"], 0, "main\n", "")
+        with mock.patch.object(HOOKS, "_git", return_value=branch):
+            tags = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git push --tags origin"}},
+                ROOT,
+            )
+        self.assertEqual(0, tags.exit_code)
+        self.assertEqual("", tags.stdout)
+
+        with mock.patch.object(HOOKS, "_git", return_value=branch):
+            option_tag = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git push -o --tags origin"}},
+                ROOT,
+            )
+        self.assertIn("protected branch", json.loads(option_tag.stdout)["systemMessage"])
+
+        feature = subprocess.CompletedProcess(["git"], 0, "feature\n", "")
+        with mock.patch.object(HOOKS, "_git", return_value=feature):
+            for value in ("--all", "--mirror"):
+                with self.subTest(option_value=value):
+                    result = HOOKS.handle(
+                        "validate-command",
+                        {"tool_input": {"command": f"git push -o {value} origin"}},
+                        ROOT,
+                    )
+                    self.assertEqual("", result.stdout)
 
     def test_compound_commands_combine_commit_and_all_push_advisories(self):
         commit_warning = HOOKS._system_message("commit advisory")

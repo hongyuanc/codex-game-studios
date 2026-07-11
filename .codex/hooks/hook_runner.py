@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import fnmatch
 import json
 import os
 import pathlib
@@ -65,9 +66,50 @@ GIT_GLOBAL_FLAG_OPTIONS = {
 GIT_GLOBAL_TERMINAL_OPTIONS = {"--version", "--help", "-h", "--html-path", "--man-path", "--info-path"}
 PROTECTED_BRANCHES = {"develop", "main", "master"}
 DYNAMIC_TOKEN_PREFIX = "__CGS_DYNAMIC_"
+QUOTED_VARIABLE_PREFIX = "__CGS_QUOTED_VARIABLE_"
 MAX_SHELL_RECURSION = 12
-PUSH_VALUE_OPTIONS = {"--exec", "--push-option", "--receive-pack", "--repo", "-o"}
+MAX_ALIAS_RECURSION = 12
+PUSH_VALUE_OPTIONS = {
+    "--exec",
+    "--push-option",
+    "--receive-pack",
+    "--recurse-submodules",
+    "--repo",
+    "-o",
+}
 CLEAN_VALUE_OPTIONS = {"--exclude", "-e"}
+GIT_OPTION_NAMES = {
+    "reset": {
+        "--hard", "--help", "--keep", "--merge", "--mixed", "--no-refresh",
+        "--no-recurse-submodules", "--pathspec-file-nul", "--pathspec-from-file",
+        "--quiet", "--recurse-submodules", "--refresh", "--soft",
+    },
+    "clean": {
+        "--directory", "--dry-run", "--exclude", "--force", "--help",
+        "--ignored", "--ignored-only", "--interactive", "--quiet",
+    },
+    "push": {
+        "--all", "--atomic", "--branches", "--delete", "--dry-run", "--exec",
+        "--follow-tags", "--force", "--force-if-includes", "--force-with-lease",
+        "--help", "--mirror", "--no-signed", "--porcelain", "--progress",
+        "--prune", "--push-option", "--quiet", "--receive-pack",
+        "--recurse-submodules", "--repo", "--set-upstream", "--signed", "--tags",
+        "--thin", "--verbose",
+    },
+}
+KNOWN_GIT_SUBCOMMANDS = {
+    "add", "bisect", "branch", "checkout", "cherry-pick", "clean", "clone",
+    "commit", "config", "diff", "fetch", "grep", "init", "log", "merge",
+    "mv", "pull", "push", "rebase", "reset", "restore", "revert", "rm",
+    "show", "sparse-checkout", "stash", "status", "switch", "tag", "worktree",
+}
+ENV_VALUE_OPTIONS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+ENV_SPLIT_OPTIONS = {"-S", "--split-string"}
+SUDO_VALUE_OPTIONS = {
+    "-C", "--close-from", "-g", "--group", "-h", "--host", "-p", "--prompt",
+    "-R", "--chroot", "-r", "--role", "-T", "--command-timeout", "-t", "--type",
+    "-u", "--user",
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -82,6 +124,12 @@ class GitInvocation:
     subcommand: str
     args: tuple[str, ...]
     ambiguous_destructive: bool = False
+    config_overrides: tuple[tuple[str, str], ...] = ()
+    context_options: tuple[str, ...] = ()
+
+
+class AliasResolutionError(ValueError):
+    pass
 
 
 class UnsafePathError(OSError):
@@ -297,6 +345,39 @@ def _replace_command_substitutions(script: str) -> tuple[str, list[str]]:
     return "".join(output), substitutions
 
 
+def _mark_quoted_variable_expansions(script: str) -> str:
+    output: list[str] = []
+    quote: str | None = None
+    index = 0
+    variable = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+    while index < len(script):
+        character = script[index]
+        if character == "\\" and index + 1 < len(script):
+            output.extend((character, script[index + 1]))
+            index += 2
+            continue
+        if character == "'" and quote != '"':
+            quote = None if quote == "'" else "'"
+            output.append(character)
+            index += 1
+            continue
+        if character == '"' and quote != "'":
+            quote = None if quote == '"' else '"'
+            output.append(character)
+            index += 1
+            continue
+        if quote == '"' and character == "$":
+            match = variable.match(script, index)
+            if match:
+                name = match.group(1) or match.group(2)
+                output.append(f"{QUOTED_VARIABLE_PREFIX}{name}__")
+                index = match.end()
+                continue
+        output.append(character)
+        index += 1
+    return "".join(output)
+
+
 def _shell_segments(script: str) -> list[list[str]]:
     lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|()<>\n")
     lexer.whitespace_split = True
@@ -318,13 +399,24 @@ def _shell_segments(script: str) -> list[list[str]]:
     return segments
 
 
-def _resolve_variable_token(token: str, variables: dict[str, str | None]) -> str:
+def _resolve_variable_token(token: str, variables: dict[str, str | None]) -> list[str]:
+    quoted = re.fullmatch(
+        rf"{re.escape(QUOTED_VARIABLE_PREFIX)}([A-Za-z_][A-Za-z0-9_]*)__", token
+    )
+    if quoted:
+        value = variables.get(quoted.group(1))
+        return [value] if value is not None else [f"{DYNAMIC_TOKEN_PREFIX}VARIABLE__"]
     match = re.fullmatch(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))", token)
     if not match:
-        return token
+        return [token]
     name = match.group(1) or match.group(2)
     value = variables.get(name)
-    return value if value is not None else f"{DYNAMIC_TOKEN_PREFIX}VARIABLE__"
+    if value is None:
+        return [f"{DYNAMIC_TOKEN_PREFIX}VARIABLE__"]
+    try:
+        return shlex.split(value, posix=True)
+    except ValueError:
+        return [f"{DYNAMIC_TOKEN_PREFIX}VARIABLE__"]
 
 
 def _record_assignments(segment: list[str], variables: dict[str, str | None]) -> None:
@@ -338,7 +430,10 @@ def _record_assignments(segment: list[str], variables: dict[str, str | None]) ->
         value = match.group(2)
         variables[match.group(1)] = (
             value
-            if "$" not in value and DYNAMIC_TOKEN_PREFIX not in value and "`" not in value
+            if "$" not in value
+            and DYNAMIC_TOKEN_PREFIX not in value
+            and QUOTED_VARIABLE_PREFIX not in value
+            and "`" not in value
             else None
         )
 
@@ -350,19 +445,100 @@ def _command_tokens(segment: list[str], variables: dict[str, str | None] | None 
         tokens.pop(0)
     while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
         tokens.pop(0)
-    if tokens and tokens[0] == "env":
-        tokens.pop(0)
-        while tokens and (tokens[0].startswith("-") or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0])):
+    expanded: list[str] = []
+    for token in tokens:
+        expanded.extend(_resolve_variable_token(token, variables))
+    tokens = expanded
+    while tokens:
+        wrapper = pathlib.PurePosixPath(tokens[0]).name.lower()
+        if wrapper == "env":
             tokens.pop(0)
-    while tokens and tokens[0] in {"command", "builtin", "exec", "sudo"}:
-        tokens.pop(0)
-        while tokens and tokens[0].startswith("-"):
+            while tokens:
+                token = tokens[0]
+                option = token.split("=", 1)[0]
+                compact_split = token.startswith("-S") and token != "-S"
+                if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token):
+                    tokens.pop(0)
+                elif option in ENV_SPLIT_OPTIONS or compact_split:
+                    tokens.pop(0)
+                    if compact_split:
+                        value = token[2:]
+                    elif "=" in token:
+                        value = token.split("=", 1)[1]
+                    elif tokens:
+                        value = tokens.pop(0)
+                    else:
+                        return []
+                    try:
+                        tokens = shlex.split(value, posix=True) + tokens
+                    except ValueError:
+                        return [f"{DYNAMIC_TOKEN_PREFIX}ENV_SPLIT__"]
+                elif option in ENV_VALUE_OPTIONS:
+                    tokens.pop(0)
+                    if "=" not in token and tokens:
+                        tokens.pop(0)
+                elif token == "--":
+                    tokens.pop(0)
+                    break
+                elif token.startswith("-"):
+                    tokens.pop(0)
+                else:
+                    break
+            continue
+        if wrapper == "command":
             tokens.pop(0)
-    return [_resolve_variable_token(token, variables) for token in tokens]
+            if tokens and tokens[0] in {"-v", "-V", "--version"}:
+                return []
+            while tokens and (tokens[0].startswith("-") or tokens[0] == "--"):
+                terminal = tokens.pop(0)
+                if terminal == "--":
+                    break
+            continue
+        if wrapper == "sudo":
+            tokens.pop(0)
+            while tokens:
+                token = tokens[0]
+                option = token.split("=", 1)[0]
+                if option in SUDO_VALUE_OPTIONS:
+                    tokens.pop(0)
+                    if "=" not in token and len(token) == len(option) and tokens:
+                        tokens.pop(0)
+                elif token == "--":
+                    tokens.pop(0)
+                    break
+                elif token.startswith("-"):
+                    tokens.pop(0)
+                else:
+                    break
+            continue
+        if wrapper == "exec":
+            tokens.pop(0)
+            while tokens:
+                if tokens[0] == "-a":
+                    tokens.pop(0)
+                    if tokens:
+                        tokens.pop(0)
+                elif tokens[0] == "--":
+                    tokens.pop(0)
+                    break
+                elif tokens[0].startswith("-"):
+                    tokens.pop(0)
+                else:
+                    break
+            continue
+        if wrapper == "builtin":
+            tokens.pop(0)
+            while tokens and tokens[0].startswith("-"):
+                tokens.pop(0)
+            continue
+        break
+    return tokens
 
 
 def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> GitInvocation | None:
     index = 1
+    config_overrides: list[tuple[str, str]] = []
+    context_options: list[str] = []
     while index < len(tokens):
         token = tokens[index]
         if token == "--":
@@ -373,15 +549,42 @@ def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> 
         if token in GIT_GLOBAL_FLAG_OPTIONS:
             index += 1
             continue
+        if token == "-c":
+            if index + 1 >= len(tokens):
+                return None
+            key, separator, value = tokens[index + 1].partition("=")
+            if separator:
+                config_overrides.append((key.lower(), value))
+            index += 2
+            continue
+        if token.startswith("-c") and token != "-c":
+            key, separator, value = token[2:].partition("=")
+            if separator:
+                config_overrides.append((key.lower(), value))
+            index += 1
+            continue
         if token in GIT_GLOBAL_VALUE_OPTIONS:
             if index + 1 >= len(tokens):
                 return None
+            if token in {"-C", "--git-dir", "--work-tree"}:
+                context_options.extend((token, tokens[index + 1]))
             index += 2
             continue
-        if any(token.startswith(option + "=") for option in GIT_GLOBAL_VALUE_OPTIONS if option.startswith("--")):
+        matching_value_option = next(
+            (
+                option
+                for option in GIT_GLOBAL_VALUE_OPTIONS
+                if option.startswith("--") and token.startswith(option + "=")
+            ),
+            None,
+        )
+        if matching_value_option:
+            if matching_value_option in {"--git-dir", "--work-tree"}:
+                context_options.append(token)
             index += 1
             continue
-        if (token.startswith("-C") and token != "-C") or (token.startswith("-c") and token != "-c"):
+        if token.startswith("-C") and token != "-C":
+            context_options.append(token)
             index += 1
             continue
         if token.startswith("-"):
@@ -401,7 +604,13 @@ def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> 
             or _short_flag(_option_prefix(args), "f")
         )
     )
-    return GitInvocation(subcommand, args, ambiguous)
+    return GitInvocation(
+        subcommand,
+        args,
+        ambiguous,
+        tuple(config_overrides),
+        tuple(context_options),
+    )
 
 
 def _git_invocation(
@@ -426,15 +635,19 @@ def _recursive_invocations(
     script: str,
     variables: dict[str, str | None],
     depth: int,
+    max_depth: int = MAX_SHELL_RECURSION,
 ) -> list[GitInvocation]:
-    if depth > MAX_SHELL_RECURSION:
+    if depth > max_depth:
         raise RecursionError("shell command nesting exceeds safety limit")
     normalized = _normalize_continuations(script)
     without_heredocs = _strip_heredoc_bodies(normalized)
     prepared, substitutions = _replace_command_substitutions(without_heredocs)
+    prepared = _mark_quoted_variable_expansions(prepared)
     invocations: list[GitInvocation] = []
     for substitution in substitutions:
-        invocations.extend(_recursive_invocations(substitution, dict(variables), depth + 1))
+        invocations.extend(
+            _recursive_invocations(substitution, dict(variables), depth + 1, max_depth)
+        )
     for segment in _shell_segments(prepared):
         _record_assignments(segment, variables)
         tokens = _command_tokens(segment, variables)
@@ -450,7 +663,9 @@ def _recursive_invocations(
                 if re.search(r"\b(?:reset|clean|push)\b", " ".join(tokens[command_index:])):
                     invocations.append(GitInvocation("dynamic", (), True))
             else:
-                invocations.extend(_recursive_invocations(nested, dict(variables), depth + 1))
+                invocations.extend(
+                    _recursive_invocations(nested, dict(variables), depth + 1, max_depth)
+                )
             continue
         if executable == "eval":
             nested = " ".join(tokens[1:])
@@ -458,7 +673,9 @@ def _recursive_invocations(
                 if re.search(r"\b(?:reset|clean|push)\b", nested):
                     invocations.append(GitInvocation("dynamic", (), True))
             elif nested:
-                invocations.extend(_recursive_invocations(nested, dict(variables), depth + 1))
+                invocations.extend(
+                    _recursive_invocations(nested, dict(variables), depth + 1, max_depth)
+                )
             continue
         invocation = _git_invocation(segment, variables)
         if invocation:
@@ -468,6 +685,105 @@ def _recursive_invocations(
 
 def git_invocations(script: str) -> list[GitInvocation]:
     return _recursive_invocations(script, {}, 0)
+
+
+def _alias_value(invocation: GitInvocation, root: pathlib.Path) -> str | None:
+    key = f"alias.{invocation.subcommand.lower()}"
+    inline = dict(invocation.config_overrides)
+    if key in inline:
+        return inline[key]
+    result = _git(root, *invocation.context_options, "config", "--get", key)
+    if result.returncode == 1:
+        return None
+    if result.returncode != 0:
+        raise AliasResolutionError(result.stderr.strip() or f"could not read {key}")
+    return result.stdout.rstrip("\r\n")
+
+
+def _expand_alias_invocation(
+    invocation: GitInvocation,
+    root: pathlib.Path,
+    *,
+    depth: int = 0,
+    seen: frozenset[str] = frozenset(),
+    limit: int = MAX_ALIAS_RECURSION,
+) -> list[GitInvocation]:
+    subcommand = invocation.subcommand.lower()
+    if subcommand in KNOWN_GIT_SUBCOMMANDS or invocation.ambiguous_destructive:
+        return [invocation]
+    if subcommand in seen:
+        raise AliasResolutionError(f"Git alias loop detected at alias.{subcommand}")
+    if depth > limit:
+        raise AliasResolutionError("Git alias nesting exceeds safety limit")
+    value = _alias_value(invocation, root)
+    if value is None:
+        return [invocation]
+    next_seen = seen | {subcommand}
+    if value.startswith("!"):
+        nested_script = value[1:]
+        if invocation.args:
+            nested_script += " " + " ".join(shlex.quote(argument) for argument in invocation.args)
+        try:
+            nested = git_invocations(nested_script)
+        except (OSError, RecursionError, TypeError, UnicodeError, ValueError) as error:
+            try:
+                nested = _recursive_invocations(
+                    nested_script, {}, 0, MAX_SHELL_RECURSION * 8
+                )
+            except (OSError, RecursionError, TypeError, UnicodeError, ValueError):
+                if _recognized_destructive_intent(nested_script):
+                    return [GitInvocation("dynamic", (), True)]
+                if _recognized_commit_intent(nested_script):
+                    return [GitInvocation("commit", ())]
+                raise AliasResolutionError(
+                    f"could not inspect shell Git alias.{subcommand}: {error}"
+                ) from error
+        expanded: list[GitInvocation] = []
+        for candidate in nested:
+            candidate = dataclasses.replace(
+                candidate,
+                config_overrides=(
+                    invocation.config_overrides + candidate.config_overrides
+                ),
+                context_options=(
+                    invocation.context_options + candidate.context_options
+                ),
+            )
+            expanded.extend(
+                _expand_alias_invocation(
+                    candidate, root, depth=depth + 1, seen=next_seen, limit=limit
+                )
+            )
+        return expanded
+    try:
+        alias_tokens = shlex.split(value, posix=True)
+    except ValueError as error:
+        raise AliasResolutionError(f"malformed Git alias.{subcommand}: {error}") from error
+    if not alias_tokens:
+        raise AliasResolutionError(f"empty Git alias.{subcommand}")
+    candidate = _git_from_tokens(["git", *alias_tokens, *invocation.args])
+    if candidate is None:
+        raise AliasResolutionError(f"could not parse Git alias.{subcommand}")
+    candidate = dataclasses.replace(
+        candidate,
+        config_overrides=invocation.config_overrides + candidate.config_overrides,
+        context_options=invocation.context_options + candidate.context_options,
+    )
+    return _expand_alias_invocation(
+        candidate, root, depth=depth + 1, seen=next_seen, limit=limit
+    )
+
+
+def _expand_aliases(
+    invocations: list[GitInvocation],
+    root: pathlib.Path,
+    *,
+    limit: int = MAX_ALIAS_RECURSION,
+) -> list[GitInvocation]:
+    expanded: list[GitInvocation] = []
+    for invocation in invocations:
+        expanded.extend(_expand_alias_invocation(invocation, root, limit=limit))
+    return expanded
 
 
 def _short_flag(args: tuple[str, ...], flag: str) -> bool:
@@ -487,6 +803,19 @@ def _option_prefix(args: tuple[str, ...]) -> tuple[str, ...]:
     return args[:end]
 
 
+def _canonical_option(subcommand: str, token: str) -> str:
+    if not token.startswith("--"):
+        return token
+    name, separator, value = token.partition("=")
+    names = GIT_OPTION_NAMES.get(subcommand.lower(), set())
+    if name in names:
+        resolved = name
+    else:
+        matches = sorted(option for option in names if option.startswith(name))
+        resolved = matches[0] if len(matches) == 1 else name
+    return resolved + (separator + value if separator else "")
+
+
 def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
     args = _option_prefix(invocation.args)
     value_options = (
@@ -499,7 +828,8 @@ def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
     options: list[str] = []
     index = 0
     while index < len(args):
-        argument = args[index]
+        raw_argument = args[index]
+        argument = _canonical_option(invocation.subcommand, raw_argument)
         if argument in value_options:
             index += 2
             continue
@@ -760,7 +1090,8 @@ def _push_refspecs(args: tuple[str, ...]) -> tuple[str, ...]:
     options = True
     index = 0
     while index < len(args):
-        argument = args[index]
+        raw_argument = args[index]
+        argument = _canonical_option("push", raw_argument)
         if options and argument == "--":
             options = False
             index += 1
@@ -783,17 +1114,46 @@ def _push_refspecs(args: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(positionals[1:]) if positionals else ()
 
 
+def _push_modes(args: tuple[str, ...]) -> set[str]:
+    modes: set[str] = set()
+    for argument in _option_tokens(GitInvocation("push", args)):
+        canonical = _canonical_option("push", argument).partition("=")[0]
+        if canonical in {"--all", "--branches", "--mirror", "--tags"}:
+            modes.add(canonical)
+    return modes
+
+
+def _refspec_covers_protected(refspec: str) -> bool:
+    if refspec == ":":
+        return True
+    destination = refspec.rsplit(":", 1)[-1].lstrip("+")
+    if "*" not in destination:
+        return False
+    candidates = (
+        (f"refs/heads/{branch}" for branch in PROTECTED_BRANCHES)
+        if destination.startswith("refs/")
+        else iter(PROTECTED_BRANCHES)
+    )
+    return any(fnmatch.fnmatchcase(candidate, destination) for candidate in candidates)
+
+
 def _protected_push(invocation: GitInvocation, root: pathlib.Path) -> HookResult:
     refspecs = _push_refspecs(invocation.args)
+    modes = _push_modes(invocation.args)
+    broad = bool(modes & {"--all", "--branches", "--mirror"}) or any(
+        _refspec_covers_protected(refspec) for refspec in refspecs
+    )
     protected = sorted(
-        {
+        PROTECTED_BRANCHES
+        if broad
+        else {
             branch
             for refspec in refspecs
             for branch in [_branch_name(refspec)]
             if branch in PROTECTED_BRANCHES
         }
     )
-    if not refspecs:
+    if not refspecs and "--tags" not in modes and not broad:
         branch_result = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
         current = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
         if current in PROTECTED_BRANCHES:
@@ -811,20 +1171,22 @@ def _recognized_commit_intent(command: str) -> bool:
 
 
 def _recognized_destructive_intent(command: str) -> bool:
-    destructive_tail = (
-        r"(?:\breset\b.*--hard|"
-        r"\bclean\b.*(?:--force|-[A-Za-z]*f)|"
-        r"\bpush\b.*(?:--force|-[A-Za-z]*f|\+[A-Za-z0-9_./:-]+))"
+    executable = (
+        r'''(?:\bgit(?:\.exe)?\b|["']?\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|'''
+        r'''[A-Za-z_][A-Za-z0-9_]*)["']?)'''
     )
-    literal_git = re.search(
-        rf"(?is)\bgit(?:\.exe)?\b.*{destructive_tail}",
-        command,
+    pattern = re.compile(
+        rf"(?is){executable}[^;&|\n]{{0,1024}}?\b(reset|clean|push)\b([^;&|\n)]*)"
     )
-    dynamic_git = re.search(
-        rf'''(?is)["']?\$(?:\{{[A-Za-z_][A-Za-z0-9_]*\}}|[A-Za-z_][A-Za-z0-9_]*)["']?\s+{destructive_tail}''',
-        command,
-    )
-    return bool(literal_git or dynamic_git)
+    for match in pattern.finditer(command):
+        subcommand, tail = match.groups()
+        try:
+            args = tuple(shlex.split(tail, posix=True))
+        except ValueError:
+            args = tuple(re.findall(r"--[^\s;&|)]+|-[A-Za-z]+|\+[^\s;&|)]+", tail))
+        if _destructive(GitInvocation(subcommand.lower(), args)):
+            return True
+    return False
 
 
 def _result_message(result: HookResult) -> str:
@@ -840,11 +1202,30 @@ def _result_message(result: HookResult) -> str:
 def _validate_command(event: dict, root: pathlib.Path) -> HookResult:
     command = tool_command(event)
     try:
-        invocations = git_invocations(command)
+        invocations = _expand_aliases(git_invocations(command), root)
     except (OSError, RecursionError, TypeError, UnicodeError, ValueError) as error:
-        if _recognized_commit_intent(command) or _recognized_destructive_intent(command):
-            return HookResult(2, stderr=f"BLOCKED: command parser failed for recognized Git safety intent: {error}\n")
-        return _system_message(f"Command safety parser could not inspect this inert or unrecognized command: {error}")
+        try:
+            invocations = _recursive_invocations(
+                command, {}, 0, MAX_SHELL_RECURSION * 8
+            )
+            invocations = _expand_aliases(
+                invocations, root, limit=MAX_ALIAS_RECURSION * 8
+            )
+            if any(invocation.subcommand.lower() == "commit" for invocation in invocations):
+                return HookResult(
+                    2,
+                    stderr=(
+                        "BLOCKED: command parser failed for recognized Git safety "
+                        f"intent: {error}\n"
+                    ),
+                )
+        except (OSError, RecursionError, TypeError, UnicodeError, ValueError):
+            if _recognized_commit_intent(command) or _recognized_destructive_intent(command):
+                return HookResult(2, stderr=f"BLOCKED: command parser failed for recognized Git safety intent: {error}\n")
+            label = "Git alias" if isinstance(error, AliasResolutionError) else "Command safety parser"
+            return _system_message(
+                f"{label} could not inspect this inert or unrecognized command: {error}"
+            )
     if any(_destructive(invocation) for invocation in invocations):
         return HookResult(
             2,
