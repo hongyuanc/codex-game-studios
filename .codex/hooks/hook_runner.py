@@ -85,7 +85,8 @@ RESET_VALUE_OPTIONS = {"--pathspec-from-file"}
 COMMIT_VALUE_OPTIONS = {
     "-m", "--message", "-F", "--file", "-C", "--reuse-message",
     "-c", "--reedit-message", "--fixup", "--squash", "--author",
-    "--date", "--template", "--trailer", "--pathspec-from-file",
+    "--date", "-t", "--template", "--cleanup", "-U", "--unified",
+    "--inter-hunk-context", "--trailer", "--pathspec-from-file",
 }
 GIT_OPTION_NAMES = {
     "reset": {
@@ -104,6 +105,16 @@ GIT_OPTION_NAMES = {
         "--prune", "--push-option", "--quiet", "--receive-pack",
         "--recurse-submodules", "--repo", "--set-upstream", "--signed", "--tags",
         "--thin", "--verbose",
+    },
+    "commit": {
+        "--all", "--allow-empty", "--allow-empty-message", "--amend", "--author",
+        "--branch", "--cleanup", "--date", "--dry-run", "--edit", "--file",
+        "--fixup", "--gpg-sign", "--include", "--interactive",
+        "--inter-hunk-context", "--message", "--no-edit", "--no-post-rewrite",
+        "--no-status", "--only", "--patch", "--pathspec-file-nul",
+        "--pathspec-from-file", "--porcelain", "--quiet", "--reedit-message",
+        "--reset-author", "--reuse-message", "--short", "--signoff", "--squash",
+        "--status", "--template", "--trailer", "--unified", "--verbose",
     },
 }
 # Security boundary: only documented built-ins are analyzed as direct Git commands.

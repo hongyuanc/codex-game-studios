@@ -82,6 +82,14 @@ Direct-classification table completion:
 - GREEN: all 59 hook tests pass. When supported, the suite asserts that
   `git --list-cmds=builtins` is a subset of the static allowlist.
 
+Commit option-table completion:
+
+- RED: the focused commit-help matrix reproduced 13 value-consumption failures
+  covering template, cleanup, unified, inter-hunk-context, and unique long-option
+  abbreviations.
+- GREEN: all 59 hook tests pass with separate, compact-short, equals, and unique
+  abbreviated commit value forms distinguished from actual terminal help.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -180,8 +188,9 @@ global-option parsing. It:
   known subcommands, including commit and push.
 - Commit help detection first consumes message, file, reuse/reedit, fixup,
   squash, author, date, template, trailer, and pathspec-file operands, including
-  compact and equals forms, so option-looking values still trigger staged
-  validation rather than being mistaken for terminal help.
+  cleanup, unified, and inter-hunk-context operands. Separate, compact, equals,
+  and unique abbreviated forms are canonicalized so option-looking values still
+  trigger staged validation rather than being mistaken for terminal help.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain
