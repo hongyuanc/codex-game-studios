@@ -10,6 +10,10 @@ description: "Use when an implementation-ready story has been approved for bound
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$team-qa`
+
+Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+
 # Dev Story
 
 This skill bridges planning and code. It reads a story file in full, assembles
@@ -52,7 +56,7 @@ If not found, ask: "Which story are we implementing?" file search
 | Governing ADR | path from story's ADR field | **STOP** — "ADR file [path] not found. Run `$architecture-decision` to create it, or correct the filename in the story's ADR field." |
 | Control manifest | `docs/architecture/control-manifest.md` | **WARN and continue** — "Control manifest not found — layer rules cannot be checked. Run `$create-control-manifest`." |
 
-If the TR registry or governing ADR is missing, set the story status to **BLOCKED** in the session state and do not spawn any programmer agent.
+If the TR registry or governing ADR is missing, report the story as **BLOCKED** and stop. Do not change the story, sprint status, or session state.
 
 Read all of the following simultaneously — these are independent reads. Do not start implementation until all context is loaded:
 
@@ -94,8 +98,8 @@ If they differ, use `request_user_input` before proceeding:
   - `[B] Implement with old rules — I accept the risk of non-compliance`
   - `[C] Stop here — I want to review the manifest diff first`
 
-If [A]: edit the story file's `Manifest Version:` field to the current manifest date before spawning the programmer. Then read the manifest carefully for new rules.
-If [B]: edit the story file's `Manifest Version:` field to the current manifest date AND add a `Manifest-Note: Proceeded with old manifest rules on [date] — non-compliance risk accepted.` line to the story header. Read the manifest for new rules anyway. Note the decision in the Phase 6 summary under "Deviations". `$story-done` will include the Manifest-Note in its deviations section without re-checking staleness.
+If [A]: use the current rules and include the intended `Manifest Version:` story update in the complete Implementation Preflight. Do not edit yet.
+If [B]: record the accepted risk as a planned `Manifest-Note:` in the complete Implementation Preflight. Do not edit yet. Read the current manifest and include any resulting risk in the preflight.
 If [C]: stop. Do not spawn any agent. Let the user review and re-run `$dev-story`.
 
 ### Dependency validation
@@ -110,12 +114,14 @@ After extracting the **Dependencies** list from the story file, validate each:
      - Options:
        - `[A] Proceed anyway — I accept the dependency risk`
        - `[B] Stop — I'll complete the dependency first`
-       - `[C] The dependency is done but status wasn't updated — mark it Complete and continue`
-   - If [B]: set story status to **BLOCKED** in session state and stop. Do not spawn any programmer agent.
-   - If [C]: ask "May I update [dependency path] Status to Complete?" before continuing.
-   - If [A]: note in Phase 6 summary under "Deviations": "Implemented with incomplete dependency: [dependency title] — [status]."
+       - `[C] The dependency is done but status is stale — verify it through $story-done first`
+   - If [B]: report the current story as BLOCKED and stop without changing any file.
+   - If [C]: stop and route completion through `$story-done [dependency path]`; re-run `$dev-story` only after that workflow completes.
+   - If [A]: include "Implement with incomplete dependency: [dependency title] — [status]" as a risk in the complete Implementation Preflight. Do not write it anywhere yet.
 
 If a dependency file cannot be found: warn "Dependency story not found: [path]. Verify the path or create the story file."
+
+All prerequisite, manifest-mismatch, and dependency choices before the preflight are read-only resolution decisions. No story, dependency, sprint-status, session-state, evidence, or source file may change before approval of the complete Implementation Preflight. Never mark another story Complete in this workflow; route completion through `$story-done`.
 
 ---
 

@@ -10,6 +10,10 @@ description: "Use when a defect needs structured documentation, reproduction ste
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$hotfix`
+
+Before invoking `$hotfix`, validate `.agents/skills/hotfix/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $hotfix is not Codex-native yet`, defer the emergency-workflow handoff, and do not invoke it.
+
 ## Phase 1: Parse Arguments
 
 Determine the mode from the argument:

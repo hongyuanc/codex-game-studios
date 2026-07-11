@@ -125,7 +125,9 @@ items pass or are explicitly marked N/A with a stated reason.
     Fix: update the story to reference the current requirement ID or remove if no longer applicable.
   - If the ID does not exist in the registry → NEEDS WORK: ID was not registered
     (story may predate registry, or registry needs an `$architecture-review` run).
-  - Auto-pass if the story has no TR-ID reference OR if the registry does not exist.
+  - **Missing TR registry** → BLOCKED: traceability cannot be verified; run `$architecture-review` to create or repair the registry.
+  - **Missing or unregistered TR-ID** → BLOCKED: add an active registry ID through the design/architecture workflow before implementation.
+  - A story with either condition cannot receive READY. Never infer traceability from quoted prose or a GDD filename alone.
 - [ ] **Manifest version is current**: If the story has a `Manifest Version:` date
   in its header AND `docs/architecture/control-manifest.md` exists:
   - If story version matches current manifest `Manifest Version:` → pass.

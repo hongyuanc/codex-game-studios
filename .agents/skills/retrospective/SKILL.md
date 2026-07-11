@@ -31,7 +31,7 @@ If a matching file is found, use `request_user_input`:
   - `[B] Start fresh — generate a new retrospective (archive the old one)`
 
 If [A]: read the existing file and carry its content forward, revising sections with new data.
-If [B]: continue to Phase 2 with a blank slate. Before writing the new file, rename the existing one with a `-archived-[date]` suffix.
+If [B]: continue to Phase 2 with a blank slate. Record the existing path and intended `-archived-[date]` destination, but do not rename anything before the complete changeset approval.
 
 ---
 
@@ -196,9 +196,11 @@ the single most important thing to change going forward?]
 
 Present the retrospective and top findings to the user (completion rate, velocity trend, top blocker, most important action item).
 
-Ask: "May I write this to `production/retrospectives/retro-sprint-[N]-[date].md`?" (or `production/retrospectives/retro-[milestone-name]-[date].md` for milestone retrospectives)
+## Complete Proposed Changeset Approval
 
-If yes, write the file, creating the `production/retrospectives/` directory if needed. Verdict: **COMPLETE** — retrospective saved.
+Show one complete proposed changeset. It includes the new retrospective report path and, when starting fresh over an existing report, the archive or rename from the exact old path to the exact `-archived-[date]` path. Updating an existing report lists that exact file instead. Ask once for approval of the entire changeset.
+
+If yes, perform the approved archive or rename and write the new retrospective report as one changeset, creating the directory if needed. Do not add or rename any unlisted file. Verdict: **COMPLETE** — retrospective saved.
 
 If no, stop here. Verdict: **BLOCKED** — user declined write.
 

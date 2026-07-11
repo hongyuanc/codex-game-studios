@@ -96,7 +96,7 @@ group of criteria would take longer, split into two stories.
 
 For each story, determine:
 - **GDD requirement**: which acceptance criterion(ia) does this satisfy?
-- **TR-ID**: look up in `tr-registry.yaml`. Use the stable ID. If no match, use `TR-[system]-???` and warn.
+- **TR-ID**: look up the requirement in `tr-registry.yaml` and use its stable active ID. Missing registry or TR-ID is a blocking traceability gap: set the generated story to `Status: Blocked`, record `Requirement: BLOCKED — stable TR-ID required`, and direct the user to `$architecture-review`. Never invent or write a placeholder TR-ID, and never emit a Ready story without an active registered TR-ID.
 - **Governing ADR**: which ADR governs how to implement this?
   - `Status: Accepted` → embed normally
   - `Status: Proposed` → set story `Status: Blocked` with note: "BLOCKED: ADR-NNNN is Proposed — run `$architecture-decision` to advance it"
@@ -175,7 +175,7 @@ Story 003: [title] — Visual/Feel — ADR-NNNN
 [N stories total: N Logic, N Integration, N Visual/Feel, N UI, N Config/Data]
 ```
 
-Show the complete proposed changeset: all [N] story paths plus `production/epics/index.md` when its row will change. Then use `request_user_input` for one decision:
+Show the complete proposed changeset: every story path, `production/epics/[epic-slug]/EPIC.md`, and `production/epics/index.md`. If either index does not exist and will not be created, list it explicitly as skipped with the reason. Then use `request_user_input` for one decision:
 - Prompt: "May I write this complete [N-story] changeset?"
 - Options: `[A] Yes — write every listed path` / `[B] Not yet — I want to review or adjust first`
 
@@ -189,7 +189,7 @@ For each story, write `production/epics/[epic-slug]/story-[NNN]-[slug].md`:
 # Story [NNN]: [title]
 
 > **Epic**: [epic name]
-> **Status**: Ready
+> **Status**: [Ready only with an active registered TR-ID | Blocked — missing registry or TR-ID]
 > **Layer**: [Foundation / Core / Feature / Presentation]
 > **Type**: [Logic | Integration | Visual/Feel | UI | Config/Data]
 > **Estimate**: [hours or t-shirt size — fill before sprint planning]
@@ -268,7 +268,7 @@ change meaning. This is what the programmer reads instead of the ADR.]
 **Story Type**: [type]
 **Required evidence**:
 - Logic: `tests/unit/[system]/[story-slug]_test.[ext]` — must exist and pass
-- Integration: `tests/integration/[system]/[story-slug]_test.[ext]` OR playtest doc
+- Integration: `tests/integration/[system]/[story-slug]_test.[ext]` OR `production/qa/evidence/[story-slug]-evidence.md` playtest evidence
 - Visual/Feel: `production/qa/evidence/[story-slug]-evidence.md` + sign-off
 - UI: `production/qa/evidence/[story-slug]-evidence.md` or interaction test
 - Config/Data: smoke check pass (`production/qa/smoke-*.md`)

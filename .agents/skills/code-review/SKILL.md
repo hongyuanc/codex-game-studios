@@ -182,5 +182,5 @@ Use `request_user_input`:
     - `[B] Stop here`
 
 If an ARCHITECTURAL VIOLATION is found:
-- If the violation contradicts an **existing ADR**: fix the implementation to comply with `docs/architecture/[adr-file].md`. If the design has legitimately changed, run `$architecture-decision` to formally *revise* the existing ADR — do not create a competing one.
-- If **no ADR exists** for the pattern that was violated: run `$architecture-decision` to document the correct approach before fixing the code.
+- If the violation contradicts an **existing ADR**: recommend a separately authorized fix changeset that restores compliance with `docs/architecture/[adr-file].md`. If the design has legitimately changed, recommend `$architecture-decision` to formally *revise* the existing ADR — do not create a competing one.
+- If **no ADR exists** for the pattern that was violated: recommend `$architecture-decision` before any separately authorized source fix.

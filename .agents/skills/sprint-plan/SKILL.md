@@ -10,6 +10,10 @@ description: "Use when a sprint needs creation, replanning, capacity allocation,
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$team-qa`
+
+Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+
 ## Phase 0: Parse Arguments
 
 Extract the mode argument (`new`, `update`, or `status`) and resolve the review mode (once, store for all gate spawns this run):
@@ -27,7 +31,7 @@ See `.codex/docs/director-gates.md` for the full check pattern.
     - `[A] full — spawn all director and lead gates`
     - `[B] lean — skip non-phase-gate director reviews (recommended for most sprints)`
     - `[C] solo — skip all gate spawning`
-  - After selection: write `production/review-mode.txt` with the chosen mode. Say: "Review mode set to [mode] and saved to production/review-mode.txt."
+  - After selection: hold the chosen mode in context and include `production/review-mode.txt` in the complete proposed changeset. Do not write it yet.
 - If the file doesn't exist and this is NOT a `new` sprint (e.g., updating an existing sprint): default to `lean` silently.
 
 ---
@@ -109,7 +113,7 @@ For `update`:
 3. Ask the user what to change: stories to add, remove, reprioritize, or re-estimate. Use `request_user_input` to gather changes.
 4. Apply the changes and re-present the full revised plan for review.
 5. Re-run the producer feasibility gate (Phase 4) on the revised plan.
-6. Write the updated markdown plan and yaml together (same approval as `new` mode).
+6. Prepare the updated markdown plan and yaml together, then continue through the producer and QA gates before requesting approval.
 
 Note: `update` mode does not reset story statuses. Stories already marked `in-progress` or `done` keep their status. Only `backlog` and `ready-for-dev` stories can be removed or reprioritized freely.
 
@@ -221,13 +225,13 @@ If CONCERNS, use `request_user_input`:
   - `[B] Adjust scope — defer some Should Have stories`
   - `[C] Extend the sprint timeline`
 
-If [A]: proceed to write approval.
-If [B]: revise the story list, re-present the updated plan, then proceed to write approval.
-If [C]: adjust sprint dates and capacity, re-present the updated plan, then proceed to write approval.
+If [A]: continue to the QA plan gate without writing.
+If [B]: revise the story list, re-present the updated plan, then continue to the QA plan gate without writing.
+If [C]: adjust sprint dates and capacity, re-present the updated plan, then continue to the QA plan gate without writing.
 
-After handling the producer's verdict, ask: "May I write the sprint plan to `production/sprints/sprint-[N].md` and `production/sprint-status.yaml`?" If yes, write both files (creating directories as needed). Verdict: **COMPLETE** — sprint plan and status file created. If no: Verdict: **BLOCKED** — user declined write.
+Do not write any sprint artifact after the producer gate. The QA plan gate may still revise the draft.
 
-After writing, add:
+Include this note in the draft when applicable:
 
 > **Scope check:** If this sprint includes stories added beyond the original epic scope, run `$scope-check [epic]` to detect scope creep before implementation begins.
 
@@ -253,8 +257,8 @@ Use `request_user_input`:
   - `[A] Run $qa-plan sprint now — I'll do that before starting implementation (Recommended)`
   - `[B] Skip for now — I understand QA sign-off will be blocked at the Production → Polish gate`
 
-If [A]: close with "Sprint plan written. Run `$qa-plan sprint` next — then begin implementation."
-If [B]: add a warning block to the sprint plan document:
+If [A]: keep the sprint draft read-only and stop with: "Run `$qa-plan sprint`, then re-run `$sprint-plan` to approve the complete sprint changeset." Do not write sprint artifacts yet.
+If [B]: add a warning block to the in-memory sprint plan draft:
 
 ```markdown
 > ⚠️ **No QA Plan**: This sprint was started without a QA plan. Run `$qa-plan sprint`
@@ -262,11 +266,22 @@ If [B]: add a warning block to the sprint plan document:
 > sign-off report, which requires a QA plan.
 ```
 
+## Complete Proposed Changeset Approval
+
+After the producer and QA gates are fully resolved, show one complete proposed changeset containing:
+
+- `production/review-mode.txt` when a new review-mode selection must be persisted
+- `production/sprints/sprint-[N].md`
+- `production/sprint-status.yaml`
+- every file affected by QA-gate revisions, or an explicit statement that QA-gate revisions only changed the listed sprint draft
+
+Show the final content or precise summary for every listed path, then ask once for approval. Write nothing before this approval. If the producer response, QA status, scope, dates, story list, or path list changes afterward, present a revised complete changeset and obtain a new approval before writing. After approval, write only the listed files and report Verdict: **COMPLETE**. If approval is declined, write nothing and report Verdict: **BLOCKED**.
+
 ---
 
 ## Phase 6: Next Steps
 
-After the sprint plan is written and QA plan status is resolved:
+After the complete changeset is approved, written, and QA plan status is resolved:
 
 - `$qa-plan sprint` — **required before implementation begins** — defines test cases per story so developers implement against QA specs, not a blank slate
 - `$story-readiness [story-file]` — validate a story is ready before starting it

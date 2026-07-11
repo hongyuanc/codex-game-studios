@@ -10,6 +10,14 @@ description: "Use when repeated test setup, assertions, factories, or engine-spe
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$setup-engine`
+
+Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+
+### Native readiness gate for `$skill-test`
+
+Before invoking `$skill-test`, validate `.agents/skills/skill-test/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $skill-test is not Codex-native yet`, defer the skill-validation handoff, and do not invoke it.
+
 # Test Helpers
 
 Writing test cases is faster and more consistent when common setup, teardown,
@@ -184,20 +192,20 @@ using UnityEngine;
 /// <summary>
 /// Game-specific assertion utilities for [Project Name] tests.
 /// Extends NUnit's Assert with domain-specific helpers.
-/// <$summary>
+/// </summary>
 public static class GameAssertions
 {
     /// <summary>
     /// Assert a value is within an inclusive range [min, max].
     /// Use for any formula output defined in GDD Formulas sections.
-    /// <$summary>
+    /// </summary>
     public static void AssertInRange(float value, float min, float max, string label = "value")
     {
         Assert.That(value, Is.InRange(min, max),
             $"{label} ({value:F2}) is outside expected range [{min:F2}, {max:F2}]");
     }
 
-    /// <summary>Assert a UnityEvent or C# event was raised during an action.<$summary>
+    /// <summary>Assert a UnityEvent or C# event was raised during an action.</summary>
     public static void AssertEventRaised(ref bool wasCalled, System.Action action, string eventName)
     {
         wasCalled = false;
@@ -205,7 +213,7 @@ public static class GameAssertions
         Assert.IsTrue(wasCalled, $"Expected event '{eventName}' to be raised, but it was not.");
     }
 
-    /// <summary>Assert a component exists on a GameObject.<$summary>
+    /// <summary>Assert a component exists on a GameObject.</summary>
     public static void AssertHasComponent<T>(GameObject obj) where T : Component
     {
         var component = obj.GetComponent<T>();
@@ -222,10 +230,10 @@ using UnityEngine;
 
 /// <summary>
 /// Factory methods for creating minimal test objects without loading scenes.
-/// <$summary>
+/// </summary>
 public static class GameFactory
 {
-    /// <summary>Create a minimal GameObject with a named component for testing.<$summary>
+    /// <summary>Create a minimal GameObject with a named component for testing.</summary>
     public static GameObject MakeGameObject(string name = "TestObject")
     {
         var go = new GameObject(name);
@@ -235,7 +243,7 @@ public static class GameFactory
     /// <summary>
     /// Create a ScriptableObject of type T for data-driven tests.
     /// Dispose with Object.DestroyImmediate after test.
-    /// <$summary>
+    /// </summary>
     public static T MakeScriptableObject<T>() where T : ScriptableObject
     {
         return ScriptableObject.CreateInstance<T>();

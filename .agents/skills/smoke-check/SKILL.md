@@ -10,6 +10,10 @@ description: "Use when an implemented sprint or build needs a critical-path PASS
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$setup-engine`
+
+Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+
 # Smoke Check
 
 This skill is the gate between "implementation done" and "ready for QA
@@ -155,7 +159,8 @@ For each story in scope:
 2. file search `tests/unit/[system]/` and `tests/integration/[system]/` for files
    whose name contains the story slug or a closely related term
 3. Check the story file itself for a `Test file:` header field or a
-   "Test Evidence" section
+   "Test Evidence" section. Resolve all manual evidence only under the canonical
+   `production/qa/evidence/` root; do not search for manual evidence elsewhere.
 
 Assign a coverage status to each story:
 
@@ -232,7 +237,7 @@ will determine whether the automated test row contributes to a FAIL verdict."
 | Story | Type | Test File | Coverage Status |
 |-------|------|-----------|----------------|
 | [title] | Logic | `tests/unit/[system]/[slug]_test.[ext]` | COVERED |
-| [title] | Visual/Feel | `tests/evidence/[slug]-screenshots.md` | MANUAL |
+| [title] | Visual/Feel | `production/qa/evidence/[slug]-evidence.md` | MANUAL |
 | [title] | Logic | — | MISSING ⚠ |
 | [title] | Config/Data | — | EXPECTED |
 

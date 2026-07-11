@@ -209,7 +209,7 @@ Before starting the soak:
 
 ### Memory Trend
 
-| Checkpoint | Memory | Δ$hr extrapolated |
+| Checkpoint | Memory | Δ/hr extrapolated |
 |------------|--------|-------------------|
 | T+0 | | |
 | [T+N] | | |

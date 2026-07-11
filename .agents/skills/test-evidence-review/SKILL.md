@@ -10,6 +10,10 @@ description: "Use when tests or manual evidence need quality, assertion, edge-ca
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$team-qa`
+
+Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+
 # Test Evidence Review
 
 `$smoke-check` verifies that test files **exist** and **pass**. This skill

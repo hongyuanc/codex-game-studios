@@ -10,6 +10,10 @@ description: "Use when a configured game engine lacks test directories, runner c
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$setup-engine`
+
+Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+
 # Test Setup
 
 This skill scaffolds the automated testing infrastructure for the project.
@@ -64,8 +68,9 @@ tests/
   unit/           — Isolated unit tests for formulas, state, and logic
   integration/    — Cross-system tests and save/load round-trips
   smoke/          — Critical path test list (15-minute manual gate)
-  evidence/       — Screenshot and manual test sign-off records
   README.md       — Test framework documentation
+
+production/qa/evidence/ — Canonical screenshot, walkthrough, playtest, and manual sign-off records
 
 [Engine-specific files — see per-engine details below]
 
@@ -103,7 +108,7 @@ tests/
   unit/           # Isolated unit tests (formulas, state machines, logic)
   integration/    # Cross-system and save/load tests
   smoke/          # Critical path test list for $smoke-check gate
-  evidence/       # Screenshot logs and manual test sign-off records
+production/qa/evidence/ # Canonical screenshot logs and manual test sign-off records
 ```
 
 ## Running Tests
@@ -121,9 +126,9 @@ tests/
 | Story Type | Required Evidence | Location |
 |---|---|---|
 | Logic | Automated unit test — must pass | `tests/unit/[system]/` |
-| Integration | Integration test OR playtest doc | `tests/integration/[system]/` |
-| Visual/Feel | Screenshot + lead sign-off | `tests/evidence/` |
-| UI | Manual walkthrough OR interaction test | `tests/evidence/` |
+| Integration | Automated integration test OR playtest evidence | `tests/integration/[system]/` OR `production/qa/evidence/` |
+| Visual/Feel | Screenshot + lead sign-off | `production/qa/evidence/` |
+| UI | Manual walkthrough OR interaction test | `production/qa/evidence/` |
 | Config/Data | Smoke check pass | `production/qa/smoke-*.md` |
 
 ## CI
@@ -145,7 +150,7 @@ Create `tests/gdunit4_runner.gd`:
 extends SceneTree
 
 func _init() -> void:
-    var runner := load("res:/$addons/gdunit4/GdUnitRunner.gd")
+    var runner := load("res://addons/gdunit4/GdUnitRunner.gd")
     if runner == null:
         push_error("GdUnit4 not found. Install via AssetLib or addons/.")
         quit(1)
@@ -166,7 +171,7 @@ Note in the README: **Installing GdUnit4**
 1. Open Godot → AssetLib → search "GdUnit4" → Download & Install
 2. Enable the plugin: Project → Project Settings → Plugins → GdUnit4 ✓
 3. Restart the editor
-4. Verify: res:/$addons/gdunit4/ exists
+4. Verify: res://addons/gdunit4/ exists
 ```
 
 #### Unity (`Engine: Unity`)
@@ -395,7 +400,7 @@ Files created:
 - tests/unit/ (directory)
 - tests/integration/ (directory)
 - tests/smoke/critical-paths.md
-- tests/evidence/ (directory)
+- production/qa/evidence/ (directory)
 [engine-specific files]
 - .github/workflows/tests.yml
 

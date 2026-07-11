@@ -10,6 +10,10 @@ description: "Use when an implemented story needs evidence-backed acceptance, de
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
+### Native readiness gate for `$team-qa`
+
+Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and Claude-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+
 # Story Done
 
 This skill closes the loop between design and implementation. Run it at the end
@@ -93,7 +97,7 @@ three methods:
 
 - Criteria about subjective qualities ("feels responsive", "animations play correctly")
 - Criteria about gameplay behaviour ("player takes damage when...", "enemy responds to...")
-- Performance criteria ("completes within Xms") — ask if profiled or accept as assumed
+- Performance criteria ("completes within Xms") — require profiler or benchmark evidence at the story's declared evidence path; never accept performance as assumed
 
 Ask about one manual criterion at a time. Wait for the answer before asking about the next criterion:
 
@@ -116,11 +120,8 @@ For each acceptance criterion in the story:
 
 1. Ask: is there a test — unit, integration, or confirmed manual playtest — that
    directly verifies this criterion?
-   - **Unit test**: check `tests/unit/` for a test file or function name that
-     matches the criterion's subject (use `file search` and `repository search`)
-   - **Integration test**: check `tests/integration/` similarly
-   - **Manual confirmation**: if the criterion was verified via `request_user_input`
-     above with a "Yes — passes" answer, count that as a manual test
+   - **Unit or integration test**: use only the exact path declared by the story and map the criterion ID to a passing test function or assertion.
+   - **Manual evidence**: a conversational confirmation is not durable test evidence. Require the exact canonical evidence file declared by the story, with the criterion ID and passing verdict recorded.
 
 2. Produce a traceability table:
 
@@ -128,7 +129,7 @@ For each acceptance criterion in the story:
 | Criterion | Test | Status |
 |-----------|------|--------|
 | AC-1: [criterion text] | tests/unit/test_foo.gd::test_bar | COVERED |
-| AC-2: [criterion text] | Manual playtest confirmation | COVERED |
+| AC-2: [criterion text] | production/qa/evidence/[slug]-evidence.md#AC-2 | COVERED |
 | AC-3: [criterion text] | — | UNTESTED |
 ```
 
@@ -142,43 +143,50 @@ For each acceptance criterion in the story:
    - If **all criteria are COVERED**: no action needed beyond including the
      table in the report.
 
-4. For any ADVISORY untested criteria, add to the Completion Notes in Phase 7:
-   `"Untested criteria: [AC-N list]. Recommend adding tests in a follow-up story."`
-
 ### Test Evidence Requirement
 
 Based on the Story Type extracted in Phase 2, check for required evidence:
 
+Evidence is valid only when all of these checks pass:
+
+1. **Exact location and type**: use the exact required evidence path and evidence type declared in the story. A nearby file or a different evidence type does not substitute.
+2. **Attribution**: the evidence names the story ID and every covered criterion ID; mention-only matches do not count. For older criteria without IDs, assign stable criterion IDs before closure.
+3. **Required schema**: automated evidence maps criterion IDs to named tests and current results; manual evidence records story ID, criterion IDs, build/engine, steps, observed result, date, verdict, and required sign-off rows.
+4. **Freshness**: the test run or evidence date must be at or after the story's `Last Updated:` date and cover the current implementation. Missing or stale freshness metadata is BLOCKING.
+5. **Passing verdict**: automated commands must exit successfully and manual, smoke, or playtest evidence must state PASS or APPROVED. Existence alone is never enough.
+
 | Story Type | Required Evidence | Gate Level |
 |---|---|---|
 | **Logic** | Automated unit test in `tests/unit/[system]/` — must exist and pass | BLOCKING |
-| **Integration** | Integration test in `tests/integration/[system]/` OR playtest doc | BLOCKING |
+| **Integration** | Integration test in `tests/integration/[system]/` OR playtest evidence in `production/qa/evidence/` | BLOCKING |
 | **Visual/Feel** | Screenshot + sign-off in `production/qa/evidence/` | BLOCKING |
 | **UI** | Manual walkthrough doc OR interaction test in `production/qa/evidence/` | BLOCKING |
 | **Config/Data** | Smoke check pass report in `production/qa/smoke-*.md` | BLOCKING |
 
-**For Logic stories**: first read the story's **Test Evidence** section to extract the
-exact required file path. Use `file search` to check that exact path. If the exact path is not
-found, also search `tests/unit/[system]/` broadly (the file may have been placed at a
-slightly different location). If no test file is found at either location:
+**For Logic stories**: read the story's **Test Evidence** section to extract the
+exact required file path. Require that file, run its current test command, and map every
+criterion ID to a passing named test. If the exact file is absent or any mapping/run fails:
 - Flag as **BLOCKING**: "Logic story has no unit test file. Story requires it at
   `[exact-path-from-Test-Evidence-section]`. Create and run the test before marking
   this story Complete."
 
-**For Integration stories**: read the story's **Test Evidence** section for the exact
-required path. Use `file search` to check that exact path first, then search
-`tests/integration/[system]/` broadly, then check `production/session-logs/` for a
-playtest record referencing this story.
-If none found: flag as **BLOCKING** (same rule as Logic).
+**For Integration stories**: read the story's **Test Evidence** section for its exact
+required path and evidence type. Require that exact integration test or exact canonical
+playtest evidence file. Validate story/criterion attribution, required schema, freshness,
+and passing verdict. Missing or invalid evidence is BLOCKING.
 
-**For Visual/Feel and UI stories**: glob `production/qa/evidence/` for a file
-referencing this story.
-- If none: flag as **BLOCKING** — "No manual test evidence found. Create `production/qa/evidence/[story-slug]-evidence.md` using the test-evidence template and obtain sign-off before final closure."
-- If found: read the file and check the sign-off table for unchecked boxes. Search for lines matching `| .* | .* | .* | \[ \] Approved`. If any unchecked sign-off rows are found, flag as **BLOCKING** until the required sign-offs exist. For solo developers, all roles may be signed off by the same person.
-- If all required sign-off rows show `[x] Approved` or equivalent: note "Evidence file found and all required sign-offs complete."
+**For Visual/Feel and UI stories**: extract the exact canonical
+`production/qa/evidence/[story-slug]-evidence.md` path from the story. Require that
+exact file, not another file that merely references the story. Validate the story ID,
+all covered criterion IDs, required schema, freshness, passing verdict, and every required
+sign-off row. Any missing field, stale result, unchecked required sign-off, or non-passing
+verdict is BLOCKING. For solo developers, one person may fill multiple required roles,
+but each required row must still be signed.
 
-**For Config/Data stories**: check for any `production/qa/smoke-*.md` file.
-If none: flag as **BLOCKING** — "No smoke check report found. Run `$smoke-check`."
+**For Config/Data stories**: extract the exact smoke report path declared in the story.
+Require that exact report to name the story ID and criterion IDs, satisfy the smoke-report
+schema, be fresh for the current implementation, and contain a PASS verdict. Otherwise
+flag it as BLOCKING and run `$smoke-check` to produce the declared evidence.
 
 **If no Story Type is set**: flag as **BLOCKING** —
 "Story Type not declared. Add `Type: [Logic|Integration|Visual/Feel|UI|Config/Data]`
@@ -292,7 +300,7 @@ Before updating any files, present the full report:
 
 ### Acceptance Criteria: [X/Y passing]
 - [x] [Criterion 1] — auto-verified (test passes)
-- [x] [Criterion 2] — confirmed
+- [x] [Criterion 2] — validated by `[exact evidence path]#[criterion ID]`
 - [ ] [Criterion 3] — FAILS: [reason]
 - [?] [Criterion 4] — DEFERRED: requires playtest
 
@@ -300,13 +308,13 @@ Before updating any files, present the full report:
 | Criterion | Test | Status |
 |-----------|------|--------|
 | AC-1: [text] | [test file::test name] | COVERED |
-| AC-2: [text] | Manual confirmation | COVERED |
+| AC-2: [text] | production/qa/evidence/[slug]-evidence.md#AC-2 | COVERED |
 | AC-3: [text] | — | UNTESTED |
 
 ### Test Evidence
 **Story Type**: [Logic | Integration | Visual/Feel | UI | Config/Data | Not declared]
 **Required evidence**: [unit test file | integration test or playtest | screenshot + sign-off | walkthrough doc | smoke check pass]
-**Evidence found**: [YES — `[path]` | NO — BLOCKING | NO — ADVISORY]
+**Evidence found**: [VALID — `[exact path]`, fresh, attributable, PASS | BLOCKING — reason]
 
 ### Deviations
 [NONE] OR:
@@ -349,7 +357,7 @@ Before writing, show one complete proposed changeset containing the story file, 
 **Completed**: [date]
 **Criteria**: [X/Y passing] ([any deferred items listed])
 **Deviations**: [None] or [list of advisory deviations]
-**Test Evidence**: [Logic: test file at path | Visual/Feel: evidence doc at path | None required (Config/Data)]
+**Test Evidence**: [exact validated path, evidence type, freshness date, and passing verdict]
 **Code Review**: [Pending / Complete / Skipped]
 ```
 
