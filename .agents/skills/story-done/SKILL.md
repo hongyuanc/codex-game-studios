@@ -30,8 +30,8 @@ forgotten, and the story file reflects actual completion status.
 
 Resolve the review mode (once, store for all gate spawns this run):
 1. If `--review [full|lean|solo]` was passed → use that
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `.codex/studio.toml` and use its `review_mode` value
+3. Map `review_mode = "phase-gated"` to lean gate intensity; never use a competing persistent setting
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 
@@ -75,6 +75,27 @@ Also read:
 - The referenced ADR(s) — just the Decision and Consequences sections
 - `docs/architecture/control-manifest.md` header — extract the current
   `Manifest Version:` date (used in Phase 4 staleness check)
+
+---
+
+## Pre-Verification Criterion-ID Backfill
+
+Before evidence verification, inspect every acceptance criterion for a stable ID.
+No evidence verification may begin while any criterion lacks one.
+
+For legacy criteria without IDs, draft a separately authorized complete changeset
+that:
+
+- assigns stable criterion IDs in story order without renumbering existing IDs;
+- updates the story's exact evidence references to include those IDs when needed;
+- updates only the exact existing evidence files whose criterion attribution must
+  be backfilled; and
+- lists the story and every evidence path before requesting approval.
+
+Show the ID mapping and file-level edits, then request one approval. If approved,
+apply only that metadata/evidence backfill and restart verification from Phase 2
+using the updated files. If declined, report BLOCKED and stop. This backfill happens
+before any COMPLETE verdict and is never a circular write after completion.
 
 ---
 
@@ -161,7 +182,7 @@ Evidence is valid only when all of these checks pass:
 | **Integration** | Integration test in `tests/integration/[system]/` OR playtest evidence in `production/qa/evidence/` | BLOCKING |
 | **Visual/Feel** | Screenshot + sign-off in `production/qa/evidence/` | BLOCKING |
 | **UI** | Manual walkthrough doc OR interaction test in `production/qa/evidence/` | BLOCKING |
-| **Config/Data** | Smoke check pass report in `production/qa/smoke-*.md` | BLOCKING |
+| **Config/Data** | Exact per-story smoke evidence at `production/qa/evidence/[story-id]-smoke-evidence.md` | BLOCKING |
 
 **For Logic stories**: read the story's **Test Evidence** section to extract the
 exact required file path. Require that file, run its current test command, and map every
@@ -183,8 +204,8 @@ sign-off row. Any missing field, stale result, unchecked required sign-off, or n
 verdict is BLOCKING. For solo developers, one person may fill multiple required roles,
 but each required row must still be signed.
 
-**For Config/Data stories**: extract the exact smoke report path declared in the story.
-Require that exact report to name the story ID and criterion IDs, satisfy the smoke-report
+**For Config/Data stories**: extract the exact `production/qa/evidence/[story-id]-smoke-evidence.md` path declared in the story.
+Require that exact evidence file to name the story ID and criterion IDs, satisfy the smoke-evidence
 schema, be fresh for the current implementation, and contain a PASS verdict. Otherwise
 flag it as BLOCKING and run `$smoke-check` to produce the declared evidence.
 

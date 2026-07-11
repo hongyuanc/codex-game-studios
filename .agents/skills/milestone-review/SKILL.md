@@ -14,8 +14,8 @@ description: "Use when a milestone checkpoint needs completeness, quality, risk,
 
 Extract the milestone name (`current` or a specific name) and resolve the review mode (once, store for all gate spawns this run):
 1. If `--review [full|lean|solo]` was passed → use that
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `.codex/studio.toml` and use its `review_mode` value
+3. Map `review_mode = "phase-gated"` to lean gate intensity; never use a competing persistent setting
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 

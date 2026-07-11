@@ -29,8 +29,8 @@ gap list for each non-ready story.
 Resolve the review mode once at startup (store for all gate spawns this run):
 
 1. If skill was called with `--review [full|lean|solo]` → use that value
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `.codex/studio.toml` and use its `review_mode` value
+3. Map `review_mode = "phase-gated"` to lean gate intensity; never use a competing persistent setting
 
 See `.codex/docs/director-gates.md` for the full check pattern and mode definitions.
 

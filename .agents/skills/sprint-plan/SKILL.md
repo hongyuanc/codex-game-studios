@@ -18,21 +18,13 @@ Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the 
 
 Extract the mode argument (`new`, `update`, or `status`) and resolve the review mode (once, store for all gate spawns this run):
 1. If `--review [full|lean|solo]` was passed → use that
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `.codex/studio.toml` and use its `review_mode` value
+3. Map `review_mode = "phase-gated"` to lean gate intensity; never use a competing persistent setting
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 
-**Review mode check** (before gates run):
-- Read `production/review-mode.txt` if it exists. Use that mode.
-- If the file doesn't exist and this is a `new` sprint: use `request_user_input`:
-  - Prompt: "No review mode is set. Which review depth would you like for this sprint?"
-  - Options:
-    - `[A] full — spawn all director and lead gates`
-    - `[B] lean — skip non-phase-gate director reviews (recommended for most sprints)`
-    - `[C] solo — skip all gate spawning`
-  - After selection: hold the chosen mode in context and include `production/review-mode.txt` in the complete proposed changeset. Do not write it yet.
-- If the file doesn't exist and this is NOT a `new` sprint (e.g., updating an existing sprint): default to `lean` silently.
+**Review mode check**: `.codex/studio.toml` is the single persistent source. A
+`--review` value is in-memory for this run only and is never written.
 
 ---
 
@@ -239,43 +231,26 @@ Include this note in the draft when applicable:
 
 ## Phase 5: QA Plan Gate
 
-Before closing the sprint plan, check whether a QA plan exists for this sprint.
+The workflow must pass the current in-memory sprint draft and exact story scope directly to
+`$qa-plan sprint-draft`. Do not ask `$qa-plan` to discover a persisted sprint and
+never let it select the prior or most recently modified sprint. Receive the QA
+plan as an in-memory draft; neither workflow writes yet.
 
-Use `file search` to look for `production/qa/qa-plan-sprint-[N].md` or any file in `production/qa/` referencing this sprint number.
-
-**If a QA plan is found**: note it in the sprint plan output — "QA Plan: `[path]`" — and proceed.
-
-**If no QA plan exists**: do not silently proceed. Surface this explicitly:
-
-> "This sprint has no QA plan. A sprint plan without a QA plan means test requirements are undefined — developers won't know what 'done' looks like from a QA perspective, and the sprint cannot pass the Production → Polish gate without one.
->
-> Run `$qa-plan sprint` now, before starting any implementation. It takes one session and produces the test case requirements each story needs."
-
-Use `request_user_input`:
-- Prompt: "No QA plan found for this sprint. How do you want to proceed?"
-- Options:
-  - `[A] Run $qa-plan sprint now — I'll do that before starting implementation (Recommended)`
-  - `[B] Skip for now — I understand QA sign-off will be blocked at the Production → Polish gate`
-
-If [A]: keep the sprint draft read-only and stop with: "Run `$qa-plan sprint`, then re-run `$sprint-plan` to approve the complete sprint changeset." Do not write sprint artifacts yet.
-If [B]: add a warning block to the in-memory sprint plan draft:
-
-```markdown
-> ⚠️ **No QA Plan**: This sprint was started without a QA plan. Run `$qa-plan sprint`
-> before the last story is implemented. The Production → Polish gate requires a QA
-> sign-off report, which requires a QA plan.
-```
+If QA planning identifies untestable criteria, missing evidence paths, or scope
+gaps, revise the in-memory sprint draft and QA plan together, then re-run the
+producer assessment if capacity or scope changed. If a complete QA plan cannot
+be produced, report BLOCKED and write no sprint artifact.
 
 ## Complete Proposed Changeset Approval
 
 After the producer and QA gates are fully resolved, show one complete proposed changeset containing:
 
-- `production/review-mode.txt` when a new review-mode selection must be persisted
 - `production/sprints/sprint-[N].md`
 - `production/sprint-status.yaml`
+- `production/qa/qa-plan-sprint-[N]-[date].md`
 - every file affected by QA-gate revisions, or an explicit statement that QA-gate revisions only changed the listed sprint draft
 
-Show the final content or precise summary for every listed path, then ask once for approval. Write nothing before this approval. If the producer response, QA status, scope, dates, story list, or path list changes afterward, present a revised complete changeset and obtain a new approval before writing. After approval, write only the listed files and report Verdict: **COMPLETE**. If approval is declined, write nothing and report Verdict: **BLOCKED**.
+This is one combined complete changeset for the sprint plan, sprint status, QA plan, and any approved index/status updates. Show the final content or precise summary for every listed path, then ask once for approval. Write nothing before this approval. If the producer response, QA status, scope, dates, story list, or path list changes afterward, present a revised complete changeset and obtain a new approval before writing. After approval, write only the listed files and report Verdict: **COMPLETE**. If approval is declined, write nothing and report Verdict: **BLOCKED**.
 
 ---
 
@@ -283,15 +258,12 @@ Show the final content or precise summary for every listed path, then ask once f
 
 After the complete changeset is approved, written, and QA plan status is resolved:
 
-- `$qa-plan sprint` — **required before implementation begins** — defines test cases per story so developers implement against QA specs, not a blank slate
+- The combined QA plan is already written with the sprint; do not regenerate it from another sprint.
 - `$story-readiness [story-file]` — validate a story is ready before starting it
 - `$dev-story [story-file]` — begin implementing the first story
 - `$sprint-status` — check progress mid-sprint
 - `$scope-check [epic]` — verify no scope creep before implementation begins
 
-**Review mode configuration:** All director gates (producer feasibility, QA review, code review) respect the project review mode. The review mode is set in Phase 0 when the file does not exist (for `new` sprints), or can be overridden per-run with `--review full|lean|solo` as an argument. The file `production/review-mode.txt` contains one of:
-- `lean` — skip automated director gates (default if file is absent — fastest for solo dev)
-- `full` — run all director gates as spawned sub-agents
-- `solo` — skip all gates unconditionally (single-developer, no review)
-
-This file is read by `$sprint-plan`, `$story-readiness`, `$story-done`, and other skills at startup.
+**Review mode configuration:** All director gates respect `.codex/studio.toml`.
+The canonical `review_mode = "phase-gated"` maps to lean intensity. A per-run
+`--review full|lean|solo` override is not persisted.

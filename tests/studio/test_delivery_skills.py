@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 from tools.codex_studio.validate import validate_skill
@@ -21,15 +22,29 @@ class DeliverySkillTests(unittest.TestCase):
         found = {path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")}
         self.assertTrue(NAMES <= found)
         self.assertEqual(22, len(NAMES))
-        self.assertEqual(
-            NAMES,
-            set(
-                """bug-report bug-triage code-review create-epics create-stories dev-story
-estimate milestone-review playtest-report qa-plan regression-suite retrospective
-smoke-check soak-test sprint-plan sprint-status story-done story-readiness
-test-evidence-review test-flakiness test-helpers test-setup""".split()
-            ),
+        report = (ROOT / ".superpowers/sdd/delivery-subsystem-report.md").read_text(
+            encoding="utf-8"
         )
+        packaged = set(re.findall(r"\.agents/skills/([^/]+)/SKILL\.md", report))
+        self.assertEqual(NAMES, packaged)
+
+    def test_review_mode_uses_only_canonical_studio_config(self):
+        for name in sorted(NAMES):
+            with self.subTest(skill=name):
+                self.assertNotIn("production/review-mode.txt", self.skill_text(name))
+        for name in (
+            "create-epics",
+            "create-stories",
+            "milestone-review",
+            "playtest-report",
+            "sprint-plan",
+            "story-done",
+            "story-readiness",
+        ):
+            with self.subTest(gated_skill=name):
+                text = self.skill_text(name)
+                self.assertIn(".codex/studio.toml", text)
+                self.assertIn('review_mode = "phase-gated"', text)
 
     def test_delivery_skills_are_native(self):
         issues = [
@@ -139,9 +154,9 @@ test-evidence-review test-flakiness test-helpers test-setup""".split()
         self.assertNotIn("write `production/review-mode.txt`", sprint_before_approval)
         sprint_approval = sprint.split("## Complete Proposed Changeset Approval", 1)[1]
         for token in (
-            "production/review-mode.txt",
             "production/sprints/sprint-[N].md",
             "production/sprint-status.yaml",
+            "production/qa/qa-plan-sprint-[N]-[date].md",
             "QA-gate revisions",
             "revised complete changeset",
         ):
@@ -152,6 +167,21 @@ test-evidence-review test-flakiness test-helpers test-setup""".split()
         retro_approval = retro.split("## Complete Proposed Changeset Approval", 1)[1]
         self.assertIn("archive or rename", retro_approval)
         self.assertIn("new retrospective report", retro_approval)
+
+    def test_in_memory_sprint_draft_flows_directly_to_qa_plan(self):
+        qa = self.skill_text("qa-plan")
+        for token in (
+            "sprint-draft",
+            "in-memory sprint draft",
+            "never select the most recent persisted sprint",
+        ):
+            self.assertIn(token, qa)
+
+        sprint = self.skill_text("sprint-plan")
+        self.assertIn("$qa-plan sprint-draft", sprint)
+        self.assertIn("pass the current in-memory sprint draft", sprint)
+        self.assertIn("combined complete changeset", sprint)
+        self.assertNotIn("then re-run `$sprint-plan`", sprint)
 
     def test_missing_traceability_blocks_story_generation_and_readiness(self):
         generation = self.skill_text("create-stories")
@@ -189,6 +219,44 @@ test-evidence-review test-flakiness test-helpers test-setup""".split()
                 text = self.skill_text(name)
                 self.assertIn("production/qa/evidence/", text)
                 self.assertNotIn("tests/evidence/", text)
+
+    def test_config_data_evidence_has_exact_producer_consumer_contract(self):
+        stories = self.skill_text("create-stories")
+        exact_path = "production/qa/evidence/[story-id]-smoke-evidence.md"
+        self.assertIn(exact_path, stories)
+        self.assertNotIn("Config/Data: smoke check pass (`production/qa/smoke-*.md`)", stories)
+
+        smoke = self.skill_text("smoke-check")
+        self.assertIn(exact_path, smoke)
+        for token in (
+            "Story ID",
+            "Criterion IDs",
+            "Build/engine",
+            "Timestamp",
+            "Observed result",
+            "Verdict: PASS / FAIL",
+            "every per-story Config/Data evidence path",
+        ):
+            self.assertIn(token, smoke)
+
+        done = self.skill_text("story-done")
+        self.assertIn(exact_path, done)
+        self.assertNotIn("production/qa/smoke-*.md", done)
+
+    def test_legacy_criterion_ids_use_preverification_backfill(self):
+        text = self.skill_text("story-done")
+        self.assertIn("## Pre-Verification Criterion-ID Backfill", text)
+        backfill = text.split("## Pre-Verification Criterion-ID Backfill", 1)[1].split(
+            "## Phase 3: Verify Acceptance Criteria", 1
+        )[0]
+        for token in (
+            "separately authorized complete changeset",
+            "stable criterion IDs",
+            "exact evidence references",
+            "restart verification",
+        ):
+            self.assertIn(token, backfill)
+        self.assertIn("No evidence verification may begin", backfill)
 
     def test_cross_subsystem_handoffs_require_native_readiness(self):
         dependencies = {

@@ -32,10 +32,8 @@ plan.
 
 Determine scope from the argument:
 
-- **`sprint`** — read the most recent file in `production/sprints/`, extract
-  every story file path referenced. If `production/sprint-status.yaml` exists,
-  use it as the primary story list and fall back to the sprint plan for story
-  metadata.
+- **`sprint-draft`** — consume the current in-memory sprint draft and story scope supplied directly by `$sprint-plan`. Treat that draft as authoritative for this run; never select the most recent persisted sprint. Return the QA plan draft to the caller without writing or requesting a separate approval.
+- **`sprint: [explicit-path]`** — read only the explicitly named current sprint file. A bare `sprint` invocation must ask for the intended path; it must not guess from modification time.
 - **`feature: [system-name]`** — glob `production/epics/*/story-*.md`, filter
   to stories whose file path or title contains the system name. Also check the
   epic index file (`EPIC.md`) in that system's directory.
@@ -231,6 +229,11 @@ test entry should reflect the real requirements of these specific stories.
 ---
 
 ## Phase 5: Write Output
+
+**Embedded `sprint-draft` mode:** return the complete QA plan draft and its exact
+`production/qa/qa-plan-sprint-[N]-[date].md` target to `$sprint-plan`. Do not
+write, update session state, backfill stories, or request approval. `$sprint-plan`
+owns the combined complete changeset approval.
 
 Show the complete plan in conversation (or a summary if it is very long). First ask one decision question: whether the proposed changeset should contain only the QA plan and session-state record, or also the listed story backfills. Wait for the answer.
 

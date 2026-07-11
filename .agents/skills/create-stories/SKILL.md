@@ -29,11 +29,11 @@ then Core, and so on — matching the dependency order.
 
 ## 1. Parse Argument
 
-Extract `--review [full|lean|solo]` if present and store as the review mode
-override for this run. If not provided, read `production/review-mode.txt`
-(default `lean` if missing). This resolved mode applies to all gate spawns
-in this skill — apply the check pattern from `.codex/docs/director-gates.md`
-before every gate invocation.
+Extract `--review [full|lean|solo]` if present and store it as a per-run override.
+Otherwise read `.codex/studio.toml`; map `review_mode = "phase-gated"` to lean
+gate intensity. This resolved mode applies to all gate spawns in this skill —
+apply `.codex/docs/director-gates.md` before every gate invocation. Never create
+or consult a second persistent review-mode setting.
 
 - `$create-stories [epic-slug]` — e.g. `$create-stories combat`
 - `$create-stories production/epics/combat/EPIC.md` — full path also accepted
@@ -271,7 +271,7 @@ change meaning. This is what the programmer reads instead of the ADR.]
 - Integration: `tests/integration/[system]/[story-slug]_test.[ext]` OR `production/qa/evidence/[story-slug]-evidence.md` playtest evidence
 - Visual/Feel: `production/qa/evidence/[story-slug]-evidence.md` + sign-off
 - UI: `production/qa/evidence/[story-slug]-evidence.md` or interaction test
-- Config/Data: smoke check pass (`production/qa/smoke-*.md`)
+- Config/Data: exact smoke evidence at `production/qa/evidence/[story-id]-smoke-evidence.md`, where `[story-id]` is the generated stable story ID
 
 **Status**: [ ] Not yet created
 

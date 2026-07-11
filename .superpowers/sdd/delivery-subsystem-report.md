@@ -116,6 +116,46 @@ OK
 
 The plan-mandated forbidden-pattern search again returned no matches.
 
+## Second Re-Review Repair Evidence
+
+The second re-review exposed producer/consumer handoff gaps across configuration,
+sprint QA planning, Config/Data smoke evidence, legacy criterion metadata, and
+the inventory assertion. Regression contracts were added first:
+
+```text
+python3 -m unittest tests.studio.test_delivery_skills -v
+Ran 23 tests in 0.023s
+FAILED (failures=18)
+```
+
+After the focused repair:
+
+```text
+python3 -m unittest tests.studio.test_delivery_skills -v
+Ran 23 tests in 0.020s
+OK
+
+python3 -m unittest discover -s tests/studio -v
+Ran 48 tests in 0.154s
+OK
+```
+
+The forbidden-pattern search remained clean.
+
+Second re-review changed files:
+
+- `.agents/skills/create-epics/SKILL.md`
+- `.agents/skills/create-stories/SKILL.md`
+- `.agents/skills/milestone-review/SKILL.md`
+- `.agents/skills/playtest-report/SKILL.md`
+- `.agents/skills/qa-plan/SKILL.md`
+- `.agents/skills/smoke-check/SKILL.md`
+- `.agents/skills/sprint-plan/SKILL.md`
+- `.agents/skills/story-done/SKILL.md`
+- `.agents/skills/story-readiness/SKILL.md`
+- `tests/studio/test_delivery_skills.py`
+- `.superpowers/sdd/delivery-subsystem-report.md`
+
 ## Behavioral Audit
 
 - `$dev-story` renders one complete `## Implementation Preflight`, replaces
@@ -144,6 +184,18 @@ The plan-mandated forbidden-pattern search again returned no matches.
 - Epic/story indexes, sprint review-mode and QA revisions, and retrospective
   archive/rename operations are included in their respective complete approvals.
 - Manual evidence uses the canonical `production/qa/evidence/` root.
+- Review mode now has one persistent source: `.codex/studio.toml`; delivery
+  skills no longer read or write `production/review-mode.txt`.
+- `$sprint-plan` passes its current in-memory draft directly to
+  `$qa-plan sprint-draft`, then approves the sprint plan, QA plan, status, and related
+  updates as one combined changeset. Neither workflow can select the prior sprint.
+- Config/Data stories declare exact per-story smoke evidence paths, and
+  `$smoke-check` produces the required attributable, timestamped PASS/FAIL files.
+- Legacy acceptance criteria receive stable IDs through a separately authorized
+  pre-verification backfill; verification restarts afterward and never writes
+  metadata after a COMPLETE verdict.
+- The exact delivery inventory test now derives its package set from this tracked
+  report's concrete skill paths instead of comparing duplicate literals.
 - `$regression-suite` shows exact proposed registry entries before approval.
 - All 22 skills ask one decision question per turn, use `request_user_input`
   when available, and avoid Claude widget/delegation syntax.

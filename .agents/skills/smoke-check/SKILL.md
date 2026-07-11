@@ -24,7 +24,7 @@ report.
 The rule is simple: **a build that fails smoke check does not go to QA.**
 Handing a broken build to QA wastes their time and demoralises the team.
 
-**Output:** `production/qa/smoke-[date].md`
+**Output:** `production/qa/smoke-[date].md` plus exact Config/Data evidence at `production/qa/evidence/[story-id]-smoke-evidence.md`
 
 ---
 
@@ -169,7 +169,7 @@ Assign a coverage status to each story:
 | **COVERED** | A test file was found matching this story's system and scope |
 | **MANUAL** | Story type is Visual/Feel or UI; a test evidence document was found |
 | **MISSING** | Logic or Integration story with no matching test file |
-| **EXPECTED** | Config/Data story — no test file required; spot-check is sufficient |
+| **EXPECTED** | Config/Data story — exact per-story smoke evidence must be produced by this run |
 | **UNKNOWN** | Story file missing or unreadable |
 
 MISSING entries are advisory gaps. They do not cause a FAIL verdict but must
@@ -306,11 +306,28 @@ Any platform with one or more FAIL checks contributes to the overall FAIL verdic
 
 ## Phase 6: Write and Gate
 
-Present the full report in conversation, then ask:
+For every Config/Data story in scope, generate the exact path declared by the story:
 
-"May I write this smoke check report to `production/qa/smoke-[date].md`?"
+`production/qa/evidence/[story-id]-smoke-evidence.md`
 
-Write only after approval.
+Each file uses this required schema:
+
+```markdown
+# Config/Data Smoke Evidence
+- Story ID: [stable story ID]
+- Criterion IDs: [all verified criterion IDs]
+- Build/engine: [build identifier and configured engine/version]
+- Timestamp: [ISO-8601 date and time]
+- Checks performed: [steps and inputs]
+- Observed result: [actual values/behavior]
+- Verdict: PASS / FAIL
+```
+
+Present the full summary and per-story evidence drafts. Then show one complete proposed changeset containing `production/qa/smoke-[date].md` and every per-story Config/Data evidence path. Ask:
+
+"May I write this complete smoke summary and per-story evidence changeset?"
+
+Write only after approval. Do not omit a declared Config/Data evidence file even when the summary passes; a FAIL run writes the exact file with `Verdict: FAIL` so `$story-done` can reject it deterministically.
 
 After writing, deliver the gate verdict:
 
