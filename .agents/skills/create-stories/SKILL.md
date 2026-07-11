@@ -31,7 +31,7 @@ then Core, and so on — matching the dependency order.
 
 Extract `--review [full|lean|solo]` if present and store it as a per-run override.
 Otherwise read `.codex/studio.toml`; map `review_mode = "phase-gated"` to lean
-gate intensity. This resolved mode applies to all gate spawns in this skill —
+optional-review depth while mandatory director gates still run. This resolved mode applies to all gate spawns in this skill —
 apply `.codex/docs/director-gates.md` before every gate invocation. Never create
 or consult a second persistent review-mode setting.
 

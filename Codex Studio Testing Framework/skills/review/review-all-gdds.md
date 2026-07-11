@@ -148,20 +148,20 @@ review; delegating to a director gate would create a circular dependency.
 
 **Fixture:**
 - `design/gdd/` contains ≥2 consistent system GDDs
-- `production/session-state/review-mode.txt` exists with content `full`
+- `.codex/studio.toml` exists with content `full`
 
 **Input:** `$review-all-gdds`
 
 **Expected behavior:**
 1. Skill reads all GDDs and runs the two review phases
-2. Skill does NOT read `review-mode.txt`
+2. Skill does NOT read `.codex/studio.toml`
 3. Skill does NOT spawn any director gate agent (CD-, TD-, PR-, AD- prefixed)
 4. Skill completes and outputs its verdict normally
 5. Review mode setting has no effect on this skill's behavior
 
 **Assertions:**
 - [ ] No director gate agents are spawned at any point
-- [ ] Skill does NOT read `production/session-state/review-mode.txt`
+- [ ] Skill does NOT read `.codex/studio.toml`
 - [ ] Output does not contain any "Gate: [GATE-ID]" or "skipped" gate entries
 - [ ] The skill produces a verdict regardless of review mode
 - [ ] R4 metric: gate count for this skill = 0 in all modes

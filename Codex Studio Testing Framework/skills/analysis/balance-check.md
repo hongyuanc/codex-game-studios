@@ -148,7 +148,7 @@ None. Balance check is a read-only analysis skill; no gates are invoked.
 
 **Fixture:**
 - Balance data and GDD formulas exist; 1 stat has CONCERNS-level deviation (15% above target)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$balance-check`
 

@@ -152,7 +152,7 @@ None. Code review is a read-only advisory skill; no gates are invoked.
 
 **Fixture:**
 - Source file follows most standards but has 1 CONCERNS-level finding (a magic number)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$code-review src/gameplay/loot_system.gd`
 

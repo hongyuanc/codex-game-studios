@@ -40,6 +40,11 @@ and publication. Once you approve an implementation story or phase, Codex may
 edit the agreed files, add tests, diagnose failures, and iterate inside that
 boundary without asking before every file.
 
+The persistent setting lives only in `.codex/studio.toml`. Its default
+`phase-gated` mode uses lean optional-review depth: optional per-skill director
+consultations may be skipped, but phase-transition and other mandatory director
+gates still run.
+
 Skills use `$name` invocation syntax. Common entry points include `$brainstorm`,
 `$map-systems`, `$design-system`, `$prototype`, `$create-architecture`,
 `$create-epics`, `$create-stories`, `$dev-story`, `$story-done`, `$qa-plan`, and

@@ -6,179 +6,153 @@
 - Runtime name: `start`
 - Runtime trigger description: `Use when a first-time user needs project-state detection and guidance to the correct Codex Game Studios workflow.`
 - Native invocation: `$start`
-- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
-- Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
-- Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
-- Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
-
----
-
+- Discovery contract: YAML frontmatter contains exactly `name` and `description`; the name matches the skill directory and the description is nonblank and trigger-oriented.
+- Structured decisions: each `request_user_input` call contains 1–3 questions and each question contains 2–3 options. `$start` asks one decision per turn.
+- Custom-agent delegation: if needed, the maximum delegation depth is 1; the parent agent synthesizes all evidence and owns user interaction.
+- Write boundary: discovery is read-only. Before either permitted write, the parent presents the exact target path and material edit as one complete proposed changeset, then obtains approval.
 
 ## Skill Summary
 
-`$start` is tested against the exact runtime discovery contract above. The five
-cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
-modes, and edge conditions.
+`$start` first detects repository state, then asks two ordered decisions that
+classify the project as Path A, B, C, or D. Engine configuration authority is
+`.codex/studio.toml`; `engine = "unconfigured"` means `$setup-engine` is needed.
+After routing, the skill may propose `production/stage.txt` and a change to the
+`review_mode` key in `.codex/studio.toml`. Each write has its own exact proposal
+and approval gate. Onboarding performs project-state routing; `$setup-engine`
+owns engine selection and configuration.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+## Static Assertions
 
----
-
-## Static Assertions (Structural)
-
-Verified automatically by `$skill-test static` — no fixture needed.
-
-- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
-- [ ] Has ≥2 phase headings
-- [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] Has a next-step handoff at the end (routes to `$setup-engine`)
-
----
-
-## Director Gate Checks
-
-None. `$start` is a utility setup skill. No director agents exist yet at the
-point this skill runs.
-
----
+- [ ] State detection reads `.codex/studio.toml` and treats `engine = "unconfigured"` as no active engine pack.
+- [ ] Artifact detection checks `design/gdd/game-concept.md`, source files under `src/`, subdirectories under `prototypes/`, Markdown files under `design/gdd/`, and files under `production/sprints/` or `production/milestones/`.
+- [ ] The first prompt is "Which broad starting point best describes this project?" with exactly `New or exploratory` and `Defined or existing`.
+- [ ] Wait for the first answer before asking the path follow-up.
+- [ ] The second prompt has exactly two options: Paths A/B after `New or exploratory`, or Paths C/D after `Defined or existing`.
+- [ ] No next skill is run automatically.
+- [ ] Path A/B/C maps to stage `Concept`; Path D maps to `Concept`, `Systems Design`, or `Technical Setup` from observed artifacts.
+- [ ] Review depth offers exactly `Full`, `Phase-gated (recommended)`, and `Solo`, mapping to `review_mode = "full"`, `review_mode = "phase-gated"`, and `review_mode = "solo"`.
+- [ ] `production/stage.txt` and `.codex/studio.toml` are each written only after its exact complete proposal is approved.
 
 ## Test Cases
 
-### Case 1: Happy Path — Fresh repo, no engine, full onboarding flow
+### Case 1: Happy Path — Fresh repository routes to Path A
 
 **Fixture:**
-- Empty repository: no AGENTS.md overrides, no `production/stage.txt`, no
-  `technical-preferences.md` content beyond placeholders
-- No existing design docs or source code
+- `.codex/studio.toml` contains `engine = "unconfigured"` and `review_mode = "phase-gated"`.
+- No `design/gdd/game-concept.md`, qualifying files in `src/`, subdirectories in `prototypes/`, Markdown files in `design/gdd/`, or files in `production/sprints/` and `production/milestones/`.
+
+**Input:** `$start`; choose `New or exploratory`, then `No idea yet (Path A)`.
+
+**Expected behavior:**
+1. Read all project-state artifacts before prompting.
+2. Ask "Which broad starting point best describes this project?" with `New or exploratory` and `Defined or existing`.
+3. Wait for the first answer before asking the path follow-up.
+4. Ask `No idea yet (Path A)` versus `Vague idea (Path B)`.
+5. Recommend `$brainstorm open` and derive `Concept` for `production/stage.txt`.
+6. Show the exact stage-file proposal and wait for approval before writing it.
+7. Read `review_mode` from `.codex/studio.toml`; offer `Full`, `Phase-gated (recommended)`, and `Solo`.
+8. Show the exact one-key configuration diff and wait for separate approval.
+9. Ask whether to start `$brainstorm`; do not run it automatically.
+
+**Assertions:**
+- [ ] The two decisions occur in order and in separate turns.
+- [ ] The fresh-state classification agrees with the observed artifact inventory.
+- [ ] No file is written during discovery or routing, and each later write has a separate exact approval.
+- [ ] Verdict is COMPLETE after the user is oriented and handed off.
+
+### Case 2: Blocked Preconditions — Missing configuration does not trigger a fallback file
+
+**Fixture:**
+- `.codex/studio.toml` is missing or unreadable.
+- No other artifacts establish an engine.
 
 **Input:** `$start`
 
 **Expected behavior:**
-1. Skill detects no existing configuration and begins fresh onboarding
-2. Skill asks for project name
-3. Skill presents 3 engine options: Godot 4, Unity, Unreal Engine 5
-4. User selects an engine
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-6. Skill creates all directories defined in `directory-structure.md`
-7. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-8. Skill routes to `$setup-engine [chosen-engine]` to complete technical config
+1. Report that canonical engine state cannot be determined.
+2. Do not infer configuration from `.codex/docs/technical-preferences.md`.
+3. Recommend restoring the canonical configuration or using `$setup-engine`.
+4. Never create a separate review-depth file as a fallback.
+5. If a repair is proposed, show one complete proposed changeset and obtain approval before any write.
 
 **Assertions:**
-- [ ] Project name is captured before any file is written
-- [ ] Exactly 3 engine options are presented
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] No file is written without explicit user approval
-- [ ] Handoff to `$setup-engine` occurs at the end with the chosen engine argument
-- [ ] Verdict is COMPLETE after all files are written and handoff is issued
+- [ ] Missing authority is not treated as a configured engine.
+- [ ] No fallback file is silently created.
+- [ ] Verdict is BLOCKED until the authority is readable or the user approves a repair.
 
----
-
-### Case 2: Already Configured — Detects existing config, offers to skip or reconfigure
+### Case 3: Project-State Boundary — Defined concept routes to Path C
 
 **Fixture:**
-- `technical-preferences.md` has engine already set (not placeholder)
-- `production/stage.txt` exists with `Concept`
+- `.codex/studio.toml` contains `engine = "unconfigured"`.
+- `design/gdd/game-concept.md` exists; no source or production artifacts exist.
 
-**Input:** `$start`
+**Input:** `$start`; choose `Defined or existing`, then `Clear concept (Path C)`.
 
 **Expected behavior:**
-1. Skill reads `technical-preferences.md` and detects configured engine
-2. Skill reports: "This project is already configured with [engine]"
-3. Skill presents options: skip (exit), reconfigure engine, or reconfigure specific sections
-4. If user selects skip: skill exits cleanly with a summary of current config
-5. If user selects reconfigure: skill proceeds to the engine-selection step
+1. Detect the concept before asking questions.
+2. Offer `Clear concept (Path C)` and `Existing work (Path D)` only after the first answer.
+3. Ask for the concept in one sentence.
+4. Offer `Formalize it first` versus `Jump straight in` and wait.
+5. Route to `$brainstorm [concept]` or `$setup-engine` according to that decision.
 
 **Assertions:**
-- [ ] Skill does NOT overwrite existing config without user choosing reconfigure
-- [ ] Detected engine name is shown to the user in the status message
-- [ ] User is offered at least 2 options (skip or reconfigure)
-- [ ] Verdict is COMPLETE whether user skips or reconfigures
+- [ ] Existing concept evidence is reflected in the recommendation.
+- [ ] Engine choice is deferred to `$setup-engine`.
+- [ ] No workflow is auto-run.
 
----
-
-### Case 3: Engine Choice — User picks Godot 4, routes to $setup-engine godot
+### Case 4: Edge Case — Existing work routes to adoption
 
 **Fixture:**
-- Fresh repo — no existing configuration
+- `.codex/studio.toml` contains a configured engine.
+- Source files under `src/`, GDD Markdown under `design/gdd/`, and sprint files under `production/sprints/` exist.
 
-**Input:** `$start`
+**Input:** `$start`; choose `Defined or existing`, then `Existing work (Path D)`.
 
 **Expected behavior:**
-1. Skill presents engine options and user selects Godot 4
-2. Skill writes initial stubs (directory structure, AGENTS.md) after approval
-3. Skill explicitly routes to `$setup-engine godot` as the next step
-4. Handoff message clearly names the engine and the next skill invocation
+1. Summarize the observed source, design, prototype, and production evidence.
+2. Report the configured engine from `.codex/studio.toml`.
+3. Recommend `$project-stage-detect`, then `$adopt` for format compliance.
+4. Keep analysis read-only and wait for the user's next-step decision.
 
 **Assertions:**
-- [ ] Handoff command is `$setup-engine godot` (not generic `$setup-engine`)
-- [ ] Handoff is issued after all initial stubs are written, not before
-- [ ] Engine choice is echoed back to user before writing begins
+- [ ] Path D is based on evidence rather than assumptions.
+- [ ] The recommended order is `$project-stage-detect` before `$adopt`.
+- [ ] No existing artifact is overwritten.
 
----
-
-### Case 4: Interrupted Setup — Partial config detected, offers resume or restart
+### Case 5: Final Gate — Stage and review-depth writes are separately approved
 
 **Fixture:**
-- Directory structure exists (was created) but `technical-preferences.md` is
-  still all placeholders (engine was never chosen — setup was interrupted)
-- No `production/stage.txt`
+- Any Path A–D state.
+- A starting path has been confirmed and `.codex/studio.toml` is readable.
 
-**Input:** `$start`
-
-**Expected behavior:**
-1. Skill detects partial state: directories exist but engine is unconfigured
-2. Skill reports: "A partial setup was detected — directories exist but engine is not configured"
-3. Skill offers: resume from engine selection, or restart from scratch
-4. If resume: skill skips directory creation, proceeds to engine choice
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-
-**Assertions:**
-- [ ] Partial state is correctly identified (directories present, engine absent)
-- [ ] User is offered resume vs. restart choice — not forced into one path
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] Restart path asks for permission to overwrite before touching any files
-
----
-
-### Case 5: Director Gate Check — No gate; start is a utility setup skill
-
-**Fixture:**
-- Any fixture
-
-**Input:** `$start`
+**Input:** Continue `$start` after routing.
 
 **Expected behavior:**
-1. Skill completes full onboarding flow
-2. No director agents are spawned at any point
-3. No gate IDs (CD-*, TD-*, AD-*, PR-*) appear in the output
+1. Derive the exact `production/stage.txt` value, present that one-file changeset, and wait for approval.
+2. Read the current `review_mode`, then offer `Full`, `Phase-gated (recommended)`, and `Solo`.
+3. Map the selection to `review_mode = "full"`, `review_mode = "phase-gated"`, or `review_mode = "solo"`.
+4. Show the exact `.codex/studio.toml` diff changing only `review_mode`, preserving every other key and ordering, and wait for separate approval.
+5. Treat an already-matching value as a no-op; if either proposal is declined, leave that artifact unchanged.
+6. Ask whether to start the recommended skill; never auto-run it.
 
 **Assertions:**
-- [ ] No director gate is invoked during the skill execution
-- [ ] No gate skip messages appear (gates are absent, not suppressed)
-- [ ] Skill reaches COMPLETE without any gate verdict
-
----
+- [ ] Approval for the stage artifact does not authorize the later configuration edit.
+- [ ] The configuration approval changes only `review_mode`.
+- [ ] New paths or scope expansion require fresh approval.
+- [ ] The final handoff names the chosen native `$skill` invocation.
+- [ ] No director agents or director gate IDs are involved.
 
 ## Protocol Compliance
 
-- [ ] Asks for project name before any file is written
-- [ ] Presents engine options as a structured choice (not free text)
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] Ends with a handoff to `$setup-engine` with the engine name as argument
-- [ ] Verdict is clearly stated (COMPLETE or BLOCKED) at end of output
-
----
+- [ ] Project-state discovery precedes user questions.
+- [ ] Ordered decisions map exactly to Paths A–D.
+- [ ] `.codex/studio.toml` is the engine and persistent review-depth authority; no separate review-depth file is used.
+- [ ] Discovery and routing are read-only.
+- [ ] The parent obtains exact complete-changeset approval before each permitted write.
+- [ ] Completion hands control back to the user.
 
 ## Coverage Notes
 
-- The case where the user rejects all engine options and provides a custom
-  engine name is not tested — the skill is designed for the three supported
-  engines only.
-- Git initialization (if any) is not tested here; that is an infrastructure
-  concern outside the skill boundary.
-- Solo vs. lean mode behavior is not applicable — this skill has no gates and
-  mode selection is irrelevant.
+- This spec validates routing and approval behavior, not the downstream engine
+  selection performed by `$setup-engine`.
+- Visual rendering of `request_user_input` remains a manual Codex UI check.

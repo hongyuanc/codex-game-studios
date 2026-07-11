@@ -5,6 +5,7 @@
 - Runtime profile: `.codex/agents/prototyper.toml`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
 - Model route: **Terra** (`gpt-5.6-terra`)
+- Reasoning effort: `medium`
 - Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
 - Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
 
@@ -64,7 +65,7 @@ Runtime model label, ID, and reasoning effort match the Codex Runtime Contract a
 - Does NOT mark the result as inconclusive — after 4 sessions with consistent negative responses, abandonment is the correct verdict
 
 ### Case 5: Context pass — using the project's engine scripting language
-**Input context**: Project uses Godot 4.6 with GDScript (configured in technical-preferences.md).
+**Input context**: Project uses Godot 4.6 with GDScript (configured in .codex/docs/technical-preferences.md).
 **Input**: "Prototype a basic grid movement system — player clicks a tile and the character moves to it."
 **Expected behavior**:
 - Produces the prototype in GDScript — not Python, C#, or pseudocode
@@ -88,6 +89,6 @@ Runtime model label, ID, and reasoning effort match the Codex Runtime Contract a
 ## Coverage Notes
 - Case 2 (production redirect) is critical — prototype code leaking into src/ is a common quality problem
 - Case 4 (abandonment honesty) tests whether the agent avoids sunk-cost bias — prototypes that fail should be cleanly abandoned
-- Case 5 requires that technical-preferences.md has the engine and language configured; test is incomplete if not configured
+- Case 5 requires that .codex/docs/technical-preferences.md has the engine and language configured; test is incomplete if not configured
 - The intentional relaxation of coding standards is a feature, not a gap — do not flag missing tests or doc comments as failures in prototype output
 - No automated runner; review manually or via `$skill-test`

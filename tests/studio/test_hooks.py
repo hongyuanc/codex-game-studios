@@ -1519,7 +1519,7 @@ class HookConfigurationTests(unittest.TestCase):
                 self.assertIn(".codex/hooks/hook_runner.py", handler["commandWindows"])
                 action = handler["command"].rsplit(" ", 1)[-1]
                 self.assertIn(action, handler["commandWindows"])
-                self.assertNotRegex(handler["command"] + handler["commandWindows"], r"/Users/|/home/|[A-Za-z]:\\Users\\")
+                self.assertNotRegex(handler["command"] + handler["commandWindows"], r"/Users/|/home/|[A-Za-z]:\\Users\\")  # enforcement-literal
 
     def test_validator_accepts_native_config_and_rejects_invalid_contracts(self):
         self.assertTrue(hasattr(VALIDATE, "validate_hooks"))
@@ -1536,7 +1536,7 @@ class HookConfigurationTests(unittest.TestCase):
                                     "hooks": [
                                         {
                                             "type": "prompt",
-                                            "command": "/Users/person/run.sh",
+                                            "command": "/Users/person/run.sh",  # enforcement-literal
                                         }
                                     ],
                                 }
@@ -1596,7 +1596,7 @@ class HookConfigurationTests(unittest.TestCase):
 
         nonportable_invocation = json.loads(json.dumps(self.config))
         nonportable_invocation["hooks"]["Stop"][0]["hooks"][0]["command"] = (
-            "python3 /tmp/.codex/hooks/hook_runner.py session-stop"
+            "python3 /tmp/.codex/hooks/hook_runner.py session-stop"  # enforcement-literal
         )
         cases["repository-root runner invocation"] = nonportable_invocation
 
@@ -1630,8 +1630,8 @@ class HookConfigurationTests(unittest.TestCase):
                     self.assertIn("runner invocation", messages)
 
     def test_tracked_legacy_hook_and_settings_inventory_is_removed(self):
-        self.assertFalse((ROOT / ".claude/settings.json").exists())
-        legacy_hooks = sorted((ROOT / ".claude/hooks").glob("*.sh"))
+        self.assertFalse((ROOT / ".claude/settings.json").exists())  # enforcement-literal
+        legacy_hooks = sorted((ROOT / ".claude/hooks").glob("*.sh"))  # enforcement-literal
         self.assertEqual([], legacy_hooks)
 
 

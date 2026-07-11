@@ -50,13 +50,13 @@ None. `$test-setup` is a scaffolding utility. No director gates apply.
 ### Case 1: Happy Path — Godot project, scaffolds GdUnit4 test structure
 
 **Fixture:**
-- `technical-preferences.md` has engine set to Godot 4, language GDScript
+- `.codex/docs/technical-preferences.md` has engine set to Godot 4, language GDScript
 - `tests/` directory does not exist yet
 
 **Input:** `$test-setup`
 
 **Expected behavior:**
-1. Skill reads engine from `technical-preferences.md` → Godot 4 + GDScript
+1. Skill reads engine from `.codex/docs/technical-preferences.md` → Godot 4 + GDScript
 2. Skill drafts the test directory structure: tests/unit/, tests/integration/,
    tests/performance/, tests/playtest/, and a GdUnit4 runner config file
 3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
@@ -77,7 +77,7 @@ None. `$test-setup` is a scaffolding utility. No director gates apply.
 ### Case 2: Unity Project — Scaffolds Unity Test Runner with asmdef
 
 **Fixture:**
-- `technical-preferences.md` has engine set to Unity, language C#
+- `.codex/docs/technical-preferences.md` has engine set to Unity, language C#
 - `tests/` directory does not exist
 
 **Input:** `$test-setup`
@@ -125,12 +125,12 @@ None. `$test-setup` is a scaffolding utility. No director gates apply.
 ### Case 4: No Engine Configured — Redirects to $setup-engine
 
 **Fixture:**
-- `technical-preferences.md` contains only placeholders (engine not set)
+- `.codex/docs/technical-preferences.md` contains only placeholders (engine not set)
 
 **Input:** `$test-setup`
 
 **Expected behavior:**
-1. Skill reads `technical-preferences.md` and finds engine placeholder
+1. Skill reads `.codex/docs/technical-preferences.md` and finds engine placeholder
 2. Skill reports: "Engine not configured — cannot scaffold engine-specific test framework"
 3. Skill suggests running `$setup-engine` first
 4. No directories or files are created
@@ -164,7 +164,7 @@ None. `$test-setup` is a scaffolding utility. No director gates apply.
 
 ## Protocol Compliance
 
-- [ ] Reads engine from `technical-preferences.md` before generating any scaffold
+- [ ] Reads engine from `.codex/docs/technical-preferences.md` before generating any scaffold
 - [ ] Generates engine-appropriate test runner config (not generic)
 - [ ] Creates all 4 subdirectories from coding-standards.md
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write

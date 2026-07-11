@@ -363,27 +363,23 @@ are resolved. The new run will reflect the current state of the project.
 
 ---
 
-## Phase 6b: Set Review Mode
+## Phase 6b: Confirm Review Mode
 
-After writing the adoption plan (or if the user cancels writing), check whether
-`production/review-mode.txt` exists.
+After writing the adoption plan (or if the user cancels writing), read the
+current `review_mode` from `.codex/studio.toml`; this is the sole persistent
+review-mode authority. Ask one concise question and wait for the answer:
 
-**If it exists**: Read it and note the current mode — "Review mode is already set to `[current]`." — skip the prompt.
-
-**If it does not exist**: Ask one concise question and wait for the answer:
-
-- **Prompt**: "One more setup step: how much design review would you like as you work through the workflow? Your selection will be saved to `production/review-mode.txt`."
+- **Prompt**: "Review mode is currently `[current]`. Which review depth should this adopted project use across sessions?"
 - **Options**:
   - `Full` — Director specialists review at each key workflow step. Best for teams, learning the workflow, or when you want thorough feedback on every decision.
-  - `Lean (recommended)` — Directors only at phase gate transitions ($gate-check). Skips per-skill reviews. Balanced for solo devs and small teams.
-  - `Solo` — No director reviews at all. Maximum speed. Best for game jams, prototypes, or if reviews feel like overhead.
+  - `Phase-gated (recommended)` — Use lean optional-review depth while phase-transition and other mandatory director gates still run.
+  - `Solo` — Skip optional director consultation; explicitly required gates still run.
 
-The selected option explicitly authorizes writing the mapped value to `production/review-mode.txt`:
-- `Full` → write `full`
-- `Lean (recommended)` → write `lean`
-- `Solo` → write `solo`
-
-Create the `production/` directory if it does not exist.
+Map the selection to `review_mode = "full"`, `review_mode = "phase-gated"`, or
+`review_mode = "solo"`. Show the exact `.codex/studio.toml` diff and obtain
+explicit approval for that one-file changeset before editing it. Preserve every
+other key and comment. A matching value is a no-op. If approval is declined,
+leave the configuration unchanged. Never create a competing review-mode file.
 
 ---
 

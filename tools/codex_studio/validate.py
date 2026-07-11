@@ -44,17 +44,21 @@ sprint-status start story-done story-readiness team-audio team-combat team-level
 team-live-ops team-narrative team-polish team-qa team-release team-ui tech-debt
 test-evidence-review test-flakiness test-helpers test-setup ux-design ux-review
 vertical-slice""".split())
+# enforcement-literal-start
 FORBIDDEN_SKILL_PATTERNS = {
     r"\bAskUserQuestion\b": "Claude interaction primitive",
     r"\bTodoWrite\b": "Claude task primitive",
     r"\bTask tool\b|\bsubagent_type\b": "Claude delegation primitive",
     r"(?i:\bTask calls?\b|\btask-call(?:s|ing)?\b)": "non-native task-call syntax",
-    r"\.Codex/|\.claude/": "non-native path",
-    r"^model:\s*(opus|sonnet|haiku)\s*$": "Claude model metadata",
-    r"^allowed-tools:": "Claude tool metadata",
-    r"^agent:": "Claude agent metadata",
-    r"^maxTurns:": "Claude turn-limit metadata",
+    r"(?-i:\.Codex/)|\.claude/": "non-native path",
 }
+FORBIDDEN_SKILL_FRONTMATTER = {
+    "model": "Claude model metadata",
+    "allowed-tools": "Claude tool metadata",
+    "agent": "Claude agent metadata",
+    "maxturns": "Claude turn-limit metadata",
+}
+# enforcement-literal-end
 SUPPORTED_HOOK_EVENTS = {
     "SessionStart",
     "PreToolUse",
@@ -130,10 +134,11 @@ EXPECTED_INSTRUCTION_PATHS = {
     "src/ui/AGENTS.md",
     "tests/AGENTS.md",
 }
+# enforcement-literal-start
 RUNTIME_FORBIDDEN_PATTERNS = {
     r"CLAUDE\.md": "legacy durable-guidance filename",
     r"\.claude/": "legacy runtime path",
-    r"\.Codex/": "incorrect Codex path casing",
+    r"(?-i:\.Codex/)": "incorrect Codex path casing",
     r"\bAskUserQuestion\b": "legacy interaction primitive",
     r"(?i:\bTask calls?\b|\bTask tool\b)": "legacy delegation primitive",
     r"\bsubagent_type\b": "legacy agent metadata",
@@ -143,11 +148,20 @@ RUNTIME_FORBIDDEN_PATTERNS = {
     r"\bClaude(?: Code)?\b": "legacy runtime product name",
 }
 MACHINE_PATH = re.compile(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])")
+# enforcement-literal-end
 COVERAGE_ENTRY_COUNT = 203
 COVERAGE_SOURCE_SET_SHA256 = "37580b38a3b505292d524d4432239ff571741fb9ace8787544ec6643e34feef0"
 COVERAGE_CONTRACT_SHA256 = "899296b2dbb4553303606dad787912d834bc81beba6c9e0a8bc44cf15d149cde"
 FRAMEWORK_PARITY_COUNT = 127
-FRAMEWORK_PARITY_SHA256 = "64c28b7715ddf487e3e63325fcf561e2b5953a71203dd71a08286f27799f37a4"
+FRAMEWORK_SOURCE_COMMIT = "7bad60b7e0e71723b4b745e36950492d714595a3"
+FRAMEWORK_SOURCE_ROOT = "CCGS Skill Testing Framework"
+FRAMEWORK_PARITY_SHA256 = "4cd4ae46dc9e26217361f3a4cea6bea427ddb1efc7c41668c62c01e9521dce4c"
+
+ENFORCEMENT_START = "# enforcement-" + "literal-start"
+ENFORCEMENT_END = "# enforcement-" + "literal-end"
+ENFORCEMENT_INLINE = "# enforcement-" + "literal"
+HISTORY_START = "<!-- historical-" + "source-start -->"
+HISTORY_END = "<!-- historical-" + "source-end -->"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -155,6 +169,45 @@ class ValidationIssue:
     severity: str
     path: str
     message: str
+
+
+def _strip_bounded_markers(
+    text: str,
+    *,
+    start: str,
+    end: str,
+    inline: str | None = None,
+) -> tuple[str, list[str]]:
+    """Remove explicitly exempted lines while rejecting ambiguous marker use."""
+    active = False
+    cleaned: list[str] = []
+    errors: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        has_start = start in line
+        has_end = end in line
+        if has_start and has_end:
+            errors.append(f"markers must be on separate lines (line {line_number})")
+            cleaned.append("")
+            continue
+        if has_start:
+            if active:
+                errors.append(f"markers must not nest (line {line_number})")
+            active = True
+            cleaned.append("")
+            continue
+        if has_end:
+            if not active:
+                errors.append(f"closing marker has no matching start (line {line_number})")
+            active = False
+            cleaned.append("")
+            continue
+        if active or (inline is not None and inline in line):
+            cleaned.append("")
+        else:
+            cleaned.append(line)
+    if active:
+        errors.append("opening marker has no matching end")
+    return "\n".join(cleaned), errors
 
 
 def _read_utf8_file(path: pathlib.Path, label: str) -> tuple[str | None, list[ValidationIssue]]:
@@ -230,8 +283,12 @@ def validate_skill(path: pathlib.Path) -> list[ValidationIssue]:
         issues.append(ValidationIssue("error", str(path), "skill name must match directory name"))
     if "description" in fields and not fields["description"].strip():
         issues.append(ValidationIssue("error", str(path), "skill description must not be blank"))
+    normalized_fields = {field.lower() for field in fields}
+    for field, label in FORBIDDEN_SKILL_FRONTMATTER.items():
+        if field in normalized_fields:
+            issues.append(ValidationIssue("error", str(path), f"contains {label}"))
     for pattern, label in FORBIDDEN_SKILL_PATTERNS.items():
-        if re.search(pattern, text, flags=re.MULTILINE):
+        if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
             issues.append(ValidationIssue("error", str(path), f"contains {label}"))
     return issues
 
@@ -388,7 +445,7 @@ def validate_hooks(path: pathlib.Path, root: pathlib.Path | None = None) -> list
                         )
                     )
                 combined = f"{command}\n{windows}"
-                if re.search(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])", combined):
+                if re.search(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])", combined):  # enforcement-literal
                     issues.append(ValidationIssue("error", str(path), f"{location} contains absolute user path"))
                 if ".codex/hooks/hook_runner.py" not in command:
                     issues.append(ValidationIssue("error", str(path), f"{location} command must reference .codex/hooks/hook_runner.py"))
@@ -640,15 +697,15 @@ def _contained_regular_file(root: pathlib.Path, relative: str) -> tuple[bool, st
 def _legacy_sources(root: pathlib.Path) -> set[str]:
     sources = {
         _relative(root, path)
-        for path in (root / ".claude").rglob("*")
+        for path in (root / ".claude").rglob("*")  # enforcement-literal
         if path.is_file()
-    } if (root / ".claude").is_dir() else set()
-    sources.update(_relative(root, path) for path in root.rglob("CLAUDE.md"))
+    } if (root / ".claude").is_dir() else set()  # enforcement-literal
+    sources.update(_relative(root, path) for path in root.rglob("CLAUDE.md"))  # enforcement-literal
     return sources
 
 
 def validate_coverage_manifest(root: pathlib.Path, phase: str) -> list[ValidationIssue]:
-    manifest = root / "production/migration/claude-to-codex-coverage.yaml"
+    manifest = root / "production/migration/claude-to-codex-coverage.yaml"  # enforcement-literal
     entries, issues = _coverage_entries(manifest)
     if issues:
         return issues
@@ -703,7 +760,7 @@ def validate_coverage_manifest(root: pathlib.Path, phase: str) -> list[Validatio
             issues.append(ValidationIssue("error", _relative(root, manifest), f"legacy source remains: {remaining}"))
         if actual:
             issues.append(ValidationIssue("error", ".", f"legacy source remains: {sorted(actual)}"))
-        for relative in (".claude", "CCGS Skill Testing Framework"):
+        for relative in (".claude", "CCGS Skill Testing Framework"):  # enforcement-literal
             path = root / relative
             if path.exists() or path.is_symlink():
                 issues.append(ValidationIssue("error", relative, "legacy directory remains"))
@@ -725,7 +782,13 @@ def validate_testing_framework_parity(root: pathlib.Path) -> list[ValidationIssu
     entries = data.get("entries") if isinstance(data.get("entries"), list) else []
     if data.get("version") != 1 or data.get("source_file_count") != FRAMEWORK_PARITY_COUNT or len(entries) != FRAMEWORK_PARITY_COUNT:
         issues.append(ValidationIssue("error", _relative(root, path), f"parity evidence must contain exactly {FRAMEWORK_PARITY_COUNT} version-1 entries"))
-    canonical_parts: list[str] = []
+    source_commit = data.get("source_commit")
+    source_root = data.get("source_root")
+    if source_commit != FRAMEWORK_SOURCE_COMMIT:
+        issues.append(ValidationIssue("error", _relative(root, path), "parity source commit does not match"))
+    if source_root != FRAMEWORK_SOURCE_ROOT:
+        issues.append(ValidationIssue("error", _relative(root, path), "parity source root does not match"))
+    canonical_parts: list[str] = [f"source_commit\0{source_commit}", f"source_root\0{source_root}"]
     sources: set[str] = set()
     for entry in entries:
         if not isinstance(entry, dict) or set(entry) != {"source", "source_sha256", "destination"}:
@@ -739,7 +802,7 @@ def validate_testing_framework_parity(root: pathlib.Path) -> list[ValidationIssu
         sources.add(source)
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
             issues.append(ValidationIssue("error", _relative(root, path), f"invalid source SHA-256 for {source!r}"))
-        expected_destination = "Codex Studio Testing Framework/" + ("AGENTS.md" if source == "CLAUDE.md" else source)
+        expected_destination = "Codex Studio Testing Framework/" + ("AGENTS.md" if source == "CLAUDE.md" else source)  # enforcement-literal
         if destination != expected_destination:
             issues.append(ValidationIssue("error", _relative(root, path), f"invalid native mapping for {source!r}"))
         valid, message = _contained_regular_file(root, destination)
@@ -756,6 +819,27 @@ def validate_testing_framework_parity(root: pathlib.Path) -> list[ValidationIssu
         valid, message = _contained_regular_file(root, extension)
         if not valid:
             issues.append(ValidationIssue("error", extension, message))
+    expected_native = {
+        entry.get("destination") for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("destination"), str)
+    } | set(expected_extensions)
+    framework_root = root / "Codex Studio Testing Framework"
+    actual_native: set[str] = set()
+    if framework_root.is_symlink() or not framework_root.is_dir():
+        issues.append(ValidationIssue("error", _relative(root, framework_root), "native framework root must be a regular directory"))
+    else:
+        for native_path in framework_root.rglob("*"):
+            relative_native = _relative(root, native_path)
+            if native_path.is_symlink():
+                issues.append(ValidationIssue("error", relative_native, "native framework entry must not be a symlink"))
+            elif native_path.is_file():
+                actual_native.add(relative_native)
+    if actual_native != expected_native:
+        issues.append(ValidationIssue(
+            "error", _relative(root, framework_root),
+            "exact native framework inventory does not match; "
+            f"missing={sorted(expected_native - actual_native)}, extra={sorted(actual_native - expected_native)}",
+        ))
     return issues
 
 
@@ -777,7 +861,7 @@ def _runtime_files(root: pathlib.Path) -> tuple[list[pathlib.Path], list[Validat
 
     roots = (
         ".agents", ".codex", ".github", "Codex Studio Testing Framework",
-        "docs", "design", "tools", "tests", "production",
+        "assets", "docs", "design", "prototypes", "src", "tools", "tests", "production",
     )
     excluded_prefixes = ("docs/superpowers/", "production/migration/")
     for relative in roots:
@@ -788,7 +872,16 @@ def _runtime_files(root: pathlib.Path) -> tuple[list[pathlib.Path], list[Validat
         if not base.is_dir():
             issues.append(ValidationIssue("error", relative, "required runtime directory is missing"))
             continue
-        for current, directories, filenames in os.walk(base, followlinks=False):
+        def walk_error(error: OSError) -> None:
+            error_path = pathlib.Path(error.filename) if error.filename else base
+            issues.append(ValidationIssue(
+                "error", _relative(root, error_path),
+                f"cannot traverse runtime directory: {error}",
+            ))
+
+        for current, directories, filenames in os.walk(
+            base, followlinks=False, onerror=walk_error
+        ):
             current_path = pathlib.Path(current)
             kept: list[str] = []
             for name in directories:
@@ -818,7 +911,7 @@ def validate_runtime_references(root: pathlib.Path, phase: str) -> list[Validati
     if phase not in {"pre-cleanup", "final"}:
         return [ValidationIssue("error", ".", f"unsupported validation phase: {phase}")]
     if phase == "final":
-        for relative in (".claude", "CCGS Skill Testing Framework"):
+        for relative in (".claude", "CCGS Skill Testing Framework"):  # enforcement-literal
             path = root / relative
             if path.exists() or path.is_symlink():
                 issues.append(ValidationIssue("error", relative, "legacy directory remains"))
@@ -835,16 +928,23 @@ def validate_runtime_references(root: pathlib.Path, phase: str) -> list[Validati
         if text is None:
             continue
         relative = _relative(root, path)
-        integrity_only = relative.startswith("tests/") or relative == "tools/codex_studio/validate.py"
-        if integrity_only:
-            continue
+        if relative.startswith("tests/") or relative == "tools/codex_studio/validate.py":
+            text, marker_errors = _strip_bounded_markers(
+                text,
+                start=ENFORCEMENT_START,
+                end=ENFORCEMENT_END,
+                inline=ENFORCEMENT_INLINE,
+            )
+            issues.extend(ValidationIssue("error", relative, error) for error in marker_errors)
+        elif ENFORCEMENT_START in text or ENFORCEMENT_END in text or ENFORCEMENT_INLINE in text:
+            issues.append(ValidationIssue("error", relative, "enforcement-literal markers are restricted to validator tests and implementation"))
+        if relative == "UPGRADING.md":
+            text, marker_errors = _strip_bounded_markers(
+                text, start=HISTORY_START, end=HISTORY_END
+            )
+            issues.extend(ValidationIssue("error", relative, error) for error in marker_errors)
         for pattern, label in RUNTIME_FORBIDDEN_PATTERNS.items():
-            if relative == "UPGRADING.md" and label in {
-                "legacy durable-guidance filename", "legacy runtime path",
-                "legacy model identifier", "legacy runtime product name",
-            }:
-                continue
-            if re.search(pattern, text, flags=re.MULTILINE):
+            if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
                 issues.append(ValidationIssue("error", relative, f"contains {label}"))
         if slash_skill.search(text):
             issues.append(ValidationIssue("error", relative, "contains slash-style invocation for a known skill"))

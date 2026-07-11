@@ -37,7 +37,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$architecture-review` or `$create-control-manifest`)
 - [ ] Documents skeleton-first approach
-- [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in lean/solo
+- [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
 - [ ] Documents retrofit mode for existing architecture documents
 
 ---
@@ -48,8 +48,8 @@ In `full` mode: TD-ARCHITECTURE (technical-director) and LP-FEASIBILITY
 (lead-programmer) spawn in parallel after all sections are drafted and before
 any final approval write.
 
-In `lean` mode: both gates are skipped. Output notes:
-"TD-ARCHITECTURE skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode".
+In `phase-gated` mode: both gates are skipped. Output notes:
+"TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
 
 In `solo` mode: both gates are skipped with equivalent notes.
 
@@ -62,12 +62,12 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Fixture:**
 - No existing `docs/architecture/architecture.md`
 - `docs/architecture/` contains Accepted ADRs for reference
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$create-architecture`
 
 **Expected behavior:**
-1. Skill creates skeleton `docs/architecture/architecture.md` with all required section headers
+1. Skill drafts an in-memory skeleton for `docs/architecture/architecture.md` with all required section headers
 2. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 3. After all sections are drafted: TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel
 4. Both gates return APPROVED
@@ -75,7 +75,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 6. Session state updated
 
 **Assertions:**
-- [ ] Skeleton file is created with all section headers before any content is written
+- [ ] The in-memory skeleton is drafted with all section headers before any content is written
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel (not sequentially)
 - [ ] Both gates complete before the final completion confirmation
@@ -88,7 +88,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Fixture:**
 - Architecture doc is fully drafted (all sections)
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - TD-ARCHITECTURE gate returns MAJOR REVISION: "[specific structural issue]"
 
 **Input:** `$create-architecture`
@@ -108,24 +108,24 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ---
 
-### Case 3: Lean Mode — Both gates skipped; architecture written with user approval only
+### Case 3: Phase-gated Mode — Gates skipped, atomic write still requires approval
 
 **Fixture:**
 - No existing architecture doc
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$create-architecture`
 
 **Expected behavior:**
-1. Skeleton file is created
-2. All sections are authored and written per-section with user approval
+1. The in-memory skeleton is drafted
+2. All sections are authored and approved conversationally in memory
 3. After completion: TD-ARCHITECTURE and LP-FEASIBILITY are skipped
-4. Output notes: "TD-ARCHITECTURE skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode"
-5. Architecture is considered complete based on user approval alone
+4. Output notes: "TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode"
+5. The complete architecture changeset is shown and approved before the document is written once
 
 **Assertions:**
 - [ ] Both gate skip notes appear in output
-- [ ] Architecture document is written with only user approval in lean mode
+- [ ] Architecture document is written only after the complete changeset is shown and approved in phase-gated mode
 - [ ] Skill does NOT block completion because gates were skipped
 - [ ] Next-step handoff is still present
 
@@ -158,7 +158,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Fixture:**
 - Architecture doc is being authored
 - One section references or depends on an ADR that has `Status: Proposed`
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$create-architecture`
 
@@ -179,10 +179,10 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ## Protocol Compliance
 
-- [ ] Skeleton file created with all section headers before any content is written
+- [ ] In-memory skeleton drafted with all section headers before any content is written
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in lean/solo output
+- [ ] Skipped gates noted by name and mode in phase-gated/solo output
 - [ ] Proposed ADR references flagged as risks in the document
 - [ ] Ends with next-step handoff: `$architecture-review` or `$create-control-manifest`
 

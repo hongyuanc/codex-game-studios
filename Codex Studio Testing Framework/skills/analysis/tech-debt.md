@@ -148,7 +148,7 @@ invoked.
 
 **Fixture:**
 - Inline scan finds 2 new TODOs; register has 3 existing items
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$tech-debt`
 

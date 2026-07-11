@@ -50,7 +50,7 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
 ### Case 1: Happy Path — Player factory helper generated for Godot/GDScript
 
 **Fixture:**
-- `technical-preferences.md` has engine Godot 4, language GDScript
+- `.codex/docs/technical-preferences.md` has engine Godot 4, language GDScript
 - `tests/` directory exists (test-setup has been run)
 - `design/gdd/player.md` exists with defined player properties
 - No existing helpers in `tests/helpers/`
@@ -125,7 +125,7 @@ None. `$test-helpers` is a scaffolding utility. No director gates apply.
 ### Case 4: System Has No GDD — Notes missing design context in helper
 
 **Fixture:**
-- `technical-preferences.md` has Godot 4 / GDScript
+- `.codex/docs/technical-preferences.md` has Godot 4 / GDScript
 - `tests/` exists
 - User requests a helper for the "inventory system" but no `design/gdd/inventory.md` exists
 

@@ -146,7 +146,7 @@ None. Retrospectives are team self-reflection documents; no gates are invoked.
 
 **Fixture:**
 - `production/sprints/sprint-005.md` exists with complete stories
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$retrospective sprint-005`
 

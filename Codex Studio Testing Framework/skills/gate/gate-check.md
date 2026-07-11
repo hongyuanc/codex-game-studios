@@ -140,15 +140,15 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ---
 
-### Case 5: Director Gate — lean vs full vs solo mode
+### Case 5: Director Gate — phase-gated vs full vs solo mode
 
 **Fixture:**
-- `production/session-state/review-mode.txt` exists (or equivalent state file)
+- `.codex/studio.toml` exists (or equivalent state file)
 - All required artifacts for the target gate are present
 - `design/gdd/game-concept.md` exists
 
 **Case 5a — full mode:**
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$gate-check systems-design` (with full mode active)
 
@@ -170,7 +170,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Verdict is NOT auto-PASS if any director returns CONCERNS or REJECT
 
 **Case 5b — solo mode:**
-- `review-mode.txt` contains `solo`
+- `.codex/studio.toml` contains `solo`
 
 **Input:** `$gate-check systems-design` (with solo mode active)
 

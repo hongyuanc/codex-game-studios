@@ -6,7 +6,7 @@
 - Runtime name: `skill-test`
 - Runtime trigger description: `"Use when Codex skill files need structural, behavioral, category, or coverage validation."`
 - Native invocation: `$skill-test`
-- Discovery contract: only `name` and `description` are required in YAML frontmatter; invocation arguments and permissions belong in the workflow body or runtime policy.
+- Discovery contract: YAML frontmatter contains exactly `name` and `description`; `name` equals the skill directory; `description is nonblank and trigger-oriented`. Static validation does not require a literal `Use when` prefix.
 - Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
 - Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
 - Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
@@ -21,6 +21,7 @@ must be one complete approved changeset.
 
 ## Static Assertions
 
+- [ ] Every shipped `.agents/skills/*/SKILL.md` has frontmatter with exactly `name` and `description`; `name` equals the skill directory, `description` is nonblank and trigger-oriented, and validation does not require a literal `Use when` prefix.
 - [ ] `static` performs exactly seven checks: native contract, phase structure,
   verdicts, changeset approval, next-step handoff, delegation boundary, and
   invocation contract.
@@ -57,11 +58,12 @@ must be one complete approved changeset.
 - [ ] The verdict is `COMPLIANT`.
 - [ ] No result or catalog file is written.
 
-### Case 2: Blocked / Failure — Native contract violation is non-compliant
+### Case 2: Blocked / Failure — Discovery contract violation is non-compliant
 
 **Fixture:**
-- `.agents/skills/example/SKILL.md` has a non-trigger description and directs
-  writes without a complete proposed changeset.
+- `.agents/skills/example/SKILL.md` has a blank description and a `name` that
+  differs from the `example` directory, and it directs writes without a
+  complete proposed changeset.
 - The validator reports both issues.
 
 **Input:** `$skill-test static example`

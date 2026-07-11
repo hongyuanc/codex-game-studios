@@ -50,7 +50,7 @@ children return scoped evidence and the parent synthesizes the result.
 
 **Fixture:**
 - Feature exists and is functionally complete (e.g., `combat` system)
-- Performance budgets are defined in technical-preferences.md (e.g., target 60fps, 16ms frame budget)
+- Performance budgets are defined in .codex/docs/technical-preferences.md (e.g., target 60fps, 16ms frame budget)
 - No frame budget violations exist before polishing begins
 - No audio events are missing; VFX assets are complete
 - No regressions are introduced by polish changes

@@ -51,7 +51,7 @@ None. `$soak-test` is a QA planning utility. No director gates apply.
 
 **Fixture:**
 - User specifies: system = "online multiplayer lobby", duration = "2 hours"
-- `technical-preferences.md` has engine configured
+- `.codex/docs/technical-preferences.md` has engine configured
 
 **Input:** `$soak-test online-lobby 2h`
 
@@ -126,13 +126,13 @@ None. `$soak-test` is a QA planning utility. No director gates apply.
 ### Case 4: Mobile Target Platform — Memory-specific checkpoints added
 
 **Fixture:**
-- `technical-preferences.md` specifies target platform: Mobile
+- `.codex/docs/technical-preferences.md` specifies target platform: Mobile
 - User requests soak test for "gameplay session" at 30 minutes
 
 **Input:** `$soak-test gameplay 30m`
 
 **Expected behavior:**
-1. Skill reads `technical-preferences.md` and detects mobile target platform
+1. Skill reads `.codex/docs/technical-preferences.md` and detects mobile target platform
 2. Soak test protocol includes mobile-specific memory checkpoints:
    - Check heap memory growth vs. device baseline
    - Check texture memory at checkpoint intervals
@@ -141,7 +141,7 @@ None. `$soak-test` is a QA planning utility. No director gates apply.
 4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
-- [ ] Mobile platform is detected from technical-preferences.md
+- [ ] Mobile platform is detected from .codex/docs/technical-preferences.md
 - [ ] Memory checkpoints include mobile-appropriate thresholds (not desktop)
 - [ ] Thermal/battery notes are present in the protocol
 - [ ] Verdict is COMPLETE

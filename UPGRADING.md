@@ -48,9 +48,11 @@ use `git diff --no-index` when a customized file has no clear native equivalent.
 | Hook implementation | `.codex/hooks/hook_runner.py` |
 | Studio references | `.codex/docs/` |
 
+<!-- historical-source-start -->
 The historical inventory is retained at
 `production/migration/claude-to-codex-coverage.yaml`. It is audit evidence, not
 an operational dependency.
+<!-- historical-source-end -->
 
 ## Merge without losing customizations
 

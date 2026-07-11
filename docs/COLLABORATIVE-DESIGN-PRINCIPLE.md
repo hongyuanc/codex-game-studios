@@ -153,7 +153,9 @@ specialists come only from the pack selected in `.codex/studio.toml`.
 
 Material architecture choices always route through the technical-director
 profile; material creative choices route through the creative-director profile.
-Lean review modes may skip optional consultation, never required decision gates.
+The sole persistent review setting is `review_mode` in `.codex/studio.toml`.
+`phase-gated` means lean optional-review depth: optional consultation may be
+skipped, but phase-transition and other mandatory director gates still run.
 
 ## Skill contract
 

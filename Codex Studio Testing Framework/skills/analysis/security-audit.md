@@ -144,7 +144,7 @@ None. Security audit is a read-only advisory skill; no gates are invoked.
 
 **Fixture:**
 - Source files exist; 1 CONCERNS-level finding detected (debug logging enabled in release build)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$security-audit`
 

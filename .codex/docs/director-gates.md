@@ -25,11 +25,14 @@ the verdict using the **Verdict handling** rules below.
 
 ## Review Modes
 
-Review intensity controls whether director gates run. It can be set globally
-(persists across sessions) or overridden per skill run.
+Review intensity controls optional director consultation. It can be set globally
+(persists across sessions) or overridden per skill run. A gate that its owning
+skill marks **required in every mode** is mandatory and is never disabled by
+review depth.
 
 **Studio config**: `.codex/studio.toml` uses `review_mode = "phase-gated"`.
-That default runs phase gates and skips optional per-skill director gates.
+That default uses lean optional-review depth: it skips optional per-skill
+director gates, while phase-transition and other mandatory director gates still run.
 
 **Per-run override**: any gate-using skill accepts `--review [full|lean|solo]` as an
 argument. This overrides the global config for that run only.
@@ -38,14 +41,14 @@ Examples:
 ```
 $brainstorm space horror           → uses the phase-gated studio default
 $brainstorm space horror --review full   → forces full mode this run
-$architecture-decision --review solo     → skips all gates this run
+$architecture-decision --review solo     → skips optional gates; TD-ADR still runs
 ```
 
 | Mode | What runs | Best for |
 |------|-----------|----------|
 | `full` | All gates active — every workflow step reviewed | Teams, learning users, or when you want thorough director feedback at every step |
-| `lean` | PHASE-GATEs only (`$gate-check`) — per-skill gates skipped | **Default** — solo devs and small teams; directors review at milestones only |
-| `solo` | No director gates anywhere | Game jams, prototypes, maximum speed |
+| `phase-gated` / `lean` | Optional per-skill gates skipped; PHASE-GATEs and every gate explicitly marked required still run | **Default** — solo developers and small teams |
+| `solo` | Optional director consultation skipped; gates explicitly marked required still run | Game jams and prototypes that still preserve non-negotiable decision ownership |
 
 **Check pattern — apply before every gate spawn:**
 
@@ -53,12 +56,12 @@ $architecture-decision --review solo     → skips all gates this run
 Before spawning gate [GATE-ID]:
 1. If skill was called with --review [mode], use that
 2. Else read `.codex/studio.toml`
-3. Map `review_mode = "phase-gated"` to lean gate intensity
+3. Map `review_mode = "phase-gated"` to lean optional-review depth
 
 Apply the resolved mode:
-- solo → skip all gates. Note: "[GATE-ID] skipped — Solo mode"
-- lean → skip unless this is a PHASE-GATE (CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, AD-PHASE-GATE)
-         Note: "[GATE-ID] skipped — Lean mode"
+- required gate → spawn in every mode
+- solo → skip optional gates. Note: "[GATE-ID] skipped — Solo optional-review depth"
+- phase-gated/lean → skip optional gates. Note: "[GATE-ID] skipped — Phase-gated optional-review depth"
 - full → spawn as normal
 ```
 
@@ -69,11 +72,12 @@ Apply the resolved mode:
 **MANDATORY: Resolve review mode before every gate spawn.** Never spawn a gate without checking. The resolved mode is determined once per skill run:
 1. If skill was called with `--review [mode]`, use that
 2. Else read `.codex/studio.toml`
-3. Map `review_mode = "phase-gated"` to `lean` gate intensity
+3. Map `review_mode = "phase-gated"` to lean optional-review depth
 
 Apply the resolved mode:
-- `solo` → **skip all gates**. Note in output: `[GATE-ID] skipped — Solo mode`
-- `lean` → **skip unless this is a PHASE-GATE** (CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, AD-PHASE-GATE). Note: `[GATE-ID] skipped — Lean mode`
+- gate marked required in every mode → **spawn it**
+- `solo` → **skip optional gates**. Note in output: `[GATE-ID] skipped — Solo optional-review depth`
+- `phase-gated` / `lean` → **skip optional gates**. Note: `[GATE-ID] skipped — Phase-gated optional-review depth`
 - `full` → spawn as normal
 
 ```

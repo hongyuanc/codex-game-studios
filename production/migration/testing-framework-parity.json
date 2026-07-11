@@ -3,7 +3,7 @@
   "source_commit": "7bad60b7e0e71723b4b745e36950492d714595a3",
   "source_root": "CCGS Skill Testing Framework",
   "source_file_count": 127,
-  "contract_sha256": "64c28b7715ddf487e3e63325fcf561e2b5953a71203dd71a08286f27799f37a4",
+  "contract_sha256": "4cd4ae46dc9e26217361f3a4cea6bea427ddb1efc7c41668c62c01e9521dce4c",
   "entries": [
     {
       "source": "CLAUDE.md",

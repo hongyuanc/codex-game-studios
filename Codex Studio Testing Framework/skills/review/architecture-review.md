@@ -36,7 +36,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION NEEDED
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
-- [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in lean/solo
+- [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
 
 ---
 
@@ -45,8 +45,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 In `full` mode: TD-ARCHITECTURE (technical-director) and LP-FEASIBILITY
 (lead-programmer) are spawned in parallel after the skill reads the architecture doc.
 
-In `lean` mode: both gates are skipped. Output notes:
-"TD-ARCHITECTURE skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode".
+In `phase-gated` mode: both gates are skipped. Output notes:
+"TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
 
 In `solo` mode: both gates are skipped with equivalent notes.
 
@@ -60,7 +60,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 - `docs/architecture/architecture.md` exists with all 8 required sections populated
 - All sections reference the correct engine version from `docs/engine-reference/`
 - No contradictions with existing Accepted ADRs in `docs/architecture/`
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$architecture-review docs/architecture/architecture.md`
 
@@ -87,7 +87,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Fixture:**
 - `docs/architecture/architecture.md` exists but is missing at least 2 required sections
   (e.g., no data model section, no error handling section)
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$architecture-review docs/architecture/architecture.md`
 
@@ -154,7 +154,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Fixture (full mode):**
 - `docs/architecture/architecture.md` exists with all 8 sections
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Full mode expected behavior:**
 1. TD-ARCHITECTURE gate spawns
@@ -168,7 +168,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Fixture (solo mode):**
 - Same architecture doc
-- `production/session-state/review-mode.txt` contains `solo`
+- `.codex/studio.toml` contains `solo`
 
 **Solo mode expected behavior:**
 1. Skill reads the architecture doc
@@ -188,7 +188,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 - [ ] Does NOT write any files (read-only skill)
 - [ ] Presents section completeness check before issuing verdict
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel in full mode
-- [ ] Skipped gates are noted by name and mode in lean/solo output
+- [ ] Skipped gates are noted by name and mode in phase-gated/solo output
 - [ ] Verdict is one of exactly: APPROVED, NEEDS REVISION, MAJOR REVISION NEEDED
 - [ ] Ends with next-step handoff appropriate to verdict
 

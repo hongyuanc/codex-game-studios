@@ -143,24 +143,24 @@ review gate is needed.
 
 ---
 
-### Case 5: Director Gate — No gate spawned; no review-mode.txt read
+### Case 5: Director Gate — No gate spawned; no .codex/studio.toml read
 
 **Fixture:**
 - 4 Accepted ADRs exist
-- `production/session-state/review-mode.txt` exists with `full`
+- `.codex/studio.toml` exists with `full`
 
 **Input:** `$create-control-manifest`
 
 **Expected behavior:**
 1. Skill reads ADRs and drafts manifest
-2. Skill does NOT read `production/session-state/review-mode.txt`
+2. Skill does NOT read `.codex/studio.toml`
 3. No director gate agents are spawned at any point
 4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Review mode setting has no effect on this skill's behavior
 
 **Assertions:**
 - [ ] No director gate agents are spawned (no CD-, TD-, PR-, AD- prefixed gates)
-- [ ] Skill does NOT read `production/session-state/review-mode.txt`
+- [ ] Skill does NOT read `.codex/studio.toml`
 - [ ] Output contains no "Gate: [GATE-ID]" or gate-skipped entries
 - [ ] The manifest is generated from ADRs alone, with no external gate review
 
@@ -172,7 +172,7 @@ review gate is needed.
 - [ ] Only Accepted ADRs included — Proposed ones noted as excluded
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] No director gates — no review-mode.txt read
+- [ ] No director gates — no .codex/studio.toml read
 - [ ] Ends with next-step handoff: `$create-epics` or `$create-stories`
 
 ---

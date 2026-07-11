@@ -52,7 +52,7 @@ None. Scope check is a read-only advisory skill; no gates are invoked.
 **Fixture:**
 - `production/milestones/milestone-03.md` lists 3 goals: combat system, enemy AI, level loading
 - `production/sprints/sprint-006.md` contains 5 stories, all tagged to one of the 3 goals
-- `production/session-state/active.md` references milestone-03 as the active milestone
+- the explicit skill argument or a user-selected artifact under `production/` references milestone-03 as the active milestone
 
 **Input:** `$scope-check`
 
@@ -98,7 +98,7 @@ None. Scope check is a read-only advisory skill; no gates are invoked.
 ### Case 3: No Milestone Defined — CONCERNS; scope cannot be validated
 
 **Fixture:**
-- `production/session-state/active.md` has no milestone reference
+- the explicit skill argument or a user-selected artifact under `production/` has no milestone reference
 - `production/milestones/` directory exists but is empty
 - `production/sprints/sprint-006.md` has 4 stories
 
@@ -146,7 +146,7 @@ None. Scope check is a read-only advisory skill; no gates are invoked.
 
 **Fixture:**
 - Sprint has 2 SCOPE CREEP stories and 3 ON SCOPE stories
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$scope-check`
 

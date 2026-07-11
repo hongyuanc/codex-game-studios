@@ -15,7 +15,10 @@ engine routes to `$setup-engine`.
 # Guided Onboarding
 
 
-This skill may write two small configuration files after their values and paths are approved: `production/stage.txt` and `production/review-mode.txt`.
+This skill may update two persistent artifacts after showing their exact changes
+and receiving explicit approval: `production/stage.txt` and
+`.codex/studio.toml`. `.codex/studio.toml` is the sole persistent review-mode authority.
+Never create a separate review-mode file.
 
 This skill is the entry point for new users. It does NOT assume you have a game idea, an engine preference, or any prior experience. It asks first, then routes you to the right workflow.
 
@@ -23,7 +26,9 @@ This skill is the entry point for new users. It does NOT assume you have a game 
 
 ## Phase 1: Detect Project State
 
-Before asking anything, silently gather context so you can tailor your guidance. Do NOT show these results unprompted — they inform your recommendations, not the conversation opener.
+Before asking anything, silently gather context so you can tailor your guidance.
+Do not emit a raw scan log; Phase 2 presents the relevant evidence as a concise
+project-state summary before asking the user to confirm the starting point.
 
 Check:
 - **Engine configured?** Read `.codex/studio.toml`. If it contains
@@ -42,10 +47,16 @@ When the engine is unconfigured and there are **No concept, source, prototype, d
 
 ---
 
-## Phase 2: Ask Where the User Is
+## Phase 2: Confirm the Detected Starting Point
 
-This is the first thing the user sees. Use two sequential two-option decisions so
-every `request_user_input` call fits the native schema.
+This is the first thing the user sees. Summarize the classification and show the concrete evidence you found:
+configured engine value, concept path or absence,
+source-file count, prototype directories, design-document count, and production
+artifact paths. Do not ask the user to choose a state contradicted by the
+repository.
+
+Use two sequential two-option decisions so every `request_user_input` call fits
+the native schema.
 
 First ask: "Which broad starting point best describes this project?"
 
@@ -66,7 +77,7 @@ Wait for the second selection before routing. Never batch the two decisions.
 
 ---
 
-## Phase 3: Route Based on Answer
+## Phase 3: Confirm the Workflow Path
 
 #### If A: No idea yet
 
@@ -187,7 +198,7 @@ The user needs creative exploration before anything else.
 
 ---
 
-## Phase 3c: Write Initial Stage File
+## Phase 4: Propose the Initial Stage Artifact
 
 After confirming the starting path (and before asking about review mode), derive the initial stage value for `production/stage.txt`:
 
@@ -199,34 +210,45 @@ Stage mapping:
 
 Show the derived stage value and path, then ask one concise approval question. If approved, create the `production/` directory if needed and write the value. If declined, leave the file unchanged and continue without claiming the stage was saved.
 
-Say: "I've set `production/stage.txt` to `[stage]` — this anchors your status line and stage detection."
+Say: "I've set `production/stage.txt` to `[stage]` — this anchors project-stage
+detection and `$help` routing."
 
 ---
 
-## Phase 3b: Set Review Mode
+## Phase 5: Select Review Depth
 
-Check if `production/review-mode.txt` already exists.
+Read the current `review_mode` from `.codex/studio.toml`, then show it with the
+three available choices. Ask one concise question and wait for the answer:
 
-**If it exists**: Read it and show the current mode — "Review mode is set to `[current]`." — then proceed to Phase 4. Do not ask again.
-
-**If it does not exist**: Ask one concise question and wait for the answer:
-
-- **Prompt**: "One setup choice: how much design review would you want as you work through the workflow? Your selection will be saved to `production/review-mode.txt`."
+- **Prompt**: "Review mode is currently `[current]`. Which review depth should the studio use across sessions?"
 - **Options**:
   - `Full` — Director specialists review at each key workflow step. Best for teams, learning the workflow, or when you want thorough feedback on every decision.
-  - `Lean (recommended)` — Directors only at phase gate transitions ($gate-check). Skips per-skill reviews. Balanced approach for solo devs and small teams.
-  - `Solo` — No director reviews at all. Maximum speed. Best for game jams, prototypes, or if the reviews feel like overhead.
+  - `Phase-gated (recommended)` — Use lean optional-review depth while phase-transition and other mandatory director gates still run. Balanced for solo developers and small teams.
+  - `Solo` — Skip optional director consultation for maximum speed; gates explicitly marked required still run.
 
-The selected option explicitly authorizes writing the mapped value to `production/review-mode.txt`:
-- `Full` → write `full`
-- `Lean (recommended)` → write `lean`
-- `Solo` → write `solo`
+Map the selection to the proposed persistent value:
+- `Full` → `review_mode = "full"`
+- `Phase-gated (recommended)` → `review_mode = "phase-gated"`
+- `Solo` → `review_mode = "solo"`
 
-Create the `production/` directory if it does not exist.
+Selecting a mode chooses a proposal; it does not write the configuration.
 
 ---
 
-## Phase 4: Confirm Before Proceeding
+## Phase 6: Approve the Studio Configuration Changeset
+
+Show the exact `.codex/studio.toml` diff that changes only `review_mode` and ask
+for explicit approval of that one-file changeset. Preserve the engine, version,
+language, active engine pack, model policy, comments, and key order byte-for-byte.
+If the selected value already matches, report a no-op and do not rewrite the
+file. If approval is declined, leave `.codex/studio.toml` unchanged and continue
+without claiming the selection was saved.
+
+Never create a separate review-mode file, even as a compatibility fallback.
+
+---
+
+## Phase 7: Confirm Before Proceeding
 
 After presenting the recommended path, ask one concise question and wait for the answer to ask the user which step they'd like to take first. Never auto-run the next skill.
 
@@ -237,7 +259,7 @@ After presenting the recommended path, ask one concise question and wait for the
 
 ---
 
-## Phase 5: Hand Off
+## Phase 8: Hand Off
 
 When the user confirms their next step, respond with a single short line: "Type `[skill command]` to begin." Nothing else. Do not re-explain the skill or add encouragement. The `$start` skill's job is done.
 
@@ -249,7 +271,7 @@ Verdict: **COMPLETE** — user oriented and handed off to next step.
 
 - **User picks D but project is empty**: Gently redirect — "It looks like the project is a fresh template with no artifacts yet. Would Path A or B be a better fit?"
 - **User picks A but project has code**: Mention what you found — "I noticed there's already code in `src/`. Did you mean to pick D (existing work)?"
-- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[read from production/review-mode.txt, or 'lean (default)' if missing]`. Want to pick up where you left off? Try `$sprint-plan` or just tell me what you'd like to work on."
+- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[read review_mode from .codex/studio.toml]`. Want to pick up where you left off? Try `$sprint-plan` or just tell me what you'd like to work on."
 - **User doesn't fit any option**: Let them describe their situation in their own words and adapt.
 
 ---

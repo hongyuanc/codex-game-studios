@@ -62,7 +62,7 @@ children return scoped evidence and the parent synthesizes the result.
 2. Phase 1b — `$ux-design inventory-screen` invoked (or ux-designer spawned directly); produces `design/ux/inventory-screen.md` using `ux-spec.md` template; `request_user_input` confirms spec before review
 3. Phase 1c — `$ux-review design/ux/inventory-screen.md` invoked; returns APPROVED; gate passed, proceed to Phase 2
 4. Phase 2 — art-director spawned; reviews full UX spec (not only wireframes); applies visual treatment; verifies color contrast; produces visual design spec with asset manifest; `request_user_input` confirms before Phase 3
-5. Phase 3 — engine UI specialist spawned first (read from technical-preferences.md); produces implementation notes for ui-programmer; ui-programmer spawned with UX spec + visual spec + engine notes; implementation produced; interaction-patterns.md updated if new patterns introduced
+5. Phase 3 — engine UI specialist spawned first (read from .codex/docs/technical-preferences.md); produces implementation notes for ui-programmer; ui-programmer spawned with UX spec + visual spec + engine notes; implementation produced; interaction-patterns.md updated if new patterns introduced
 6. Phase 4 — ux-designer, art-director, accessibility-specialist spawned in parallel; all three return results before Phase 5
 7. Phase 5 — review feedback addressed; animations verified skippable; UI sounds confirmed through audio event system; interaction-patterns.md final check; verdict: COMPLETE
 8. Summary report: UX spec APPROVED, visual design COMPLETE, implementation COMPLETE, accessibility COMPLIANT, all input methods supported, pattern library updated, verdict: COMPLETE

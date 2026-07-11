@@ -413,6 +413,36 @@ same filenames.
   `.codex/studio.toml`, sequential two-option questions, and valid native
   question schema.
 
+## Contract-closure remediation
+
+- `.codex/studio.toml` is now the only persistent review-depth authority.
+  `$start` detects real project artifacts first, asks ordered project-state
+  decisions, proposes `production/stage.txt` separately, and writes a selected
+  `review_mode` only through an explicitly approved `.codex/studio.toml`
+  changeset. `phase-gated` means lean optional review while mandatory director
+  gates remain active; `solo` also preserves explicitly required gates.
+- Runtime `$skill-test`, its framework spec, and the quality rubric share the
+  exact `validate_skill` discovery contract: frontmatter contains only `name`
+  and `description`, the name matches the directory, and the trigger-oriented
+  description is nonblank without requiring a literal prefix. All 73 shipped
+  skills are checked against the runtime validator.
+- Every framework agent spec records and is tested against both the exact
+  `model` and exact `model_reasoning_effort` in its TOML profile. Framework
+  paths now resolve to real native locations, authoring specs gate one complete
+  changeset before writes, and the framework `$start` cases mirror the runtime
+  project-state and artifact sequence.
+- Runtime traversal now covers `assets/`, `src/`, and `prototypes/` in addition
+  to the prior roots, rejects file and directory symlinks, and reports
+  `os.walk` read failures as validation errors. Tests and the validator itself
+  receive no whole-file exemption: enforcement literals require balanced,
+  explicit line or block markers. Upgrade-history exceptions likewise require
+  balanced, non-nested historical markers.
+- Framework parity pins source commit
+  `7bad60b7e0e71723b4b745e36950492d714595a3` and source root
+  `CCGS Skill Testing Framework` into the contract digest. The validator
+  rejects metadata tampering and any extra, missing, or symlinked native file
+  outside the exact 127 mappings plus the `vertical-slice` extension.
+
 ## Known limitation
 
 The hook runner defends repository boundaries with reviewed path checks and
@@ -424,7 +454,7 @@ reparse-point cases.
 ## Final automated gate
 
 - `python3 -m unittest discover -s tests/studio -p 'test_*.py' -v`:
-  **227 tests, OK; zero skips**.
+  **243 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,
@@ -435,8 +465,9 @@ reparse-point cases.
   (`.superpowers/sdd/`, `docs/superpowers/`, and `production/migration/`) and
   the validator/test literal definitions that enforce the prohibition.
 - Root README links and `AGENTS.md` imports resolve.
-- Python compilation, JSON parsing, TOML parsing, deterministic catalog/coverage
-  parsing, and `git diff --check`: pass.
+- Python compilation, JSON/TOML/YAML parsing, deterministic catalog/coverage
+  and parity parsing, recursive link/path validation, and `git diff --check`:
+  pass.
 - `.claude/`, `CCGS Skill Testing Framework/`, and every `CLAUDE.md` source are
   absent after cleanup.
 

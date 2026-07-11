@@ -178,17 +178,17 @@ children return scoped evidence and the parent synthesizes the result.
 
 **Fixture (variant A — milestone data present):**
 - `production/milestones/` exists with a milestone file; most recent milestone is "v1.1.0 — Gold"
-- `production/session-state/active.md` references a version or milestone
+- the explicit skill argument or a user-selected artifact under `production/` references a version or milestone
 
 **Fixture (variant B — no discoverable version):**
 - `production/milestones/` does not exist
-- `production/session-state/active.md` does not reference a version
+- the explicit skill argument or a user-selected artifact under `production/` does not reference a version
 - No git tags are present from which to infer a version
 
 **Input:** `$team-release` (no argument)
 
 **Expected behavior (variant A):**
-1. Phase 1: No argument provided; reads `production/session-state/active.md`; reads most recent milestone file in `production/milestones/`
+1. Phase 1: No argument provided; reads the explicit skill argument or a user-selected artifact under `production/`; reads most recent milestone file in `production/milestones/`
 2. Infers v1.1.0 as the target version; reports "No version argument provided — inferred v1.1.0 from milestone data. Proceeding."
 3. Confirms with request_user_input before beginning Phase 1 proper: "Releasing v1.1.0. Is this correct?"
 4. Proceeds as if `$team-release v1.1.0` was the input
@@ -200,7 +200,7 @@ children return scoped evidence and the parent synthesizes the result.
 
 **Assertions:**
 - [ ] Skill does NOT default to a hardcoded version string when no argument is provided
-- [ ] Skill reads `production/session-state/active.md` and milestone files before asking (variant A)
+- [ ] Skill reads the explicit skill argument or a user-selected artifact under `production/` and milestone files before asking (variant A)
 - [ ] Inferred version is confirmed with the user via request_user_input before proceeding (variant A)
 - [ ] When no version is discoverable, request_user_input is used — skill does not guess (variant B)
 - [ ] Skill does NOT error out when milestone files are absent — it falls back to asking (variant B)

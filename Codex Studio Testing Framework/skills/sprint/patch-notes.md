@@ -146,7 +146,7 @@ None. Patch notes generation is a fast compilation task; no gates are invoked.
 
 **Fixture:**
 - `docs/CHANGELOG.md` exists with player-facing entries
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$patch-notes v0.4.0`
 

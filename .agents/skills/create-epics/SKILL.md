@@ -33,7 +33,7 @@ will have changed.
 Resolve the review mode (once, store for all gate spawns this run):
 1. If `--review [full|lean|solo]` was passed → use that
 2. Else read `.codex/studio.toml` and use its `review_mode` value
-3. Map `review_mode = "phase-gated"` to lean gate intensity; if config is unavailable, report it and use the safe phase-gated/lean behavior without writing configuration
+3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. If config is unavailable, report it and use phase-gated behavior without writing configuration
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 

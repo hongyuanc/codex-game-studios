@@ -154,10 +154,10 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - Story file exists and is READY (all 4 dimensions pass, ADR Accepted, criteria present)
-- `production/session-state/review-mode.txt` exists
+- `.codex/studio.toml` exists
 
 **Case 5a — full mode:**
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$story-readiness production/epics/core/story-light-pickup.md` (full mode)
 
@@ -174,17 +174,17 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] A QA lead INADEQUATE verdict overrides a READY 4-dimension result → final verdict BLOCKED
 - [ ] Gate invocation is noted in output: "Gate: QL-STORY-READY — [result]"
 
-**Case 5b — lean or solo mode:**
-- `review-mode.txt` contains `lean` or `solo`
+**Case 5b — phase-gated or solo mode:**
+- `.codex/studio.toml` contains `phase-gated` or `solo`
 
 **Expected behavior:**
-1. Skill reads review mode — determines `lean` or `solo`
+1. Skill reads review mode — determines `phase-gated` or `solo`
 2. QL-STORY-READY gate is SKIPPED
-3. Output notes the skip: "[QL-STORY-READY] skipped — Lean/Solo mode"
+3. Output notes the skip: "[QL-STORY-READY] skipped — Phase-gated/Solo mode"
 4. Verdict is based on 4-dimension check only
 
 **Assertions (5b):**
-- [ ] QL-STORY-READY gate does NOT spawn in lean or solo mode
+- [ ] QL-STORY-READY gate does NOT spawn in phase-gated or solo mode
 - [ ] Skip is explicitly noted in output
 - [ ] Verdict is based on 4-dimension check alone
 
@@ -205,7 +205,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - Case where TR-ID is missing from the registry entirely is not explicitly
   tested here; it follows the same NEEDS WORK pattern as Case 3.
 - The "no argument" path (skill auto-detecting the current story) is not
-  tested because it depends on `production/session-state/active.md` content,
+  tested because it depends on the explicit skill argument or a user-selected artifact under `production/` content,
   which is hard to fixture reliably.
 - Stories with multiple ADR references are not tested; behavior is assumed to
   be additive (all ADRs must be Accepted for READY verdict).

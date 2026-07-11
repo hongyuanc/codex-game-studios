@@ -37,9 +37,9 @@ auto-advancing stage and must respect the three review modes.
 
 | Metric | PASS criteria |
 |---|---|
-| **G1 — Review mode read** | Skill reads `production/session-state/review-mode.txt` (or equivalent) before deciding which directors to spawn |
+| **G1 — Review mode read** | Skill reads `.codex/studio.toml` (or equivalent) before deciding which directors to spawn |
 | **G2 — Full mode: direct-child panel** | In `full` mode, the 4 directors (CD, TD, PR, AD) are independent direct-child custom-agent delegations; the parent waits for and synthesizes every verdict |
-| **G3 — Lean mode: PHASE-GATE only** | In `lean` mode, only `*-PHASE-GATE` gates run; inline gates (CD-PILLARS, TD-ARCHITECTURE, etc.) are skipped |
+| **G3 — Phase-gated mode: PHASE-GATE only** | In `phase-gated` mode, only `*-PHASE-GATE` gates run; inline gates (CD-PILLARS, TD-ARCHITECTURE, etc.) are skipped |
 | **G4 — Solo mode: no directors** | In `solo` mode, no director gates spawn; each is noted as "skipped — Solo mode" |
 | **G5 — No auto-advance** | Skill never changes `production/stage.txt` unless that path and transition are part of one complete approved changeset |
 
@@ -76,11 +76,11 @@ a single-draft pattern appropriate to their smaller scope.
 
 | Metric | PASS criteria |
 |---|---|
-| **A1 — Section-by-section cycle** | Full authoring skills (design-system, ux-design, art-bible) author one section at a time, presenting content for approval before proceeding to the next. Lightweight skills (quick-design, architecture-decision, create-architecture) may draft the complete document then ask for approval — single-draft is acceptable for documents under ~4 hours of implementation scope. |
-| **A2 — Bounded authoring approval** | Before editing, the skill presents the complete current section or lightweight-document changeset with every target path; scope expansion requires fresh approval |
+| **A1 — Section-by-section drafting** | Full authoring skills (design-system, ux-design, art-bible) discuss and approve one section at a time in memory. Lightweight skills may draft the complete document at once. Neither pattern writes during drafting. |
+| **A2 — Complete changeset approval** | Before any edit, the skill presents one complete changeset with every target path and material edit; scope expansion requires a revised proposal and fresh approval |
 | **A3 — Retrofit mode** | Skill detects if the target file already exists and offers to update specific sections rather than overwriting the whole document. Lightweight skills (quick-design) that always create new files are exempt. |
-| **A4 — Director gate at correct tier** | If a director gate is defined for this skill (e.g., CD-GDD-ALIGN, TD-ADR), it runs at the correct mode threshold (full/lean) — NOT in solo |
-| **A5 — Skeleton-first** | Full authoring skills create a file skeleton with all section headers before filling content, to preserve progress on session interruption. Lightweight skills are exempt. |
+| **A4 — Director gate at correct tier** | If a director gate is defined for this skill (e.g., CD-GDD-ALIGN, TD-ADR), it runs at the correct mode threshold (full/phase-gated) — NOT in solo |
+| **A5 — In-memory skeleton first** | Full authoring skills draft all section headers in memory before content, then include skeleton and content in the same approved changeset. Lightweight skills are exempt. |
 
 > **Full authoring skills** (must pass all 5 metrics): `design-system`, `ux-design`, `art-bible`
 > **Lightweight authoring skills** (A1, A2, A5 use single-draft pattern; A3 exempt for new-file-only skills): `quick-design`, `architecture-decision`, `create-architecture`
@@ -100,7 +100,7 @@ multi-dimensional verdicts and integrate correctly with director gate mode.
 | **RD1 — Multi-dimensional check** | Skill checks ≥3 independent dimensions (e.g., Design, Architecture, Scope, DoD) and reports each separately |
 | **RD2 — Three verdict levels** | Verdict hierarchy is clearly defined: READY/COMPLETE > NEEDS WORK/COMPLETE WITH NOTES > BLOCKED |
 | **RD3 — BLOCKED requires external action** | BLOCKED verdict is reserved for issues that cannot be fixed by the story author alone (e.g., Proposed ADR, unresolvable dependency) |
-| **RD4 — Director gate at correct mode** | QL-STORY-READY or LP-CODE-REVIEW gate spawns in `full` mode, skips in `lean`/`solo` with a noted skip message |
+| **RD4 — Director gate at correct mode** | QL-STORY-READY or LP-CODE-REVIEW gate spawns in `full` mode, skips in `phase-gated`/`solo` with a noted skip message |
 | **RD5 — Next-story handoff** | After completion, skill surfaces the next READY story from the active sprint |
 
 ---
@@ -117,7 +117,7 @@ with correct schema, respect layer/priority ordering, and gate before writing.
 | **P1 — Correct output schema** | Each produced file follows the project template (EPIC.md, story frontmatter, etc.); skill references the template path |
 | **P2 — Layer/priority ordering** | Skills that produce epics or stories respect layer ordering (core → extended → meta) and priority fields |
 | **P3 — Complete artifact changeset** | The skill lists every output path and material edit in one bounded proposal; approval covers that set and no unlisted artifact |
-| **P4 — Director gate at correct tier** | In-scope gates (PR-EPIC, QL-STORY-READY, LP-CODE-REVIEW, etc.) run in `full`, skip in `lean`/`solo` with noted skip |
+| **P4 — Director gate at correct tier** | In-scope gates (PR-EPIC, QL-STORY-READY, LP-CODE-REVIEW, etc.) run in `full`, skip in `phase-gated`/`solo` with noted skip |
 | **P5 — Reads before writes** | Skill reads the relevant GDD/ADR/manifest before producing artifacts to ensure alignment |
 
 ---
@@ -167,7 +167,7 @@ They have a PR-SPRINT or PR-MILESTONE gate at specific mode thresholds.
 | Metric | PASS criteria |
 |---|---|
 | **SP1 — Reads sprint/milestone state** | Skill reads `production/sprints/` or `production/milestones/` before producing output |
-| **SP2 — Correct sprint gate** | PR-SPRINT (for planning) or PR-MILESTONE (for milestone review) gate runs in `full` mode, skips in `lean`/`solo` |
+| **SP2 — Correct sprint gate** | PR-SPRINT (for planning) or PR-MILESTONE (for milestone review) gate runs in `full` mode, skips in `phase-gated`/`solo` |
 | **SP3 — Structured output** | Output uses a consistent structure (velocity table, risk list, action items) rather than free prose |
 | **SP4 — No auto-commit** | Sprint files, milestone records, commits, and publication are never implicit; each mutation uses its applicable approved boundary |
 
@@ -187,13 +187,13 @@ gates, the gate mode logic must also be correct.
 | Metric | PASS criteria |
 |---|---|
 | **U1 — Passes all 7 static checks** | `$skill-test static [name]` returns COMPLIANT with 0 FAILs |
-| **U2 — Gate mode correct (if applicable)** | If the skill spawns any director gate, it reads review-mode and applies full/lean/solo logic correctly |
+| **U2 — Gate mode correct (if applicable)** | If the skill spawns any director gate, it reads `review_mode` from `.codex/studio.toml` and applies full/phase-gated/solo logic correctly |
 
 ---
 
 ## Agent Categories
 
-Used to validate agent spec files in `tests/agents/`.
+Used to validate agent spec files in `Codex Studio Testing Framework/agents/`.
 
 ### `director`
 

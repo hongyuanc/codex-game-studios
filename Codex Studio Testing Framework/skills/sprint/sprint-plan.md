@@ -43,7 +43,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 | Gate ID   | Trigger condition        | Mode guard         |
 |-----------|--------------------------|--------------------|
-| PR-SPRINT | After sprint draft built | full only (not lean/solo) |
+| PR-SPRINT | After sprint draft built | full only (not phase-gated/solo) |
 
 ---
 
@@ -54,7 +54,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 **Fixture:**
 - `production/milestones/milestone-02.md` exists with capacity `10 story points`
 - Backlog contains 5 unstarted stories across 2 epics, mixed priorities
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - Next sprint number is `003` (sprints 001 and 002 already exist)
 
 **Input:** `$sprint-plan`
@@ -105,7 +105,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - Backlog has 8 stories totalling 16 points; milestone capacity is 10 points
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$sprint-plan`
 
@@ -124,23 +124,23 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ---
 
-### Case 4: Lean Mode — PR-SPRINT gate skipped
+### Case 4: Phase-gated Mode — PR-SPRINT gate skipped
 
 **Fixture:**
 - Backlog has 4 stories; milestone capacity is 8 points
-- `review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$sprint-plan`
 
 **Expected behavior:**
-1. Skill reads review mode — determines `lean`
+1. Skill reads review mode — determines `phase-gated`
 2. Skill drafts sprint and presents it to user
-3. PR-SPRINT gate is skipped; output notes "[PR-SPRINT] skipped — Lean mode"
+3. PR-SPRINT gate is skipped; output notes "[PR-SPRINT] skipped — Phase-gated mode"
 4. Skill asks user for direct approval of the sprint
 5. User approves; sprint file is written
 
 **Assertions:**
-- [ ] PR-SPRINT gate is NOT invoked in lean mode
+- [ ] PR-SPRINT gate is NOT invoked in phase-gated mode
 - [ ] Skip is explicitly noted in output
 - [ ] User approval is still required before write (gate skip ≠ approval skip)
 - [ ] Verdict is COMPLETE after write
@@ -152,7 +152,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 **Fixture:**
 - `production/sprints/sprint-002.md` exists with 2 stories still `Status: In Progress`
 - Backlog has 5 new unstarted stories
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$sprint-plan`
 
@@ -176,7 +176,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Shows draft sprint before invoking PR-SPRINT gate or asking to write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] PR-SPRINT gate only runs in full mode
-- [ ] Skip message appears in lean and solo mode output
+- [ ] Skip message appears in phase-gated and solo mode output
 - [ ] Verdict is clearly stated at the end of the skill output
 
 ---
@@ -186,7 +186,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - The case where no milestone file exists is not explicitly tested; behavior
   follows the BLOCKED pattern with a suggestion to run `$gate-check` for
   milestone progression.
-- Solo mode behavior is equivalent to lean (gate skipped, user approval
+- Solo mode behavior is equivalent to phase-gated (gate skipped, user approval
   required) and is not separately tested.
 - Parallel story selection algorithms are not tested here; those are unit
   concerns for the sprint-plan subagent.

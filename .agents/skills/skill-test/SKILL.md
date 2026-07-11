@@ -55,9 +55,13 @@ For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Fr
 For each skill being tested, read its `SKILL.md` fully and run all 7 checks:
 
 ### Check 1 — Native Skill Contract
-The YAML frontmatter must contain `name:` and a trigger-oriented `description:` beginning with `Use when`.
+The YAML frontmatter must contain exactly `name` and `description`; `name` must equal the skill directory name, and `description` must be nonblank and trigger-oriented.
+This static contract does not require a literal `Use when` prefix.
 
-Run `tools/codex_studio/validate.py` (or call `validate_skill`) so non-native interaction primitives, legacy paths, model metadata, and tool metadata also fail this check.
+Delegate the structural decision to `validate_skill` in
+`tools/codex_studio/validate.py` so the runtime validator remains the single
+implementation of this contract and non-native interaction primitives, legacy
+paths, model metadata, and tool metadata also fail this check.
 
 **FAIL** for any validator issue or missing trigger-oriented description.
 ### Check 2 — Multiple Phases
@@ -252,8 +256,8 @@ For each metric in the category's rubric table:
 Metric G1 — Review mode read:      PASS
 Metric G2 — Full mode directors:   FAIL
   Gap: Phase 3 spawns only CD-PHASE-GATE; TD-PHASE-GATE, PR-PHASE-GATE, AD-PHASE-GATE absent
-Metric G3 — Lean mode: PHASE-GATE only: PASS
-Metric G4 — Solo mode: no directors:    PASS
+Metric G3 — Phase-gated: required gates only: PASS
+Metric G4 — Solo: required gates remain, optional gates skipped: PASS
 Metric G5 — No auto-advance:       PASS
 
 Verdict: FAIL (1 failure, 0 warnings)

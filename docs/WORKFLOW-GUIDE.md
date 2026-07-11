@@ -1153,8 +1153,9 @@ These topics apply across all phases.
 
 ### Director Review Modes
 
-Director gates are specialist agents that review your work at key workflow steps.
-By default they run at every checkpoint. You can control how much review you get.
+Director gates are specialist agents that review your work at key workflow
+steps. You can control optional review depth; gates explicitly marked required
+remain active in every mode.
 
 **Set your review intensity once during `$start`.** Saved as `review_mode` in
 `.codex/studio.toml`.
@@ -1162,8 +1163,8 @@ By default they run at every checkpoint. You can control how much review you get
 | Mode | What runs | Best for |
 |------|-----------|----------|
 | `full` | All director gates at every step | New projects, learning the system |
-| `lean` | Directors only at phase transitions (`$gate-check`) | Experienced devs |
-| `solo` | No director reviews | Game jams, prototypes, maximum speed |
+| `phase-gated` | Lean optional-review depth; phase-transition and other mandatory gates run | Experienced developers; the default |
+| `solo` | Optional director consultation skipped; explicitly required gates run | Game jams and prototypes |
 
 **Override for a single run** without changing your global setting:
 
@@ -1172,8 +1173,9 @@ $brainstorm space horror --review full
 $architecture-decision --review solo
 ```
 
-The `--review` flag works on all gate-using skills. Change the global mode at any
-time by editing `review_mode` in `.codex/studio.toml` or re-running `$start`.
+The `--review` flag works on all gate-using skills. Change the persistent mode by
+running `$start`, selecting a depth, and approving its exact
+`.codex/studio.toml` changeset.
 
 Full gate definitions and check pattern: `.codex/docs/director-gates.md`
 
@@ -1328,8 +1330,8 @@ $gate-check polish               # Polish -> Release
 - **CONCERNS** -- requirements met with acknowledged risks, passable
 - **FAIL** -- requirements not met, blocks advancement with specific remediation
 
-When a gate passes, `production/stage.txt` is updated (only then), which
-controls the status line and `$help` behavior.
+When a gate passes, `production/stage.txt` is updated (only then). It is the
+authority for project-stage detection and `$help` routing.
 
 ### Reverse Documentation
 

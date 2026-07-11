@@ -138,20 +138,20 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ### Case 4: Edge Case — No argument, auto-detect current story
 
 **Fixture:**
-- `production/session-state/active.md` contains a reference to
+- the explicit skill argument or a user-selected artifact under `production/` contains a reference to
   `production/epics/core/story-oxygen-drain.md` as the active story
 - That story file exists with `Status: In Progress`
 
 **Input:** `$story-done` (no argument)
 
 **Expected behavior:**
-1. Skill reads `production/session-state/active.md`
+1. Skill reads the explicit skill argument or a user-selected artifact under `production/`
 2. Skill finds the active story reference
 3. Skill reads that story file and proceeds normally
 4. Output confirms which story was auto-detected
 
 **Assertions:**
-- [ ] Skill reads `production/session-state/active.md` when no argument is given
+- [ ] Skill reads the explicit skill argument or a user-selected artifact under `production/` when no argument is given
 - [ ] Skill identifies and confirms the auto-detected story before proceeding
 - [ ] If no story is found in session state, skill asks the user to provide a path
 
@@ -164,10 +164,10 @@ Verified automatically by `$skill-test static` — no fixture needed.
 **Fixture:**
 - Story file at `production/epics/core/story-light-pickup.md`
 - All acceptance criteria verified, no GDD deviations
-- `production/session-state/review-mode.txt` exists
+- `.codex/studio.toml` exists
 
 **Case 5a — full mode:**
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$story-done production/epics/core/story-light-pickup.md` (full mode)
 
@@ -185,17 +185,17 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Gate result is noted in output: "Gate: LP-CODE-REVIEW — [result]"
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
-**Case 5b — lean or solo mode:**
-- `review-mode.txt` contains `lean` or `solo`
+**Case 5b — phase-gated or solo mode:**
+- `.codex/studio.toml` contains `phase-gated` or `solo`
 
 **Expected behavior:**
-1. Skill reads review mode — determines `lean` or `solo`
+1. Skill reads review mode — determines `phase-gated` or `solo`
 2. LP-CODE-REVIEW gate is SKIPPED
-3. Output notes the skip: "[LP-CODE-REVIEW] skipped — Lean/Solo mode"
+3. Output notes the skip: "[LP-CODE-REVIEW] skipped — Phase-gated/Solo mode"
 4. Story completion proceeds based on acceptance criteria check only
 
 **Assertions (5b):**
-- [ ] LP-CODE-REVIEW gate does NOT spawn in lean or solo mode
+- [ ] LP-CODE-REVIEW gate does NOT spawn in phase-gated or solo mode
 - [ ] Skip is explicitly noted in output
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 

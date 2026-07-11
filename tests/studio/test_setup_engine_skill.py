@@ -24,8 +24,8 @@ class SetupEngineSkillTests(unittest.TestCase):
             "five active profiles",
         ):
             self.assertIn(required, text)
-        self.assertNotIn("AskUserQuestion", text)
-        self.assertNotIn(".Codex/", text)
+        self.assertNotIn("AskUserQuestion", text)  # enforcement-literal
+        self.assertNotIn(".Codex/", text)  # enforcement-literal
 
     def test_setup_engine_uses_supported_engines_and_selected_pack_preferences(self):
         text = (ROOT / ".agents/skills/setup-engine/SKILL.md").read_text(encoding="utf-8")

@@ -103,7 +103,7 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 **Fixture:**
 - Profiler data shows consistent 22ms frame times (target: 16.6ms for 60fps)
 - All frames exceed budget; no single spike — systemic issue
-- `technical-preferences.md` specifies target platform: PC, 60fps
+- `.codex/docs/technical-preferences.md` specifies target platform: PC, 60fps
 
 **Input:** `$perf-profile production/qa/profiler-export-2026-03-20.json`
 
@@ -116,7 +116,7 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 
 **Assertions:**
 - [ ] Verdict is OVER BUDGET when all or most frames exceed budget
-- [ ] Target frame budget is read from `technical-preferences.md` (not hardcoded)
+- [ ] Target frame budget is read from `.codex/docs/technical-preferences.md` (not hardcoded)
 - [ ] Optimization priority list is provided, not just the raw verdict
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
@@ -150,7 +150,7 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 
 **Fixture:**
 - Profiler data shows CONCERNS-level findings (some spikes)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$perf-profile production/qa/profiler-export-2026-04-01.json`
 
@@ -171,7 +171,7 @@ None. Performance profiling is an advisory analysis skill; no gates are invoked.
 ## Protocol Compliance
 
 - [ ] Reads profiler data when provided; outputs checklist when not
-- [ ] Reads `technical-preferences.md` for target platform frame budget
+- [ ] Reads `.codex/docs/technical-preferences.md` for target platform frame budget
 - [ ] Checks for prior perf reports to enable delta comparison
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] No director gates are invoked

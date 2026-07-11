@@ -37,7 +37,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$story-readiness`, `$dev-story`)
 - [ ] Documents story Status: Blocked when governing ADR is Proposed
-- [ ] Documents QL-STORY-READY gate: active in full mode, skipped in lean/solo
+- [ ] Documents QL-STORY-READY gate: active in full mode, skipped in phase-gated/solo
 
 ---
 
@@ -47,8 +47,8 @@ In `full` mode: QL-STORY-READY check runs per story after creation. Stories that
 fail the check are marked NEEDS WORK before the parent presents the complete
 story-file changeset for approval.
 
-In `lean` mode: QL-STORY-READY is skipped. Output notes:
-"QL-STORY-READY skipped — lean mode" per story.
+In `phase-gated` mode: QL-STORY-READY is skipped. Output notes:
+"QL-STORY-READY skipped — phase-gated mode" per story.
 
 In `solo` mode: QL-STORY-READY is skipped with equivalent notes.
 
@@ -64,7 +64,7 @@ In `solo` mode: QL-STORY-READY is skipped with equivalent notes.
 - All governing ADRs have `Status: Accepted`
 - `docs/architecture/control-manifest.md` exists
 - `docs/architecture/tr-registry.yaml` has TR-IDs for all 3 requirements
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$create-stories [epic-name]`
 
@@ -72,7 +72,7 @@ In `solo` mode: QL-STORY-READY is skipped with equivalent notes.
 1. Skill reads EPIC.md, GDD, governing ADRs, control manifest, and TR registry
 2. Classifies each requirement into a story type (Logic / Integration / Visual/Feel / UI / Config/Data)
 3. Drafts 3 story files with correct frontmatter schema
-4. QL-STORY-READY is skipped (lean mode) — noted in output
+4. QL-STORY-READY is skipped (phase-gated mode) — noted in output
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Writes all 3 story files after approval
 
@@ -159,7 +159,7 @@ In `solo` mode: QL-STORY-READY is skipped with equivalent notes.
 **Fixture:**
 - EPIC.md exists with 2 requirements
 - Both governing ADRs are Accepted
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - QL-STORY-READY check finds one story has ambiguous acceptance criteria
 
 **Input:** `$create-stories [epic-name]`

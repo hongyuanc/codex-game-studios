@@ -2,6 +2,11 @@
 
 This studio uses phase-gated autonomy:
 
+`review_mode = "phase-gated"` in `.codex/studio.toml` means lean
+optional-review depth. Optional per-skill director consultations may be skipped;
+phase-transition gates and any director gate explicitly marked required still
+run. No second persistent review-mode file is consulted.
+
 1. The user approves concepts, material design and architecture decisions,
    scope changes, milestone changes, and each implementation story changeset.
 2. After story approval, the implementing agent may edit the agreed files, add

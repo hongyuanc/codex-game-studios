@@ -11,7 +11,11 @@ Keep repository source artifacts read-only during analysis and cite concrete fil
 
 Extract `--depth [full|lean|solo]` if present. Default is `full` when no flag is given.
 
-**Note**: `--depth` controls the *analysis depth* of this skill (how many specialist agents are consulted). It is independent of the global review mode in `production/review-mode.txt`, which controls director gate delegation. These are two different concepts — `--depth` is about how thoroughly *this* skill analyses the document.
+**Note**: `--depth` controls the *analysis depth* of this skill (how many
+specialist agents are consulted). It is independent of the persistent
+`review_mode` in `.codex/studio.toml`, which controls director gate delegation.
+These are two different concepts — `--depth` is about how thoroughly *this*
+skill analyses the document.
 
 - **`full`**: Complete review — all phases + specialist agent delegation (Phase 3b)
 - **`lean`**: All phases, no specialist agents — faster, single-session analysis

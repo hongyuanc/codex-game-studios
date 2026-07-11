@@ -33,7 +33,7 @@ requirements: []
 #
 # - id: TR-combat-001
 #   system: combat
-#   gdd: design$gdd$combat-system.md
+#   gdd: design/gdd/combat-system.md
 #   requirement: "Player takes damage from enemies based on attack power minus defence"
 #   created: 2026-03-10
 #   revised: ""
@@ -41,7 +41,7 @@ requirements: []
 #
 # - id: TR-combat-002
 #   system: combat
-#   gdd: design$gdd$combat-system.md
+#   gdd: design/gdd/combat-system.md
 #   requirement: "Combo window timing is 0.4 seconds between hits"
 #   created: 2026-03-10
 #   revised: "2026-04-01"
@@ -49,7 +49,7 @@ requirements: []
 #
 # - id: TR-combat-003
 #   system: combat
-#   gdd: design$gdd$combat-system.md
+#   gdd: design/gdd/combat-system.md
 #   requirement: "Old damage formula using raw stats"
 #   created: 2026-03-10
 #   revised: ""

@@ -192,14 +192,14 @@ class OperationsSkillTests(unittest.TestCase):
         for name in sorted(NAMES):
             with self.subTest(skill=name):
                 self.assertIsNone(
-                    re.search(r"\bTask calls?\b|\btask-call(?:s|ing)?\b", self.skill_text(name), re.I)
+                    re.search(r"\bTask calls?\b|\btask-call(?:s|ing)?\b", self.skill_text(name), re.I)  # enforcement-literal
                 )
 
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / "SKILL.md"
             fixture.write_text(
                 "---\nname: fixture\ndescription: Use when testing.\n---\n"
-                "Issue both Task calls before waiting.\n",
+                "Issue both Task calls before waiting.\n",  # enforcement-literal
                 encoding="utf-8",
             )
             issues = validate_skill(fixture)
@@ -366,6 +366,11 @@ class OperationsSkillTests(unittest.TestCase):
         self.assertIn("Validation is read-only and does not require approval", skill_test)
         self.assertIn(".agents/skills/", skill_test)
         self.assertIn("tools/codex_studio/validate.py", skill_test)
+        self.assertIn("exactly `name` and `description`", skill_test)
+        self.assertIn("`name` must equal the skill directory name", skill_test)
+        self.assertIn("nonblank and trigger-oriented", skill_test)
+        self.assertIn("does not require a literal `Use when` prefix", skill_test)
+        self.assertNotIn("beginning with `Use when`", skill_test)
 
         improve = self.skill_text("skill-improve")
         for phrase in (

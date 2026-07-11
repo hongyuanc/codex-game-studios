@@ -75,7 +75,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - `design/gdd/light-manipulation.md` exists using content from
-  `tests/skills/_fixtures/incomplete-gdd.md` (4 of 8 sections populated;
+  `an inline incomplete-GDD fixture` (4 of 8 sections populated;
   Formulas, Edge Cases, Tuning Knobs, Acceptance Criteria are missing)
 
 **Input:** `$design-review design/gdd/light-manipulation.md`
@@ -146,20 +146,20 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - `design/gdd/light-manipulation.md` exists with all 8 sections
-- `production/session-state/review-mode.txt` exists with `full` (most permissive mode)
+- `.codex/studio.toml` exists with `full` (most permissive mode)
 
 **Input:** `$design-review design/gdd/light-manipulation.md` (with full review mode active)
 
 **Expected behavior:**
 1. Skill reads the GDD document
-2. Skill does NOT read `review-mode.txt` — this skill has no director gates
+2. Skill does NOT read `.codex/studio.toml` — this skill has no director gates
 3. Skill produces the review output normally
 4. No director gate agents are spawned at any point
 5. Verdict is APPROVED (all 8 sections present in fixture)
 
 **Assertions:**
 - [ ] Skill does NOT spawn any director gate agent (CD-, TD-, PR-, AD- prefixed agents)
-- [ ] Skill does NOT read `review-mode.txt` or equivalent mode file
+- [ ] Skill does NOT read `.codex/studio.toml` or equivalent mode file
 - [ ] The `--review` flag or `full` mode state has NO effect on whether directors spawn
 - [ ] Output does not contain any "Gate: [GATE-ID]" entries
 - [ ] Skill IS the review — it does not delegate the review to a director

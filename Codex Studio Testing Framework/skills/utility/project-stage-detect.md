@@ -107,7 +107,7 @@ gates apply.
 - No `production/stage.txt`
 - `design/` directory exists but is empty
 - `src/` exists but contains no code files
-- `technical-preferences.md` has placeholders only
+- `.codex/docs/technical-preferences.md` has placeholders only
 
 **Input:** `$project-stage-detect`
 

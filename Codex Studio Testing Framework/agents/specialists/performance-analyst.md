@@ -5,6 +5,7 @@
 - Runtime profile: `.codex/agents/performance-analyst.toml`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
 - Model route: **Terra** (`gpt-5.6-terra`)
+- Reasoning effort: `high`
 - Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
 - Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
 
@@ -35,7 +36,7 @@ No gate IDs assigned.
 **Expected behavior:**
 - Identifies the primary bottleneck: CPU is over a 16.67ms (60fps) budget at 14ms total
 - Breaks down contributors: physics (6ms, 43% of CPU time) is the top culprit
-- Draw calls (420) flags as a secondary concern if the budget limit is lower (e.g., 200 draw calls per technical-preferences.md)
+- Draw calls (420) flags as a secondary concern if the budget limit is lower (e.g., 200 draw calls per .codex/docs/technical-preferences.md)
 - Produces a prioritized bottleneck report:
   1. Physics — 6ms, reduce simulation frequency or switch broadphase algorithm
   2. Draw calls — 420, implement batching or LOD
@@ -66,7 +67,7 @@ No gate IDs assigned.
 - Escalates the trade-off to `lead-programmer` for a decision
 - May propose a middle path (e.g., profile-guided inlining of only the hottest 2–3 methods) that preserves testability
 
-### Case 5: Context pass — technical-preferences.md budget
+### Case 5: Context pass — .codex/docs/technical-preferences.md budget
 **Input:** Technical preferences from context: Target 60fps, frame budget 16.67ms, draw calls max 200, memory ceiling 512MB. Request: "Review the current build profile."
 **Expected behavior:**
 - References the specific values from the provided context: 16.67ms, 200 draw calls, 512MB

@@ -146,20 +146,20 @@ Full GDD review is not needed for sub-4-hour single-system features.
 
 **Fixture:**
 - Feature is within scope for quick-design
-- `production/session-state/review-mode.txt` exists with `full`
+- `.codex/studio.toml` exists with `full`
 
 **Input:** `$quick-design [feature-name]`
 
 **Expected behavior:**
 1. Skill asks scoping questions and determines scope is within threshold
-2. Skill does NOT read `production/session-state/review-mode.txt`
+2. Skill does NOT read `.codex/studio.toml`
 3. Skill does NOT spawn any director gate agent
 4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. Output explicitly notes: "No director gate review — quick-design is for sub-4h features"
 
 **Assertions:**
 - [ ] No director gate agents are spawned (no CD-, TD-, PR-, AD- prefixed gates)
-- [ ] Skill does NOT read `production/session-state/review-mode.txt`
+- [ ] Skill does NOT read `.codex/studio.toml`
 - [ ] Output contains a note explaining why no gate review is needed
 - [ ] Review mode has no effect on this skill's behavior
 - [ ] Full GDD review path (`$design-system`) is mentioned as the alternative for larger features
@@ -172,7 +172,7 @@ Full GDD review is not needed for sub-4-hour single-system features.
 - [ ] 3-section format used (Overview, Rules, Acceptance Criteria) — NOT the 8-section GDD format
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] No director gates — no review-mode.txt read
+- [ ] No director gates — no .codex/studio.toml read
 - [ ] Ends with next-step handoff (e.g., proceed to implementation or `$dev-story`)
 
 ---

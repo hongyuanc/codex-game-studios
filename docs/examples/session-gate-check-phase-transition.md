@@ -146,7 +146,7 @@
 
 - **Gate check is automated, not manual**: agent reads artifacts and checks them — user doesn't fill out a form
 - **CONCERNS ≠ FAIL**: the cross-review concern is LOW severity and passes the gate. A FAIL would require resolution before advancing.
-- **Stage.txt is the authority**: the status line, `$help`, and all skills read from `production/stage.txt` — updating it here changes what every subsequent skill sees
+- **Stage.txt is the authority**: `$help`, project-stage detection, and stage-aware skills read `production/stage.txt` — updating it here changes their subsequent routing
 - **Next steps are phase-specific**: the agent doesn't give a generic "good luck" — it gives the ordered checklist for Technical Setup specifically
 - **Gate check surfaces carry-forward work**: the stack size conflict was a cross-review note; the gate check ensures it becomes a concrete ADR rather than getting lost
 - **One advance per gate**: the user confirmed advancement explicitly. The gate doesn't auto-advance; human confirmation is required.

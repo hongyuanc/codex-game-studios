@@ -147,19 +147,19 @@ director review is required at the analysis stage.
 
 **Fixture:**
 - A GDD has been revised with downstream references
-- `production/session-state/review-mode.txt` exists with `full`
+- `.codex/studio.toml` exists with `full`
 
 **Input:** `$propagate-design-change design/gdd/[system].md`
 
 **Expected behavior:**
 1. Skill reads the GDD and traces downstream references
-2. Skill does NOT read `production/session-state/review-mode.txt`
+2. Skill does NOT read `.codex/studio.toml`
 3. No director gate agents are spawned at any point
 4. Impact report is produced and the complete affected-artifact changeset proceeds to approval
 
 **Assertions:**
 - [ ] No director gate agents are spawned (no CD-, TD-, PR-, AD- prefixed gates)
-- [ ] Skill does NOT read `production/session-state/review-mode.txt`
+- [ ] Skill does NOT read `.codex/studio.toml`
 - [ ] Output contains no "Gate: [GATE-ID]" or gate-skipped entries
 - [ ] Review mode has no effect on this skill's behavior
 
@@ -171,7 +171,7 @@ director review is required at the analysis stage.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] In Progress stories flagged with elevated warning before their approval ask
-- [ ] No director gates — no review-mode.txt read
+- [ ] No director gates — no .codex/studio.toml read
 - [ ] Ends with next-step handoff appropriate to verdict (COMPLETE or NO IMPACT)
 
 ---

@@ -36,7 +36,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Contains verdict keywords: ACCEPTED, PROPOSED, CONCERNS
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
-- [ ] Documents gate behavior: TD-ADR + LP-FEASIBILITY in full mode; skipped in lean/solo
+- [ ] Documents gate behavior: TD-ADR + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
 - [ ] Documents that ADR status is Accepted (full, gates approve) or Proposed (otherwise)
 - [ ] Mentions engine version stamp from `docs/engine-reference/`
 
@@ -48,8 +48,8 @@ In `full` mode: TD-ADR (technical-director) and LP-FEASIBILITY (lead-programmer)
 spawn after the ADR draft is complete. If both return APPROVED, ADR Status is set
 to Accepted. If either returns CONCERNS or FAIL, ADR stays Proposed.
 
-In `lean` mode: both gates are skipped. ADR is written with Status: Proposed.
-Output notes: "TD-ADR skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode".
+In `phase-gated` mode: both gates are skipped. ADR is written with Status: Proposed.
+Output notes: "TD-ADR skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
 
 In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
@@ -62,7 +62,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 **Fixture:**
 - `docs/architecture/` exists with no existing ADR for rendering
 - `docs/engine-reference/[engine]/VERSION.md` exists
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$architecture-decision rendering-approach`
 
@@ -90,7 +90,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 **Fixture:**
 - ADR draft is complete (all sections filled)
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - TD-ADR gate returns CONCERNS: "The decision does not address [specific concern]"
 
 **Input:** `$architecture-decision [topic]`
@@ -110,10 +110,10 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 ---
 
-### Case 3: Lean Mode — Both gates skipped; ADR written as Proposed
+### Case 3: Phase-gated Mode — Both gates skipped; ADR written as Proposed
 
 **Fixture:**
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 - ADR draft is authored for a new technical decision
 
 **Input:** `$architecture-decision [topic]`
@@ -121,13 +121,13 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 **Expected behavior:**
 1. Skill guides user through all 6 sections
 2. After draft is complete: both TD-ADR and LP-FEASIBILITY are skipped
-3. Output notes: "TD-ADR skipped — lean mode" and "LP-FEASIBILITY skipped — lean mode"
+3. Output notes: "TD-ADR skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode"
 4. ADR is written with Status: Proposed (not Accepted, since gates did not approve)
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Both gate skip notes appear in output
-- [ ] ADR Status is Proposed (not Accepted) in lean mode
+- [ ] ADR Status is Proposed (not Accepted) in phase-gated mode
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill writes the ADR after user approval
 
@@ -176,13 +176,13 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 - [ ] Concerns are listed in output
 - [ ] Skill does NOT set Status: Accepted when any gate returns CONCERNS
 
-**Lean/solo mode:**
+**Phase-gated/solo mode:**
 - ADR Status is always Proposed regardless of content quality
 
-**Assertions (lean/solo):**
-- [ ] ADR Status is Proposed in lean mode
+**Assertions (phase-gated/solo):**
+- [ ] ADR Status is Proposed in phase-gated mode
 - [ ] ADR Status is Proposed in solo mode
-- [ ] No gate output appears in lean or solo mode
+- [ ] No gate output appears in phase-gated or solo mode
 
 ---
 
@@ -192,7 +192,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 - [ ] Engine version stamped in ADR from `docs/engine-reference/`
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] TD-ADR and LP-FEASIBILITY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in lean/solo output
+- [ ] Skipped gates noted by name and mode in phase-gated/solo output
 - [ ] ADR Status: Accepted only when full mode AND both gates APPROVED
 - [ ] Ends with next-step handoff: `$architecture-review` or `$create-control-manifest`
 

@@ -121,7 +121,7 @@ None. Content audit is a read-only analysis skill; no gates are invoked.
 - `design/gdd/audio.md` specifies audio assets as OGG format
 - `assets/audio/sfx/jump.wav` exists (WAV format, not OGG)
 - `assets/audio/sfx/land.ogg` exists (correct format)
-- `technical-preferences.md` specifies audio format: OGG
+- `.codex/docs/technical-preferences.md` specifies audio format: OGG
 
 **Input:** `$content-audit`
 
@@ -143,7 +143,7 @@ None. Content audit is a read-only analysis skill; no gates are invoked.
 
 **Fixture:**
 - GDDs specify 10 content items; 9 are found in assets; 1 is missing
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$content-audit`
 

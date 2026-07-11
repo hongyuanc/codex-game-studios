@@ -36,7 +36,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Contains verdict keywords: CREATED, BLOCKED
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$create-stories`)
-- [ ] Documents PR-EPIC gate behavior: runs in full mode; skipped in lean/solo
+- [ ] Documents PR-EPIC gate behavior: runs in full mode; skipped in phase-gated/solo
 
 ---
 
@@ -46,7 +46,7 @@ In `full` mode: PR-EPIC (producer) gate runs after epics are drafted and before
 any epic file is written. If PR-EPIC returns CONCERNS, epics are revised before
 the parent presents the complete EPIC-file changeset for approval.
 
-In `lean` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — lean mode".
+In `phase-gated` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — phase-gated mode".
 
 In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode".
 
@@ -61,14 +61,14 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 - Both systems have approved GDDs in `design/gdd/`
 - `docs/architecture/architecture.md` exists with matching modules
 - At least one Accepted ADR exists for each system
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$create-epics`
 
 **Expected behavior:**
 1. Skill reads systems index and both GDDs
 2. Drafts 2 EPIC definitions (layer, GDD path, ADRs, requirements, engine risk)
-3. PR-EPIC gate is skipped (lean mode) — noted in output
+3. PR-EPIC gate is skipped (phase-gated mode) — noted in output
 4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 5. After approval: writes both EPIC files
 6. Creates or updates `production/epics/index.md`
@@ -110,7 +110,7 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 
 **Fixture:**
 - 2 approved GDDs exist
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Full mode expected behavior:**
 1. Skill drafts both epics
@@ -123,17 +123,17 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Epic files are NOT written before PR-EPIC completes
 
-**Fixture (lean mode):**
+**Fixture (phase-gated mode):**
 - Same GDDs
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
-**Lean mode expected behavior:**
+**Phase-gated mode expected behavior:**
 1. Epics are drafted
 2. PR-EPIC is skipped — noted in output
 3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
-**Assertions (lean mode):**
-- [ ] "PR-EPIC skipped — lean mode" appears in output
+**Assertions (phase-gated mode):**
+- [ ] "PR-EPIC skipped — phase-gated mode" appears in output
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
@@ -162,7 +162,7 @@ In `solo` mode: PR-EPIC is skipped. Output notes: "PR-EPIC skipped — solo mode
 
 **Fixture:**
 - 2 approved GDDs exist
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - PR-EPIC gate returns CONCERNS (e.g., scope of one epic is too large)
 
 **Input:** `$create-epics`

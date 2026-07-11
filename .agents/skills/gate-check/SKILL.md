@@ -29,7 +29,8 @@ The project progresses through these stages:
 7. **Release** — Launch prep, certification
 
 **When a gate passes**, write the new stage name to `production/stage.txt`
-(single line, e.g. `Production`). This updates the status line immediately.
+(single line, e.g. `Production`). This updates project-stage detection and
+`$help` routing immediately.
 
 ---
 
@@ -39,10 +40,14 @@ The project progresses through these stages:
 
 Also resolve the review mode (once, store for all gate delegations this run):
 1. If `--review [full|lean|solo]` was passed → use that
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `review_mode` from `.codex/studio.toml`
+3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
+4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-Note: in `solo` mode, director delegations (CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, AD-PHASE-GATE) are skipped — gate-check becomes artifact-existence checks only. In `lean` mode, all four directors still run (phase gates are the purpose of lean mode).
+The CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE
+delegations are mandatory director gates and run in `full`, `lean`, and `solo`
+modes. Review depth only controls optional per-skill consultation; it never turns
+`$gate-check` into an artifact-existence-only check.
 
 - **With argument**: `$gate-check production` — validate readiness for that specific phase
 - **No argument**: Auto-detect current stage using the same heuristics as
@@ -308,8 +313,9 @@ For items that can't be automatically verified, **ask the user**:
 ## 4b. Director Panel Assessment
 
 **Apply review mode before delegating to any director:**
-- `solo` → skip all four directors. Note in output: "Director Panel skipped — Solo mode. Gate verdict based on artifact and quality checks only." Proceed to Phase 5.
-- `lean` → delegate to all four directors (phase gates always run in lean mode — this is their purpose).
+- `solo` → delegate to all four directors; PHASE-GATEs are mandatory.
+- `phase-gated` / `lean` → delegate to all four directors; phase gates are the
+  required review boundary for this depth.
 - `full` → delegate to all four directors as normal.
 
 (Review mode was resolved in Phase 1. Use that stored value here.)
@@ -432,7 +438,7 @@ Do NOT reference the draft verdict text — re-check specific files or ask the u
 When the verdict is **PASS** and the user confirms they want to advance:
 
 1. Write the new stage name to `production/stage.txt` (single line, no trailing newline)
-2. This immediately updates the status line for all future sessions
+2. This immediately updates project-stage detection for future sessions
 
 Example: if passing the "Pre-Production → Production" gate:
 ```bash

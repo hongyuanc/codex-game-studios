@@ -60,7 +60,7 @@ None. `$sprint-status` is a read-only reporting skill; no gates are invoked.
 **Input:** `$sprint-status`
 
 **Expected behavior:**
-1. Skill reads `production/session-state/active.md` to find active sprint reference
+1. Skill reads the explicit skill argument or a user-selected artifact under `production/` to find active sprint reference
 2. Skill reads `production/sprints/sprint-004.md`
 3. Skill counts stories by status: 3 Complete, 2 In Progress, 1 Blocked
 4. Skill detects a Blocked story and the approaching deadline
@@ -98,7 +98,7 @@ None. `$sprint-status` is a read-only reporting skill; no gates are invoked.
 ### Case 3: No Active Sprint File — Guidance to run $sprint-plan
 
 **Fixture:**
-- `production/session-state/active.md` does not reference an active sprint
+- the explicit skill argument or a user-selected artifact under `production/` does not reference an active sprint
 - `production/sprints/` directory is empty or absent
 
 **Input:** `$sprint-status`
@@ -145,7 +145,7 @@ None. `$sprint-status` is a read-only reporting skill; no gates are invoked.
 
 **Fixture:**
 - `production/sprints/sprint-004.md` exists with 4 stories (2 Complete, 2 In Progress)
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$sprint-status`
 

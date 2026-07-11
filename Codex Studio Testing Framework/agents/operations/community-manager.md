@@ -5,6 +5,7 @@
 - Runtime profile: `.codex/agents/community-manager.toml`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
 - Model route: **Luna** (`gpt-5.6-luna`)
+- Reasoning effort: `medium`
 - Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
 - Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
 

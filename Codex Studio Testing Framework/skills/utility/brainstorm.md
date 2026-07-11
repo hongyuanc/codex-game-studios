@@ -37,7 +37,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$map-systems`)
 - [ ] Documents 4 director gates in full mode: CD-PILLARS, AD-CONCEPT-VISUAL, TD-FEASIBILITY, PR-SCOPE
-- [ ] Documents that all 4 gates are skipped in lean and solo modes
+- [ ] Documents that all 4 gates are skipped in phase-gated and solo modes
 
 ---
 
@@ -46,8 +46,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 In `full` mode: CD-PILLARS, AD-CONCEPT-VISUAL, TD-FEASIBILITY, and PR-SCOPE
 spawn in parallel after the concept draft is approved by the user.
 
-In `lean` mode: all 4 inline gates are skipped (brainstorm has no PHASE-GATEs,
-so lean mode skips everything). Output notes all 4 as: "[GATE-ID] skipped — lean mode".
+In `phase-gated` mode: all 4 inline gates are skipped (brainstorm has no PHASE-GATEs,
+so phase-gated mode skips everything). Output notes all 4 as: "[GATE-ID] skipped — phase-gated mode".
 
 In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipped — solo mode".
 
@@ -59,7 +59,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 
 **Fixture:**
 - No existing `design/gdd/game-concept.md`
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$brainstorm`
 
@@ -87,7 +87,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 
 **Fixture:**
 - Concept draft is complete
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - CD-PILLARS gate returns REJECT: "The concept has no identifiable creative pillar"
 
 **Input:** `$brainstorm`
@@ -107,25 +107,25 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 
 ---
 
-### Case 3: Lean Mode — All 4 gates skipped; concept written after user confirms
+### Case 3: Phase-gated Mode — All 4 gates skipped; concept written after user confirms
 
 **Fixture:**
 - No existing game concept
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$brainstorm`
 
 **Expected behavior:**
 1. Concept options are presented and user selects one
 2. Concept is elaborated into a structured draft
-3. All 4 director gates are skipped — each noted: "[GATE-ID] skipped — lean mode"
+3. All 4 director gates are skipped — each noted: "[GATE-ID] skipped — phase-gated mode"
 4. Skill asks user to confirm the concept is ready to write
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Concept written after approval
 
 **Assertions:**
-- [ ] All 4 gate skip notes appear: "CD-PILLARS skipped — lean mode", "AD-CONCEPT-VISUAL skipped — lean mode", "TD-FEASIBILITY skipped — lean mode", "PR-SCOPE skipped — lean mode"
-- [ ] Concept is written after user confirmation only (no director approval needed in lean)
+- [ ] All 4 gate skip notes appear: "CD-PILLARS skipped — phase-gated mode", "AD-CONCEPT-VISUAL skipped — phase-gated mode", "TD-FEASIBILITY skipped — phase-gated mode", "PR-SCOPE skipped — phase-gated mode"
+- [ ] Concept is written after user confirmation only (no director approval needed in phase-gated)
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 
 ---
@@ -134,7 +134,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 
 **Fixture:**
 - No existing game concept
-- `production/session-state/review-mode.txt` contains `solo`
+- `.codex/studio.toml` contains `solo`
 
 **Input:** `$brainstorm`
 
@@ -149,7 +149,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 - [ ] All 4 skip notes appear with "solo mode" label
 - [ ] No director agents are spawned
 - [ ] Concept is written with only user approval
-- [ ] Behavior is otherwise equivalent to lean mode for this skill
+- [ ] Behavior is otherwise equivalent to phase-gated mode for this skill
 
 ---
 
@@ -157,7 +157,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 
 **Fixture:**
 - Concept draft is complete
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - PR-SCOPE gate returns CONCERNS: "The concept scope would require 18+ months for a solo developer"
 
 **Input:** `$brainstorm`
@@ -182,7 +182,7 @@ In `solo` mode: all 4 gates are skipped. Output notes all 4 as: "[GATE-ID] skipp
 - [ ] Presents 2-4 concept options with pros/cons before user commits
 - [ ] User confirms concept direction before director gates are invoked
 - [ ] All 4 director gates spawn in parallel in full mode
-- [ ] All 4 gates skipped in lean AND solo mode — each noted by name
+- [ ] All 4 gates skipped in phase-gated AND solo mode — each noted by name
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Ends with next-step handoff: `$map-systems`
 

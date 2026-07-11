@@ -17,7 +17,9 @@ On Windows, `py -3 --version` may be used instead. Hook registrations in
 ## Runtime layout
 
 - `.codex/config.toml` configures Codex features and agent concurrency.
-- `.codex/studio.toml` selects the engine pack, language, review mode, and model policy.
+- `.codex/studio.toml` is the sole persistent source for the engine pack,
+  language, review mode, and model policy. Its default `phase-gated` mode uses
+  lean optional-review depth while mandatory director gates still run.
 - `.codex/hooks.json` maps Codex events to Python commands.
 - `.codex/hooks/hook_runner.py` implements all 10 hook actions.
 - `.agents/skills/` contains the 73 discoverable studio skills.

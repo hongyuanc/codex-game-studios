@@ -55,7 +55,7 @@ is managed by `$team-release`.
 - Platform certification: marked as submitted and approved in production notes
 - Store page assets: screenshots, description, metadata all present in `production/store/`
 - Build: version tag `v1.0.0` exists, reproducible build confirmed
-- Crash reporting: configured in `technical-preferences.md`
+- Crash reporting: configured in `.codex/docs/technical-preferences.md`
 
 **Input:** `$launch-checklist`
 

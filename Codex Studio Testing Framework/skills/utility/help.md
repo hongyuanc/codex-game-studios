@@ -52,7 +52,7 @@ None. `$help` is a read-only navigation skill. No director gates apply.
 **Fixture:**
 - `production/stage.txt` contains `Production`
 - `production/sprints/sprint-004.md` exists with in-progress stories
-- `production/session-state/active.md` has a recent checkpoint
+- the explicit skill argument or a user-selected artifact under `production/` has a recent checkpoint
 
 **Input:** `$help`
 
@@ -79,7 +79,7 @@ None. `$help` is a read-only navigation skill. No director gates apply.
 **Fixture:**
 - `production/stage.txt` contains `Concept`
 - No sprint files, no GDD files
-- `technical-preferences.md` is configured (engine selected)
+- `.codex/docs/technical-preferences.md` is configured (engine selected)
 
 **Input:** `$help`
 
@@ -102,7 +102,7 @@ None. `$help` is a read-only navigation skill. No director gates apply.
 **Fixture:**
 - No `production/stage.txt`
 - No sprint files
-- `technical-preferences.md` has placeholders
+- `.codex/docs/technical-preferences.md` has placeholders
 
 **Input:** `$help`
 

@@ -153,7 +153,7 @@ are invoked.
 
 **Fixture:**
 - Test history shows 1 CONFIRMED FLAKY test (fails 6 out of 10 runs)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$test-flakiness`
 

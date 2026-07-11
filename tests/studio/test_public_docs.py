@@ -18,6 +18,7 @@ PUBLIC = [
     ROOT / ".github/PULL_REQUEST_TEMPLATE.md",
     ROOT / ".github/CODEOWNERS",
 ]
+# enforcement-literal-start
 FORBIDDEN = (
     "Claude Code",
     "AskUserQuestion",
@@ -36,6 +37,7 @@ FORBIDDEN = (
     "Batch up to 4",
     "session-start.sh",
 )
+# enforcement-literal-end
 
 
 def local_markdown_links(path: Path) -> list[str]:
@@ -109,8 +111,8 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("hook_runner.py", security)
         self.assertIn("OpenAI", security)
         self.assertIn("$start", agents)
-        self.assertNotIn("/start", agents)
-        self.assertNotIn("Claude", gitignore)
+        self.assertNotIn("/start", agents)  # enforcement-literal
+        self.assertNotIn("Claude", gitignore)  # enforcement-literal
 
         for token in (
             "phase-gated", "request_user_input", "one decision at a time",
@@ -127,6 +129,36 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn(".codex/hooks/hook_runner.py", text)
         self.assertNotIn("12 automated hooks", text)
         self.assertNotIn("/clear", text)
+        self.assertNotIn("controls the status line", text)
+
+    def test_public_runtime_path_and_workflow_references_are_real(self):
+        engine_reference = (ROOT / "docs/engine-reference/README.md").read_text(encoding="utf-8")
+        gate_example = (ROOT / "docs/examples/session-gate-check-phase-transition.md").read_text(encoding="utf-8")
+        tr_registry = (ROOT / "docs/architecture/tr-registry.yaml").read_text(encoding="utf-8")
+        architecture_registry = (ROOT / "docs/registry/architecture.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("$setup-engine", engine_reference)
+        self.assertNotIn("$refresh-docs", engine_reference)
+        self.assertNotIn("status line", gate_example.lower())
+        for broken in (
+            "design$gdd$",
+            "docs$architecture$",
+            "docs$registry$",
+        ):
+            self.assertNotIn(broken, tr_registry + architecture_registry)
+        self.assertIn("$architecture-review", architecture_registry)
+
+    def test_public_docs_do_not_define_a_competing_review_mode_file(self):
+        failures = []
+        for path in PUBLIC:
+            text = path.read_text(encoding="utf-8")
+            for legacy in (
+                "production/review-mode.txt",
+                "production/session-state/review-mode.txt",
+            ):
+                if legacy in text:
+                    failures.append(f"{path.relative_to(ROOT)}: {legacy}")
+        self.assertEqual([], failures)
 
     def test_public_templates_use_native_component_contracts(self):
         files = [
@@ -152,7 +184,7 @@ class PublicDocumentationTests(unittest.TestCase):
             self.assertIn(heading, text)
         self.assertIn("source system", text)
         self.assertIn("Codex-only", text)
-        self.assertIn("production/migration/claude-to-codex-coverage.yaml", text)
+        self.assertIn("production/migration/claude-to-codex-coverage.yaml", text)  # enforcement-literal
 
     def test_public_skill_invocations_use_dollar_syntax(self):
         names = {

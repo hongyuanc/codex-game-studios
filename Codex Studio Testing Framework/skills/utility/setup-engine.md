@@ -50,7 +50,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ### Case 1: Godot 4 + GDScript — Full engine configuration
 
 **Fixture:**
-- `technical-preferences.md` contains only placeholders
+- `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `godot`
 
 **Input:** `$setup-engine godot`
@@ -81,7 +81,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ### Case 2: Unity + C# — Unity-specific configuration
 
 **Fixture:**
-- `technical-preferences.md` contains only placeholders
+- `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `unity`
 
 **Input:** `$setup-engine unity`
@@ -106,7 +106,7 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ### Case 3: Unreal + Blueprint — Unreal-specific configuration
 
 **Fixture:**
-- `technical-preferences.md` contains only placeholders
+- `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `unreal`
 
 **Input:** `$setup-engine unreal`
@@ -130,13 +130,13 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ### Case 4: Engine Already Configured — Offers to reconfigure specific sections
 
 **Fixture:**
-- `technical-preferences.md` has engine set to Godot 4 with all fields populated
+- `.codex/docs/technical-preferences.md` has engine set to Godot 4 with all fields populated
 - No engine argument provided
 
 **Input:** `$setup-engine`
 
 **Expected behavior:**
-1. Skill reads `technical-preferences.md` and detects fully configured engine (Godot 4)
+1. Skill reads `.codex/docs/technical-preferences.md` and detects fully configured engine (Godot 4)
 2. Skill reports: "Engine already configured as Godot 4 + GDScript"
 3. Skill presents options: reconfigure all, reconfigure specific section only
    (Engine/Language, Naming Conventions, Specialists, Performance Budgets)

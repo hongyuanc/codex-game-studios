@@ -57,7 +57,7 @@ review skill invoked after this skill completes.
 **Input:** `$ux-design hud`
 
 **Expected behavior:**
-1. Skill creates a skeleton file `design/ux/hud.md` with all section headers
+1. Skill drafts an in-memory skeleton for `design/ux/hud.md` with all section headers
 2. Skill discusses and drafts each section: User Flows, Interaction States
    (normal/hover/focus/disabled), Wireframe Description, Accessibility Notes
 3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
@@ -67,7 +67,7 @@ review skill invoked after this skill completes.
 6. Skill suggests running `$ux-review` as the next step
 
 **Assertions:**
-- [ ] Skeleton file is created first (with empty section bodies)
+- [ ] The in-memory skeleton is drafted first (with empty section bodies)
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] All required sections are present: User Flows, Interaction States,
      Wireframe Description, Accessibility Notes
@@ -168,7 +168,7 @@ review skill invoked after this skill completes.
 
 ## Protocol Compliance
 
-- [ ] Creates skeleton file with all section headers before discussing content
+- [ ] Drafts an in-memory skeleton with all section headers before discussing content
 - [ ] Discusses and drafts one section at a time
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Detects existing spec and offers retrofit path

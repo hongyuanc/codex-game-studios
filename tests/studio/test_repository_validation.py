@@ -21,6 +21,20 @@ from tools.codex_studio.validate import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _minimal_runtime_tree(root: Path) -> None:
+    for relative in (
+        ".agents", ".codex", ".github", "Codex Studio Testing Framework",
+        "assets", "design", "docs", "production", "prototypes", "src",
+        "tests", "tools",
+    ):
+        (root / relative).mkdir(parents=True, exist_ok=True)
+    for relative in (
+        "AGENTS.md", "README.md", "CONTRIBUTING.md", "SECURITY.md",
+        "UPGRADING.md", ".gitignore",
+    ):
+        (root / relative).write_text("Codex\n", encoding="utf-8")
+
+
 class RepositoryValidationTests(unittest.TestCase):
     def test_coverage_contract_is_immutable_and_complete(self):
         self.assertEqual([], validate_coverage_manifest(ROOT, "final"))
@@ -28,9 +42,9 @@ class RepositoryValidationTests(unittest.TestCase):
             temp = Path(directory)
             target = temp / "production/migration"
             target.mkdir(parents=True)
-            original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")
+            original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")  # enforcement-literal
             lines = original.splitlines()
-            (target / "claude-to-codex-coverage.yaml").write_text(
+            (target / "claude-to-codex-coverage.yaml").write_text(  # enforcement-literal
                 "\n".join(lines[:2] + lines[6:]) + "\n", encoding="utf-8"
             )
             issues = validate_coverage_manifest(temp, "final")
@@ -60,24 +74,151 @@ class RepositoryValidationTests(unittest.TestCase):
             issues = validate_testing_framework_parity(temp)
         self.assertTrue(any("127" in issue.message or "digest" in issue.message for issue in issues))
 
+    def test_framework_parity_pins_source_metadata_and_exact_native_tree(self):
+        evidence = ROOT / "production/migration/testing-framework-parity.json"
+        data = json.loads(evidence.read_text(encoding="utf-8"))
+        self.assertEqual("7bad60b7e0e71723b4b745e36950492d714595a3", data["source_commit"])
+        self.assertEqual("CCGS Skill Testing Framework", data["source_root"])
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            shutil.copytree(
+                ROOT / "Codex Studio Testing Framework",
+                temp / "Codex Studio Testing Framework",
+            )
+            target = temp / "production/migration"
+            target.mkdir(parents=True)
+            for key, value in (
+                ("source_commit", "0" * 40),
+                ("source_root", "other-framework"),
+            ):
+                tampered = dict(data)
+                tampered[key] = value
+                (target / "testing-framework-parity.json").write_text(
+                    json.dumps(tampered), encoding="utf-8"
+                )
+                issues = validate_testing_framework_parity(temp)
+                self.assertTrue(any("source" in issue.message or "digest" in issue.message for issue in issues))
+            (target / "testing-framework-parity.json").write_text(
+                json.dumps(data), encoding="utf-8"
+            )
+            extra = temp / "Codex Studio Testing Framework/extra.md"
+            extra.write_text("unexpected", encoding="utf-8")
+            issues = validate_testing_framework_parity(temp)
+            self.assertTrue(any("exact native framework" in issue.message for issue in issues))
+            extra.unlink()
+            mapped = temp / data["entries"][0]["destination"]
+            mapped.unlink()
+            issues = validate_testing_framework_parity(temp)
+            self.assertTrue(any("exact native framework" in issue.message for issue in issues))
+            outside = temp / "outside.md"
+            outside.write_text("not native", encoding="utf-8")
+            mapped.symlink_to(outside)
+            issues = validate_testing_framework_parity(temp)
+            self.assertTrue(any(
+                issue.path == str(mapped.relative_to(temp)) and "symlink" in issue.message
+                for issue in issues
+            ))
+
+    # enforcement-literal-start
+    def test_runtime_scan_is_case_insensitive_and_covers_omitted_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "assets/provider.txt").write_text("cLaUdE cOdE", encoding="utf-8")
+            (temp / "prototypes/provider.txt").write_text("aNtHrOpIc", encoding="utf-8")
+            target = temp / "outside.txt"
+            target.write_text("clean", encoding="utf-8")
+            (temp / "src/escape.txt").symlink_to(target)
+            issues = validate_runtime_references(temp, "final")
+        self.assertTrue(any(issue.path == "assets/provider.txt" for issue in issues))
+        self.assertTrue(any(issue.path == "prototypes/provider.txt" for issue in issues))
+        self.assertTrue(any(issue.path == "src/escape.txt" and "symlink" in issue.message for issue in issues))
+
+    def test_unmarked_test_and_validator_literals_fail_but_marked_lines_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "tests/unmarked.py").write_text("provider = 'ANTHROPIC'\n", encoding="utf-8")
+            (temp / "tools/codex_studio").mkdir(parents=True)
+            (temp / "tools/codex_studio/validate.py").write_text(
+                "provider = 'claude code'\n", encoding="utf-8"
+            )
+            (temp / "tests/marked.py").write_text(
+                "provider = 'anthropic'  # enforcement-literal\n", encoding="utf-8"
+            )
+            issues = validate_runtime_references(temp, "final")
+        paths = {issue.path for issue in issues if "legacy runtime" in issue.message}
+        self.assertIn("tests/unmarked.py", paths)
+        self.assertIn("tools/codex_studio/validate.py", paths)
+        self.assertNotIn("tests/marked.py", paths)
+
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "tests/malformed.py").write_text(
+                "# enforcement-" "literal-start\n# enforcement-" "literal-start\n",
+                encoding="utf-8",
+            )
+            issues = validate_runtime_references(temp, "final")
+        self.assertTrue(any(
+            issue.path == "tests/malformed.py" and "marker" in issue.message
+            for issue in issues
+        ))
+
+    def test_upgrading_historical_markers_are_bounded_and_balanced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            upgrade = temp / "UPGRADING.md"
+            upgrade.write_text("Claude Code\n", encoding="utf-8")
+            issues = validate_runtime_references(temp, "final")
+            self.assertTrue(any(issue.path == "UPGRADING.md" and "legacy runtime" in issue.message for issue in issues))
+            upgrade.write_text(
+                "<!-- historical-source-start -->\nClaude Code\n<!-- historical-source-end -->\n",
+                encoding="utf-8",
+            )
+            issues = validate_runtime_references(temp, "final")
+            self.assertFalse(any(issue.path == "UPGRADING.md" and "legacy runtime" in issue.message for issue in issues))
+            upgrade.write_text(
+                "<!-- historical-source-start -->\n<!-- historical-source-start -->\nClaude Code\n",
+                encoding="utf-8",
+            )
+            issues = validate_runtime_references(temp, "final")
+            self.assertTrue(any(issue.path == "UPGRADING.md" and "marker" in issue.message for issue in issues))
+    # enforcement-literal-end
+
+    def test_walk_errors_are_validation_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+
+            def failed_walk(path, *, followlinks, onerror=None):
+                if onerror is not None:
+                    onerror(PermissionError(13, "denied", str(path / "unreadable")))
+                return iter(())
+
+            with mock.patch("tools.codex_studio.validate.os.walk", side_effect=failed_walk):
+                issues = validate_runtime_references(temp, "final")
+        self.assertTrue(any("cannot traverse runtime directory" in issue.message for issue in issues))
+
     def test_coverage_rejects_unsafe_paths(self):
-        original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")
+        original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")  # enforcement-literal
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
             target = temp / "production/migration"
             target.mkdir(parents=True)
-            unsafe = original.replace("  - source: .claude/agent-memory", "  - source: ../agent-memory", 1)
-            (target / "claude-to-codex-coverage.yaml").write_text(unsafe, encoding="utf-8")
+            unsafe = original.replace("  - source: .claude/agent-memory", "  - source: ../agent-memory", 1)  # enforcement-literal
+            (target / "claude-to-codex-coverage.yaml").write_text(unsafe, encoding="utf-8")  # enforcement-literal
             issues = validate_coverage_manifest(temp, "final")
         messages = "\n".join(issue.message for issue in issues)
         self.assertIn("safe repository-relative", messages)
         self.assertIn("contract digest", messages)
 
     def test_coverage_rejects_symlinked_destination(self):
-        original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")
+        original = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")  # enforcement-literal
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            manifest = temp / "production/migration/claude-to-codex-coverage.yaml"
+            manifest = temp / "production/migration/claude-to-codex-coverage.yaml"  # enforcement-literal
             manifest.parent.mkdir(parents=True)
             manifest.write_text(original, encoding="utf-8")
             target = temp / "real.toml"
@@ -186,7 +327,7 @@ class RepositoryValidationTests(unittest.TestCase):
     def test_final_phase_rejects_empty_legacy_directories(self):
         with tempfile.TemporaryDirectory() as directory:
             temp = Path(directory)
-            (temp / ".claude").mkdir()
+            (temp / ".claude").mkdir()  # enforcement-literal
             (temp / "CCGS Skill Testing Framework").mkdir()
             issues = validate_runtime_references(temp, "final")
         messages = "\n".join(issue.message for issue in issues)
@@ -206,7 +347,7 @@ class RepositoryValidationTests(unittest.TestCase):
             ):
                 (temp / relative).write_text("Codex\n", encoding="utf-8")
             (temp / "design/registry.yaml").write_text(
-                "# READ BY: /design-system\n", encoding="utf-8"
+                "# READ BY: /design-system\n", encoding="utf-8"  # enforcement-literal
             )
             issues = validate_runtime_references(temp, "final")
         self.assertTrue(any(
@@ -218,19 +359,19 @@ class RepositoryValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "SKILL.md"
             path.write_text(
-                "---\nname: bad\ndescription: bad\nagent: old\nmaxTurns: 4\n---\n",
+                "---\nname: bad\ndescription: bad\nAgEnT: old\nmAxTuRnS: 4\n---\n",
                 encoding="utf-8",
             )
             messages = {issue.message for issue in validate_skill(path)}
-        self.assertIn("contains Claude agent metadata", messages)
-        self.assertIn("contains Claude turn-limit metadata", messages)
+        self.assertIn("contains Claude agent metadata", messages)  # enforcement-literal
+        self.assertIn("contains Claude turn-limit metadata", messages)  # enforcement-literal
 
     def test_repository_counts_are_exact(self):
         self.assertEqual([], validate_repository_counts(ROOT))
 
     def test_pre_cleanup_gate_accepts_covered_legacy_sources(self):
-        legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]
-        legacy += list(ROOT.rglob("CLAUDE.md"))
+        legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]  # enforcement-literal
+        legacy += list(ROOT.rglob("CLAUDE.md"))  # enforcement-literal
         if not legacy:
             report = (ROOT / ".superpowers/sdd/final-cleanup-subsystem-report.md").read_text(encoding="utf-8")
             self.assertIn("Codex Studio validation: PASS", report)
@@ -241,8 +382,8 @@ class RepositoryValidationTests(unittest.TestCase):
 
     def test_final_gate_rejects_any_remaining_legacy_sources(self):
         issues = validate_runtime_references(ROOT, "final")
-        legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]
-        legacy += list(ROOT.rglob("CLAUDE.md"))
+        legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]  # enforcement-literal
+        legacy += list(ROOT.rglob("CLAUDE.md"))  # enforcement-literal
         if legacy:
             self.assertTrue(any("legacy source remains" in issue.message for issue in issues))
         else:

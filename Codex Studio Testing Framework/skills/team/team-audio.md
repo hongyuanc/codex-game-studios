@@ -176,7 +176,7 @@ children return scoped evidence and the parent synthesizes the result.
 1. Context gathering: orchestrator reads `.codex/docs/technical-preferences.md` and detects no engine is configured
 2. Steps 1–2 proceed normally (audio-director, sound-designer, accessibility-specialist)
 3. Step 3: technical-artist is spawned normally; engine specialist spawn is SKIPPED
-4. Orchestrator notes in conversation: "Engine specialist not spawned — no engine configured in technical-preferences.md. Engine integration validation will be deferred until an engine is selected."
+4. Orchestrator notes in conversation: "Engine specialist not spawned — no engine configured in .codex/docs/technical-preferences.md. Engine integration validation will be deferred until an engine is selected."
 5. Step 4: gameplay-programmer proceeds with a note that engine-specific audio integration patterns could not be validated
 6. The engine specialist gap is included in the audio design document under "Deferred Validation"
 7. Verdict: COMPLETE (skip is graceful, not a blocker)

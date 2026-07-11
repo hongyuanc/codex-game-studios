@@ -50,7 +50,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 ### Case 1: Happy Path — All assets follow naming conventions
 
 **Fixture:**
-- `technical-preferences.md` specifies naming convention: `snake_case`, e.g., `enemy_grunt_idle.png`
+- `.codex/docs/technical-preferences.md` specifies naming convention: `snake_case`, e.g., `enemy_grunt_idle.png`
 - `assets/art/characters/` contains: `enemy_grunt_idle.png`, `enemy_sniper_run.png`
 - `assets/audio/sfx/` contains: `sfx_jump_land.ogg`, `sfx_item_pickup.ogg`
 - All files are within size budget (textures ≤2MB, audio ≤500KB)
@@ -58,7 +58,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 **Input:** `$asset-audit`
 
 **Expected behavior:**
-1. Skill reads naming conventions and size budgets from `technical-preferences.md`
+1. Skill reads naming conventions and size budgets from `.codex/docs/technical-preferences.md`
 2. Skill scans `assets/` recursively
 3. All files match `snake_case` convention; all within budget
 4. Audit table shows all rows PASS
@@ -83,7 +83,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 **Input:** `$asset-audit`
 
 **Expected behavior:**
-1. Skill reads size budget from `technical-preferences.md` (2MB for textures)
+1. Skill reads size budget from `.codex/docs/technical-preferences.md` (2MB for textures)
 2. Skill scans `assets/art/environment/` — finds 3 oversized textures
 3. Audit table lists each oversized file with actual size and budget
 4. Verdict is NON-COMPLIANT
@@ -100,7 +100,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 ### Case 3: Format Issue — Audio in wrong format
 
 **Fixture:**
-- `technical-preferences.md` specifies audio format: OGG
+- `.codex/docs/technical-preferences.md` specifies audio format: OGG
 - `assets/audio/music/theme_main.wav` exists (WAV format)
 - `assets/audio/sfx/sfx_footstep.ogg` exists (correct OGG format)
 
@@ -147,7 +147,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 
 **Fixture:**
 - 2 files have naming convention violations (CamelCase instead of snake_case)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$asset-audit`
 
@@ -169,7 +169,7 @@ None. Asset auditing is a read-only analysis skill; no gates are invoked.
 
 ## Protocol Compliance
 
-- [ ] Reads `technical-preferences.md` for naming conventions, formats, and size budgets
+- [ ] Reads `.codex/docs/technical-preferences.md` for naming conventions, formats, and size budgets
 - [ ] Scans `assets/` directory recursively
 - [ ] Audit table shows file name, check type, expected value, actual value, and result
 - [ ] Does not modify any asset files

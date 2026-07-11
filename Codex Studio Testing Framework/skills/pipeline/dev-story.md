@@ -36,7 +36,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Contains verdict keywords: COMPLETE, BLOCKED, IN PROGRESS, NEEDS CHANGES
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end (`$story-done`)
-- [ ] Documents LP-CODE-REVIEW gate: active in full mode, skipped in lean/solo
+- [ ] Documents LP-CODE-REVIEW gate: active in full mode, skipped in phase-gated/solo
 - [ ] Notes that implementation is delegated to specialist agents (not done directly)
 
 ---
@@ -46,8 +46,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 In `full` mode: LP-CODE-REVIEW gate runs after implementation is complete and all
 criteria are verified, before marking the story Complete.
 
-In `lean` mode: LP-CODE-REVIEW is skipped. Output notes:
-"LP-CODE-REVIEW skipped — lean mode". Story is marked Complete after user confirms.
+In `phase-gated` mode: LP-CODE-REVIEW is skipped. Output notes:
+"LP-CODE-REVIEW skipped — phase-gated mode". Story is marked Complete after user confirms.
 
 In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 
@@ -66,7 +66,7 @@ In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 - Referenced ADR has `Status: Accepted`
 - `docs/architecture/control-manifest.md` exists
 - `.codex/docs/technical-preferences.md` has engine and language configured
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$dev-story production/epics/[layer]/story-[name].md`
 
@@ -142,14 +142,14 @@ In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 
 **Fixture:**
 - No argument is provided
-- `production/session-state/active.md` references an active story file
+- the explicit skill argument or a user-selected artifact under `production/` references an active story file
 - That story file exists with `Status: In Progress`
 
 **Input:** `$dev-story` (no argument)
 
 **Expected behavior:**
 1. Skill detects no argument is provided
-2. Skill reads `production/session-state/active.md`
+2. Skill reads the explicit skill argument or a user-selected artifact under `production/`
 3. Skill finds the active story reference
 4. Skill confirms with user: "Continuing work on [story title] — is that correct?"
 5. After confirmation, skill proceeds with that story
@@ -162,11 +162,11 @@ In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 
 ---
 
-### Case 5: Director Gate — LP-CODE-REVIEW returns NEEDS CHANGES; lean mode skips gate
+### Case 5: Director Gate — LP-CODE-REVIEW returns NEEDS CHANGES; phase-gated mode skips gate
 
 **Fixture (full mode):**
 - Story is implemented and all criteria appear met
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - LP-CODE-REVIEW gate returns NEEDS CHANGES with specific feedback
 
 **Full mode expected behavior:**
@@ -180,17 +180,17 @@ In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 - [ ] Gate feedback is shown to the user verbatim
 - [ ] Story status stays In Progress until issues are resolved and gate passes
 
-**Fixture (lean mode):**
-- Same story, `production/session-state/review-mode.txt` contains `lean`
+**Fixture (phase-gated mode):**
+- Same story, `.codex/studio.toml` contains `phase-gated`
 
-**Lean mode expected behavior:**
+**Phase-gated mode expected behavior:**
 1. Implementation completes
 2. LP-CODE-REVIEW gate is skipped — noted in output
 3. User is asked to confirm all criteria are met
 4. Story is marked Complete after user confirmation
 
-**Assertions (lean mode):**
-- [ ] "LP-CODE-REVIEW skipped — lean mode" appears in output
+**Assertions (phase-gated mode):**
+- [ ] "LP-CODE-REVIEW skipped — phase-gated mode" appears in output
 - [ ] Story is marked Complete after user confirms criteria (no gate required)
 - [ ] Skill does NOT block on a gate that is skipped
 
@@ -202,7 +202,7 @@ In `solo` mode: LP-CODE-REVIEW is skipped with equivalent notes.
 - [ ] Reads all context (story, TR-ID, ADR, manifest, engine prefs) before implementation
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skipped gates noted by name and mode in output
-- [ ] Updates `production/session-state/active.md` after story completion
+- [ ] Updates the explicit skill argument or a user-selected artifact under `production/` after story completion
 - [ ] Ends with next-step handoff: `$story-done`
 
 ---

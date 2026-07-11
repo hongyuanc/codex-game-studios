@@ -147,7 +147,7 @@ None. Estimation is an advisory informational skill; no gates are invoked.
 
 **Fixture:**
 - Story file exists with medium complexity
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$estimate production/epics/core/story-item-pickup.md`
 

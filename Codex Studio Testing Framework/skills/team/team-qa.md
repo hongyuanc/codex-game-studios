@@ -137,31 +137,29 @@ children return scoped evidence and the parent synthesizes the result.
 
 ### Case 4: No Argument — Skill infers active sprint or asks user
 
-**Fixture (variant A — state files present):**
-- `production/session-state/active.md` exists and contains a reference to `sprint-06`
-- `production/sprint-status.yaml` exists and identifies `sprint-06` as active
+**Fixture (variant A — one sprint is discoverable):**
+- `production/sprints/sprint-06/` exists and is the only sprint directory.
 
-**Fixture (variant B — state files absent):**
-- `production/session-state/active.md` does NOT exist
-- `production/sprint-status.yaml` does NOT exist
+**Fixture (variant B — no unambiguous sprint):**
+- `production/sprints/` is absent, empty, or contains multiple candidates.
 
 **Input:** `$team-qa` (no argument)
 
 **Expected behavior (variant A):**
-1. Phase 1: No argument provided; reads `production/session-state/active.md`; reads `production/sprint-status.yaml`
-2. Detects `sprint-06` as the active sprint from both sources
-3. Proceeds as if `$team-qa sprint-06` was the input; reports "No sprint argument provided — inferred sprint-06 from session state. Found [N] stories."
+1. Phase 1: No argument provided; enumerates `production/sprints/`.
+2. Detects `sprint-06` as the only candidate.
+3. Proceeds as if `$team-qa sprint-06` was the input; reports "No sprint argument provided — inferred the only sprint candidate, sprint-06. Found [N] stories."
 
 **Expected behavior (variant B):**
-1. Phase 1: No argument provided; attempts to read `production/session-state/active.md` — file missing; attempts to read `production/sprint-status.yaml` — file missing
+1. Phase 1: No argument provided; enumerates `production/sprints/` and finds no unique candidate.
 2. Cannot infer sprint; uses request_user_input: "Which sprint or feature should QA cover?" with options to type a sprint identifier or cancel
 
 **Assertions:**
 - [ ] Skill does NOT default to a hardcoded sprint name when no argument is provided
-- [ ] Skill reads both `production/session-state/active.md` AND `production/sprint-status.yaml` before asking the user (variant A)
-- [ ] When both state files are absent, skill uses request_user_input rather than guessing (variant B)
+- [ ] Skill enumerates `production/sprints/` before asking the user (variant A)
+- [ ] When no unique sprint is discoverable, skill uses request_user_input rather than guessing (variant B)
 - [ ] Inferred sprint is reported to the user before proceeding (variant A transparency)
-- [ ] Skill does NOT error out when state files are missing — it falls back to asking (variant B)
+- [ ] Skill does NOT error out when sprint data is missing or ambiguous — it falls back to asking (variant B)
 
 ---
 

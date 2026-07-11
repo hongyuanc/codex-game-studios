@@ -107,7 +107,7 @@ None. `$skill-improve` is a meta-utility skill. No director gates apply.
 **Fixture:**
 - `.agents/skills/gate-check/SKILL.md` is a gate skill with 1 static failure
   and 2 category (G-criteria) failures
-- `tests/skills/quality-rubric.md` has Gate Skills section
+- `Codex Studio Testing Framework/quality-rubric.md` has Gate Skills section
 
 **Input:** `$skill-improve gate-check`
 

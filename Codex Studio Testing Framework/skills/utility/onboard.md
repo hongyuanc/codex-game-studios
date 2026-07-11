@@ -51,14 +51,14 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 
 **Fixture:**
 - `production/stage.txt` contains `Production`
-- `technical-preferences.md` has engine, language, and specialists populated
+- `.codex/docs/technical-preferences.md` has engine, language, and specialists populated
 - `production/sprints/sprint-005.md` exists with stories in progress
 - Git log contains 5 recent commits
 
 **Input:** `$onboard`
 
 **Expected behavior:**
-1. Skill reads stage.txt, technical-preferences.md, active sprint, and git log
+1. Skill reads stage.txt, .codex/docs/technical-preferences.md, active sprint, and git log
 2. Skill produces an onboarding summary with sections: Project Overview, Tech Stack,
    Current Stage, Active Sprint Summary, Recent Activity
 3. Summary is formatted for readability (headers, bullet points)
@@ -68,7 +68,7 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 
 **Assertions:**
 - [ ] Output includes current stage name from stage.txt
-- [ ] Output includes engine and language from technical-preferences.md
+- [ ] Output includes engine and language from .codex/docs/technical-preferences.md
 - [ ] Active sprint stories are summarized (not just the sprint file name)
 - [ ] Recent commit context is present
 - [ ] Verdict is ONBOARDING COMPLETE
@@ -79,7 +79,7 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 ### Case 2: Fresh Project — No engine, no sprint, suggests $start
 
 **Fixture:**
-- `technical-preferences.md` contains only placeholders (`[TO BE CONFIGURED]`)
+- `.codex/docs/technical-preferences.md` contains only placeholders (`[TO BE CONFIGURED]`)
 - No `production/stage.txt`
 - No sprint files
 - No AGENTS.md overrides beyond defaults
@@ -182,7 +182,7 @@ None. `$onboard` is a read-only orientation skill. No director gates apply.
 
 ## Coverage Notes
 
-- The case where `technical-preferences.md` is missing entirely (as opposed to
+- The case where `.codex/docs/technical-preferences.md` is missing entirely (as opposed to
   having placeholders) is not separately tested; behavior follows the graceful
   error pattern of Case 3.
 - Git history reading is assumed available; offline/no-git scenarios are not

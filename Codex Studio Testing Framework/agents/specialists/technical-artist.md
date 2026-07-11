@@ -5,6 +5,7 @@
 - Runtime profile: `.codex/agents/technical-artist.toml`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
 - Model route: **Terra** (`gpt-5.6-terra`)
+- Reasoning effort: `medium`
 - Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
 - Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
 
@@ -64,7 +65,7 @@ No gate IDs assigned.
 - If uncertain about post-cutoff behavior, explicitly states the uncertainty and directs to verified docs
 
 ### Case 5: Context pass — uses performance budget
-**Input:** Performance budget from `technical-preferences.md` provided in context: 2ms GPU frame budget, max 200 draw calls. Request: "Optimize the forest rendering system."
+**Input:** Performance budget from `.codex/docs/technical-preferences.md` provided in context: 2ms GPU frame budget, max 200 draw calls. Request: "Optimize the forest rendering system."
 **Expected behavior:**
 - References the specific 2ms GPU budget and 200 draw call limit from the provided context
 - Proposes optimizations calibrated to those exact targets (e.g., "batching reduces draw calls from 340 to ~180, within the 200 limit")

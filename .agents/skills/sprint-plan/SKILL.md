@@ -19,7 +19,7 @@ Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the 
 Extract the mode argument (`new`, `update`, or `status`) and resolve the review mode (once, store for all gate spawns this run):
 1. If `--review [full|lean|solo]` was passed → use that
 2. Else read `.codex/studio.toml` and use its `review_mode` value
-3. Map `review_mode = "phase-gated"` to lean gate intensity; never use a competing persistent setting
+3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 
@@ -265,5 +265,6 @@ After the complete changeset is approved, written, and QA plan status is resolve
 - `$scope-check [epic]` — verify no scope creep before implementation begins
 
 **Review mode configuration:** All director gates respect `.codex/studio.toml`.
-The canonical `review_mode = "phase-gated"` maps to lean intensity. A per-run
+The canonical `review_mode = "phase-gated"` maps to lean optional-review depth
+while mandatory director gates still run. A per-run
 `--review full|lean|solo` override is not persisted.

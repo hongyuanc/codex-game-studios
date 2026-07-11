@@ -148,7 +148,7 @@ None. Changelog generation is a fast compilation task; no gates are invoked.
 
 **Fixture:**
 - Git history has commits since last tag
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$changelog`
 

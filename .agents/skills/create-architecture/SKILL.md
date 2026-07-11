@@ -19,8 +19,9 @@ This skill creates the whole-system blueprint that gives ADRs their context.
 
 Resolve the review mode (once, store for all gate delegations this run):
 1. If `--review [full|lean|solo]` was passed → use that
-2. Else read `production/review-mode.txt` → use that value
-3. Else → default to `lean`
+2. Else read `review_mode` from `.codex/studio.toml`
+3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
+4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
 See `.codex/docs/director-gates.md` for the full check pattern.
 

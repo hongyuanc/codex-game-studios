@@ -46,8 +46,8 @@ In `full` mode: CD-SYSTEMS (creative-director) and TD-SYSTEM-BOUNDARY
 (technical-director) spawn in parallel after the systems decomposition is drafted
 and before `design/systems-index.md` is written.
 
-In `lean` mode: both gates are skipped. Output notes:
-"CD-SYSTEMS skipped — lean mode" and "TD-SYSTEM-BOUNDARY skipped — lean mode".
+In `phase-gated` mode: both gates are skipped. Output notes:
+"CD-SYSTEMS skipped — phase-gated mode" and "TD-SYSTEM-BOUNDARY skipped — phase-gated mode".
 
 In `solo` mode: both gates are skipped with equivalent notes.
 
@@ -61,7 +61,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 - `design/gdd/game-concept.md` exists with Core Mechanics and MVP Definition sections
 - `design/gdd/game-pillars.md` exists with ≥1 pillar defined
 - No `design/systems-index.md` exists yet
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$map-systems`
 
@@ -72,7 +72,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 4. CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel and return APPROVED
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 6. Writes systems-index.md after approval
-7. Updates `production/session-state/active.md`
+7. Updates the explicit skill argument or a user-selected artifact under `production/`
 
 **Assertions:**
 - [ ] Between 5 and 8 systems are identified (not fewer, not more without explanation)
@@ -111,7 +111,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Fixture:**
 - Game concept exists
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - CD-SYSTEMS gate returns CONCERNS: "The [core-system] is implied by the concept but not identified"
 
 **Input:** `$map-systems`
@@ -154,25 +154,25 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ---
 
-### Case 5: Director Gate — Lean mode and solo mode both skip gates, noted
+### Case 5: Director Gate — Phase-gated mode and solo mode both skip gates, noted
 
-**Fixture (lean mode):**
+**Fixture (phase-gated mode):**
 - Game concept exists
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
-**Lean mode expected behavior:**
+**Phase-gated mode expected behavior:**
 1. Systems are decomposed and drafted
 2. Both CD-SYSTEMS and TD-SYSTEM-BOUNDARY are skipped
-3. Output notes: "CD-SYSTEMS skipped — lean mode" and "TD-SYSTEM-BOUNDARY skipped — lean mode"
+3. Output notes: "CD-SYSTEMS skipped — phase-gated mode" and "TD-SYSTEM-BOUNDARY skipped — phase-gated mode"
 4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
-**Assertions (lean mode):**
+**Assertions (phase-gated mode):**
 - [ ] Both gate skip notes appear in output
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] systems-index.md is written after user approval
 
 **Fixture (solo mode):**
-- Same game concept, `production/session-state/review-mode.txt` contains `solo`
+- Same game concept, `.codex/studio.toml` contains `solo`
 
 **Solo mode expected behavior:**
 1. Same decomposition workflow
@@ -181,7 +181,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 **Assertions (solo mode):**
 - [ ] Both skip notes appear with "solo mode" label
-- [ ] Behavior is otherwise identical to lean mode for this skill
+- [ ] Behavior is otherwise identical to phase-gated mode for this skill
 
 ---
 
@@ -191,7 +191,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] systems-index.md is NOT written without user approval
 - [ ] CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in lean/solo output
+- [ ] Skipped gates noted by name and mode in phase-gated/solo output
 - [ ] Ends with next-step handoff: `$design-system [next-system]`
 
 ---

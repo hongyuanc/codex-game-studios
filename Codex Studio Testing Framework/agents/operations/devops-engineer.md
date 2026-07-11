@@ -5,6 +5,7 @@
 - Runtime profile: `.codex/agents/devops-engineer.toml`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
 - Model route: **Terra** (`gpt-5.6-terra`)
+- Reasoning effort: `high`
 - Behavioral source: the TOML `developer_instructions` value; the profile is not a Markdown/frontmatter agent definition.
 - Delegation: this profile may be selected only as a direct child custom agent. The maximum delegation depth is 1; the child returns scoped evidence and the parent agent synthesizes the user-facing result.
 
@@ -87,5 +88,5 @@ Runtime model label, ID, and reasoning effort match the Codex Runtime Contract a
 ## Coverage Notes
 - Case 1 (Godot CI) references `coding-standards.md` CI rules — verify this file is present and current before running this test
 - Case 4 (branching strategy) is a convention-enforcement test — agent must know the project convention, not just give neutral advice
-- Case 5 requires that project's target platforms are documented (in `technical-preferences.md` or equivalent)
+- Case 5 requires that project's target platforms are documented (in `.codex/docs/technical-preferences.md` or equivalent)
 - No automated runner; review manually or via `$skill-test`

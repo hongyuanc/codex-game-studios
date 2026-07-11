@@ -43,7 +43,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 | Gate ID       | Trigger condition              | Mode guard              |
 |---------------|--------------------------------|-------------------------|
-| PR-MILESTONE  | After review document compiled | full only (not lean/solo) |
+| PR-MILESTONE  | After review document compiled | full only (not phase-gated/solo) |
 
 ---
 
@@ -55,7 +55,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - `production/milestones/milestone-03.md` exists with 8 stories
 - 7 stories have `Status: Complete`
 - 1 story has `Status: Deferred` (deferred to milestone-04)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$milestone-review milestone-03`
 
@@ -82,7 +82,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - `production/milestones/milestone-03.md` exists with 5 stories
 - 2 stories have `Status: Complete`
 - 3 stories have `Status: Blocked` (named blockers listed in each story)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$milestone-review milestone-03`
 
@@ -105,7 +105,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - Milestone-03 has 6 complete stories but 2 were not in the original scope (added mid-sprint)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$milestone-review milestone-03`
 
@@ -145,11 +145,11 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ---
 
-### Case 5: Lean/Solo Mode — PR-MILESTONE gate skipped
+### Case 5: Phase-gated/Solo Mode — PR-MILESTONE gate skipped
 
 **Fixture:**
 - `production/milestones/milestone-03.md` exists with 5 complete stories
-- `review-mode.txt` contains `solo`
+- `.codex/studio.toml` contains `solo`
 
 **Input:** `$milestone-review milestone-03`
 
@@ -161,7 +161,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 5. User approves; review file is written; verdict MILESTONE COMPLETE
 
 **Assertions:**
-- [ ] PR-MILESTONE gate is NOT invoked in solo (or lean) mode
+- [ ] PR-MILESTONE gate is NOT invoked in solo (or phase-gated) mode
 - [ ] Skip is explicitly noted in skill output
 - [ ] User direct approval is still required before write
 - [ ] Verdict is MILESTONE COMPLETE after successful write
@@ -173,7 +173,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Shows compiled review draft before invoking PR-MILESTONE or asking to write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] PR-MILESTONE gate only runs in full mode
-- [ ] Skip message appears in lean and solo output
+- [ ] Skip message appears in phase-gated and solo output
 - [ ] Verdict is MILESTONE COMPLETE or MILESTONE INCOMPLETE, stated clearly
 
 ---

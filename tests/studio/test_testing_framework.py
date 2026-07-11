@@ -4,6 +4,8 @@ import re
 import tomllib
 import unittest
 
+from tools.codex_studio.validate import validate_skill
+
 
 ROOT = Path(__file__).resolve().parents[2]
 NEW = ROOT / "Codex Studio Testing Framework"
@@ -25,7 +27,7 @@ class TestingFrameworkTests(unittest.TestCase):
 
     def test_migrated_tree_has_durable_source_parity(self):
         evidence = json.loads(
-            (ROOT / "production/migration/testing-framework-parity.json").read_text(encoding="utf-8")
+            (ROOT / "production/migration/testing-framework-parity.json").read_text(encoding="utf-8")  # enforcement-literal
         )
         sources = {entry["source"] for entry in evidence["entries"]}
         for directory in ("agents", "skills", "templates"):
@@ -63,6 +65,7 @@ class TestingFrameworkTests(unittest.TestCase):
         self.assertEqual(49, len(runtime_agents))
 
     def test_framework_is_codex_native(self):
+        # enforcement-literal-start
         forbidden = (
             "Claude Code", "AskUserQuestion", "Task tool", "subagent_type",
             "Task call", "Task invocation", "model: opus", "model: sonnet",
@@ -72,6 +75,7 @@ class TestingFrameworkTests(unittest.TestCase):
             "allowed-tools", "argument-hint", "user-invocable",
             "May I apply the proposed changeset", "May I ",
         )
+        # enforcement-literal-end
         failures = []
         for path in NEW.rglob("*"):
             if path.is_file():
@@ -80,6 +84,31 @@ class TestingFrameworkTests(unittest.TestCase):
                     if token in text:
                         failures.append(f"{path.relative_to(ROOT)}: {token}")
         self.assertEqual([], failures)
+
+    def test_framework_uses_canonical_runtime_paths_and_phase_gated_authority(self):
+        forbidden_patterns = {
+            "legacy review-mode file": r"(?i)(?:production/(?:session-state/)?review-mode\.txt|review-mode\.txt)",
+            "legacy session state": r"production/session-state/",
+            "nonexistent skill-test tree": r"tests/skills(?:/|\b)",
+            "nonexistent agent-test tree": r"tests/agents(?:/|\b)",
+            "nonexistent status line": r"(?i)statusline|status line",
+            "nonexistent sprint status": r"production/sprint-status\.yaml",
+            "bare technical preferences": r"(?<!\.codex/docs/)technical-preferences\.md",
+        }
+        failures = []
+        combined = []
+        for path in NEW.rglob("*"):
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8")
+            combined.append(text)
+            for label, pattern in forbidden_patterns.items():
+                if re.search(pattern, text):
+                    failures.append(f"{path.relative_to(ROOT)}: {label}")
+        self.assertEqual([], failures)
+        corpus = "\n".join(combined)
+        self.assertIn("`.codex/studio.toml`", corpus)
+        self.assertIn('`review_mode = "phase-gated"`', corpus)
 
     def test_all_agent_specs_match_their_runtime_toml_contract(self):
         runtime = {}
@@ -116,6 +145,11 @@ class TestingFrameworkTests(unittest.TestCase):
             )
             self.assertIn(
                 f"Model route: **{labels[data['model']]}** (`{data['model']}`)",
+                text,
+                spec_path,
+            )
+            self.assertIn(
+                f"Reasoning effort: `{data['model_reasoning_effort']}`",
                 text,
                 spec_path,
             )
@@ -157,6 +191,126 @@ class TestingFrameworkTests(unittest.TestCase):
             self.assertNotIn("Has required frontmatter fields", text, spec_path)
             for case in range(1, 6):
                 self.assertRegex(text, rf"(?m)^### Case {case}:", spec_path)
+
+    def test_all_runtime_skills_satisfy_documented_static_discovery_contract(self):
+        skill_test = (NEW / "skills/utility/skill-test.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "exactly `name` and `description`; `name` equals the skill directory",
+            skill_test,
+        )
+        self.assertIn("description is nonblank and trigger-oriented", skill_test)
+        self.assertIn("does not require a literal `Use when` prefix", skill_test)
+
+        failures = []
+        for path in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
+            for issue in validate_skill(path):
+                failures.append(f"{path}: validator: {issue.message}")
+            parts = path.read_text(encoding="utf-8").split("---", 2)
+            if len(parts) != 3:
+                failures.append(f"{path}: missing frontmatter")
+                continue
+            fields = {}
+            for line in parts[1].splitlines():
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    fields[key.strip()] = value.strip().strip('"')
+            if set(fields) != {"name", "description"}:
+                failures.append(f"{path}: fields={sorted(fields)}")
+            if fields.get("name") != path.parent.name:
+                failures.append(f"{path}: name does not match directory")
+            if not fields.get("description", "").strip():
+                failures.append(f"{path}: blank description")
+        self.assertEqual([], failures)
+
+    def test_start_spec_matches_runtime_project_state_routing(self):
+        text = (NEW / "skills/utility/start.md").read_text(encoding="utf-8")
+        runtime = (ROOT / ".agents/skills/start/SKILL.md").read_text(encoding="utf-8")
+        required = (
+            "`.codex/studio.toml`",
+            '`engine = "unconfigured"`',
+            "`design/gdd/game-concept.md`",
+            "`src/`",
+            "`prototypes/`",
+            "`design/gdd/`",
+            "`production/sprints/`",
+            "`production/milestones/`",
+            "`production/stage.txt`",
+            '"Which broad starting point best describes this project?"',
+            "New or exploratory",
+            "Defined or existing",
+            "No idea yet (Path A)",
+            "Vague idea (Path B)",
+            "Clear concept (Path C)",
+            "Existing work (Path D)",
+            "Wait for the first answer before asking the path follow-up",
+            "Full",
+            "Phase-gated (recommended)",
+            "Solo",
+            '`review_mode = "full"`',
+            '`review_mode = "phase-gated"`',
+            '`review_mode = "solo"`',
+            "one complete proposed changeset",
+            "before any write",
+        )
+        for token in required:
+            self.assertIn(token, text)
+        shared_runtime_contract = (
+            "`.codex/studio.toml`",
+            '`engine = "unconfigured"`',
+            "`design/gdd/game-concept.md`",
+            "`src/`",
+            "`prototypes/`",
+            "`design/gdd/`",
+            "`production/sprints/`",
+            "`production/milestones/`",
+            "`production/stage.txt`",
+            '"Which broad starting point best describes this project?"',
+            "New or exploratory",
+            "Defined or existing",
+            "No idea yet (Path A)",
+            "Vague idea (Path B)",
+            "Clear concept (Path C)",
+            "Existing work (Path D)",
+            "Phase-gated (recommended)",
+            '`review_mode = "full"`',
+            '`review_mode = "phase-gated"`',
+            '`review_mode = "solo"`',
+        )
+        for token in shared_runtime_contract:
+            self.assertIn(token, runtime)
+            self.assertIn(token, text)
+        forbidden = (
+            "project name", "3 engine options", "AGENTS.md", "directory structure",
+            "$setup-engine godot", "initial stubs", "restart from scratch",
+        )
+        for token in forbidden:
+            self.assertNotIn(token, text)
+
+    def test_authoring_specs_gate_complete_changeset_before_writes(self):
+        canonical = (
+            "The parent presents one complete proposed changeset containing every "
+            "target path and material edit, then obtains approval before any write"
+        )
+        failures = []
+        for path in sorted((NEW / "skills/authoring").glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            lowered = text.lower()
+            if canonical not in text:
+                failures.append(f"{path.name}: missing complete changeset gate")
+            for stale in (
+                "written with only user approval",
+                "written with user approval only",
+                "written individually after gate + user approval",
+                "written per-section",
+                "write each section after approval",
+                "creates a skeleton file",
+                "creates skeleton `",
+                "skeleton file is created",
+                "creates skeleton file",
+            ):
+                if stale in lowered:
+                    failures.append(f"{path.name}: stale sequencing: {stale}")
+        self.assertEqual([], failures)
 
     def test_framework_core_documents_define_codex_native_protocol(self):
         combined = "\n".join(

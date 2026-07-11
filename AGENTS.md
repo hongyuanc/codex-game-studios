@@ -38,6 +38,10 @@ and external publication. After the user approves an implementation story or
 phase, Codex may edit the agreed files, add tests, diagnose failures, and
 iterate within that boundary.
 
+`.codex/studio.toml` is the sole persistent review-mode authority. Its default
+`phase-gated` mode uses lean optional-review depth while phase-transition and
+other mandatory director gates still run.
+
 Pause for user direction when work discovers material scope expansion, an
 unresolved design ambiguity, a conflict with an accepted ADR, or a required
 change outside the approved boundary. No commits, pushes, releases, or external

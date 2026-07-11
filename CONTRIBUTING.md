@@ -17,8 +17,11 @@ repository built from this template, not in the framework repository.
   the skill produces.
 - Document invocations as `$skill-name`, never as path-like commands.
 - Keep phase-gated boundaries explicit. A skill may work autonomously inside an
-  approved story or phase, but must pause on material design, architecture, or
-  scope decisions.
+approved story or phase, but must pause on material design, architecture, or
+scope decisions.
+- Treat `.codex/studio.toml` as the sole persistent review-mode authority.
+  `phase-gated` means lean optional-review depth; mandatory director gates still
+  run.
 
 ### Custom agents
 

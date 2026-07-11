@@ -22,6 +22,7 @@ REQUIRED = {
     "technical-preferences.md",
     "workflow-catalog.yaml",
 }
+# enforcement-literal-start
 FORBIDDEN_RUNTIME_TEXT = (
     ".claude/",
     "CLAUDE.md",
@@ -47,6 +48,7 @@ FORBIDDEN_RUNTIME_TEXT = (
     "PreToolUse (Bash)",
     "Write/apply_patch",
 )
+# enforcement-literal-end
 
 
 def markdown_headings(path: Path) -> list[str]:
@@ -68,7 +70,7 @@ class DocumentationTests(unittest.TestCase):
             for path in (CODEX_DOCS / "templates").rglob("*")
             if path.is_file()
         }
-        manifest = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")
+        manifest = (ROOT / "production/migration/claude-to-codex-coverage.yaml").read_text(encoding="utf-8")  # enforcement-literal
         covered = set(re.findall(r"^    destination: \.codex/docs/templates/(.+)$", manifest, re.MULTILINE))
         self.assertEqual(covered, destination)
         self.assertEqual(40, len(destination))
@@ -181,6 +183,22 @@ class DocumentationTests(unittest.TestCase):
         self.assertNotIn("May I write", spec)
         self.assertNotIn("/[skill-name]", spec)
         self.assertIn("$[skill-name]", spec)
+        self.assertNotIn("status line script", context.lower())
+        self.assertNotIn("status line displays", context.lower())
+
+    def test_runtime_docs_have_one_persistent_review_mode_authority(self):
+        failures = []
+        for path in CODEX_DOCS.rglob("*"):
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8")
+            for legacy in (
+                "production/review-mode.txt",
+                "production/session-state/review-mode.txt",
+            ):
+                if legacy in text:
+                    failures.append(f"{path.relative_to(ROOT)}: {legacy}")
+        self.assertEqual([], failures)
 
     def test_implementation_protocol_uses_current_question_limits(self):
         path = CODEX_DOCS / "templates/collaborative-protocols/implementation-agent-protocol.md"

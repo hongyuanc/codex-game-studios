@@ -44,7 +44,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 | Gate ID      | Trigger condition              | Mode guard            |
 |--------------|--------------------------------|-----------------------|
-| AD-ART-BIBLE | After draft is complete        | full only (not lean/solo) |
+| AD-ART-BIBLE | After draft is complete        | full only (not phase-gated/solo) |
 
 ---
 
@@ -54,13 +54,13 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - No existing `design/art-bible.md`
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - `design/gdd/game-concept.md` exists with visual tone described
 
 **Input:** `$art-bible`
 
 **Expected behavior:**
-1. Skill creates skeleton `design/art-bible.md` with all section headers
+1. Skill drafts an in-memory skeleton for `design/art-bible.md` with all section headers
 2. Skill discusses and drafts each section with user collaboration
 3. After all sections are drafted, AD-ART-BIBLE gate is invoked (art director review)
 4. AD-ART-BIBLE returns APPROVED
@@ -68,7 +68,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 6. All sections written after approval; verdict is COMPLETE
 
 **Assertions:**
-- [ ] Skeleton file is created first (before any section content is written)
+- [ ] The in-memory skeleton is drafted first (before any section content is written)
 - [ ] AD-ART-BIBLE gate is invoked in full mode after draft is complete
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] All sections are present in the final file
@@ -80,7 +80,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - Art bible draft complete
-- `production/session-state/review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 - AD-ART-BIBLE gate returns CONCERNS: "Color palette clashes with the dark
   atmospheric tone described in the game concept"
 
@@ -102,24 +102,24 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ---
 
-### Case 3: Lean Mode — AD-ART-BIBLE Skipped, Written With User Approval Only
+### Case 3: Phase-gated Mode — Gate skipped, atomic write still requires approval
 
 **Fixture:**
 - No existing art bible
-- `production/session-state/review-mode.txt` contains `lean`
+- `.codex/studio.toml` contains `phase-gated`
 
 **Input:** `$art-bible`
 
 **Expected behavior:**
-1. Skill reads review mode — determines `lean`
+1. Skill reads review mode — determines `phase-gated`
 2. Skill drafts all sections with user collaboration
-3. AD-ART-BIBLE gate is skipped: output notes "[AD-ART-BIBLE] skipped — lean mode"
-4. Skill asks user for direct approval of each section
-5. Sections are written after user confirmation; verdict is COMPLETE
+3. AD-ART-BIBLE gate is skipped: output notes "[AD-ART-BIBLE] skipped — phase-gated mode"
+4. Skill asks for conversational approval of each section without writing
+5. Skill presents the complete art-bible changeset, obtains final approval, and writes once; verdict is COMPLETE
 
 **Assertions:**
-- [ ] AD-ART-BIBLE gate is NOT invoked in lean mode
-- [ ] Skip is explicitly noted: "[AD-ART-BIBLE] skipped — lean mode"
+- [ ] AD-ART-BIBLE gate is NOT invoked in phase-gated mode
+- [ ] Skip is explicitly noted: "[AD-ART-BIBLE] skipped — phase-gated mode"
 - [ ] User approval is still required per section (gate skip ≠ approval skip)
 - [ ] Verdict is COMPLETE
 
@@ -155,13 +155,13 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Fixture:**
 - No existing art bible
-- `production/session-state/review-mode.txt` contains `solo`
+- `.codex/studio.toml` contains `solo`
 
 **Input:** `$art-bible`
 
 **Expected behavior:**
 1. Skill reads review mode — determines `solo`
-2. Art bible is drafted and written with only user approval
+2. Art bible is drafted and written only after the complete changeset is shown and approved
 3. AD-ART-BIBLE gate is skipped: output notes "[AD-ART-BIBLE] skipped — solo mode"
 4. No director agents are spawned
 5. Verdict is COMPLETE
@@ -176,10 +176,10 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ## Protocol Compliance
 
-- [ ] Creates skeleton file immediately with all section headers
+- [ ] Drafts an in-memory skeleton immediately with all section headers
 - [ ] Discusses and drafts one section at a time
 - [ ] AD-ART-BIBLE gate runs in full mode after all sections are drafted
-- [ ] AD-ART-BIBLE is skipped in lean and solo modes — noted by name
+- [ ] AD-ART-BIBLE is skipped in phase-gated and solo modes — noted by name
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Verdict is COMPLETE when all sections are written
 

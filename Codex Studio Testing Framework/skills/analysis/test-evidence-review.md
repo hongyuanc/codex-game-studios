@@ -154,7 +154,7 @@ is a separate skill invocation and is NOT triggered here.
 
 **Fixture:**
 - Test file has 1 WARNINGS-level finding (magic number in a non-boundary test)
-- `review-mode.txt` contains `full`
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$test-evidence-review tests/unit/combat/`
 

@@ -44,7 +44,7 @@ class InstructionCoverageTests(unittest.TestCase):
                 if not path.is_file():
                     continue
                 text = path.read_text(encoding="utf-8")
-                self.assertNotIn("Claude", text)
+                self.assertNotIn("Claude", text)  # enforcement-literal
                 self.assertIn("## Applies To", text)
                 self.assertIn("## Required Practices", text)
                 self.assertIn("## Forbidden Practices", text)

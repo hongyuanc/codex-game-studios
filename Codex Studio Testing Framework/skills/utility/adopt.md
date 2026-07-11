@@ -55,7 +55,7 @@ None. `$adopt` is a brownfield audit utility. No director gates apply.
   and all other required sections
 - `production/stage.txt` exists
 - `docs/architecture/tr-registry.yaml` and `docs/architecture/control-manifest.md` exist
-- Engine configured in `technical-preferences.md`
+- Engine configured in `.codex/docs/technical-preferences.md`
 
 **Input:** `$adopt`
 
@@ -127,7 +127,7 @@ None. `$adopt` is a brownfield audit utility. No director gates apply.
 - 4 GDD files: 2 fully compliant, 2 with gaps (one missing Tuning Knobs, one missing Edge Cases)
 - ADRs: 3 files — 2 compliant, 1 missing `## ADR Dependencies`
 - Stories: 5 files — 3 have TR-ID references, 2 do not
-- Infrastructure: all critical files present; `technical-preferences.md` fully configured
+- Infrastructure: all critical files present; `.codex/docs/technical-preferences.md` fully configured
 
 **Input:** `$adopt`
 
@@ -222,5 +222,5 @@ None. `$adopt` is a brownfield audit utility. No director gates apply.
   Not separately fixture-tested here.
 - The systems-index.md parenthetical status value check (BLOCKING) is a special case
   that triggers an immediate fix offer before writing the plan; not separately tested.
-- The review-mode.txt prompt (Phase 6b) runs after plan writing if `production/review-mode.txt`
+- The .codex/studio.toml prompt (Phase 6b) runs after plan writing if `.codex/studio.toml`
   does not exist; not separately tested here.

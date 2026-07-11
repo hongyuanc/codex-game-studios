@@ -51,7 +51,7 @@ None. `$smoke-check` is a pre-QA utility skill. No director gates apply.
 
 **Fixture:**
 - `tests/` directory exists with a GDUnit4 runner script
-- Engine detected as Godot from `technical-preferences.md`
+- Engine detected as Godot from `.codex/docs/technical-preferences.md`
 - `production/qa/qa-plan-sprint-005.md` exists
 - Automated test runner reports 12 tests, 12 passing, 0 failing
 - Developer confirms all Batch 1 and Batch 2 smoke checks as PASS
