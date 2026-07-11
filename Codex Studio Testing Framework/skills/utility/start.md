@@ -25,6 +25,7 @@ owns engine selection and configuration.
 
 - [ ] State detection reads `.codex/studio.toml` and treats `engine = "unconfigured"` as no active engine pack.
 - [ ] Artifact detection checks `design/gdd/game-concept.md`, source files under `src/`, subdirectories under `prototypes/`, Markdown files under `design/gdd/`, and files under `production/sprints/` or `production/milestones/`.
+- [ ] Artifact counts exclude every nested `AGENTS.md` and instruction-only files such as `.gitkeep`.
 - [ ] The first prompt is "Which broad starting point best describes this project?" with exactly `New or exploratory` and `Defined or existing`.
 - [ ] Wait for the first answer before asking the path follow-up.
 - [ ] The second prompt has exactly two options: Paths A/B after `New or exploratory`, or Paths C/D after `Defined or existing`.
@@ -63,13 +64,13 @@ owns engine selection and configuration.
 ### Case 2: Blocked Preconditions — Missing configuration does not trigger a fallback file
 
 **Fixture:**
-- `.codex/studio.toml` is missing or unreadable.
+- `.codex/studio.toml` is missing, unreadable, or invalid TOML.
 - No other artifacts establish an engine.
 
 **Input:** `$start`
 
 **Expected behavior:**
-1. Report that canonical engine state cannot be determined.
+1. Report that canonical engine state cannot be determined and do not continue to onboarding.
 2. Do not infer configuration from `.codex/docs/technical-preferences.md`.
 3. Recommend restoring the canonical configuration or using `$setup-engine`.
 4. Never create a separate review-depth file as a fallback.
@@ -78,7 +79,7 @@ owns engine selection and configuration.
 **Assertions:**
 - [ ] Missing authority is not treated as a configured engine.
 - [ ] No fallback file is silently created.
-- [ ] Verdict is BLOCKED until the authority is readable or the user approves a repair.
+- [ ] `Verdict: **BLOCKED**` remains until the authority is readable or the user approves a repair.
 
 ### Case 3: Project-State Boundary — Defined concept routes to Path C
 
@@ -100,24 +101,24 @@ owns engine selection and configuration.
 - [ ] Engine choice is deferred to `$setup-engine`.
 - [ ] No workflow is auto-run.
 
-### Case 4: Edge Case — Existing work routes to adoption
+### Case 4: Returning User — Configured engine and concept skip onboarding
 
 **Fixture:**
-- `.codex/studio.toml` contains a configured engine.
-- Source files under `src/`, GDD Markdown under `design/gdd/`, and sprint files under `production/sprints/` exist.
+- `.codex/studio.toml` contains a configured engine and readable review mode.
+- `design/gdd/game-concept.md` exists.
 
-**Input:** `$start`; choose `Defined or existing`, then `Existing work (Path D)`.
+**Input:** `$start`
 
 **Expected behavior:**
-1. Summarize the observed source, design, prototype, and production evidence.
-2. Report the configured engine from `.codex/studio.toml`.
-3. Recommend `$project-stage-detect`, then `$adopt` for format compliance.
-4. Keep analysis read-only and wait for the user's next-step decision.
+1. Detect the returning state: `engine configured, concept exists`.
+2. Skip onboarding entirely; do not ask the Path A–D questions.
+3. Report the configured engine, concept path, and current review mode.
+4. Offer `$sprint-plan` or a free-form next request without auto-running either.
 
 **Assertions:**
-- [ ] Path D is based on evidence rather than assumptions.
-- [ ] The recommended order is `$project-stage-detect` before `$adopt`.
-- [ ] No existing artifact is overwritten.
+- [ ] Returning-user behavior exactly matches the runtime edge-case branch.
+- [ ] No onboarding decision or persistent write is proposed.
+- [ ] No existing artifact is overwritten and no workflow is auto-run.
 
 ### Case 5: Final Gate — Stage and review-depth writes are separately approved
 
@@ -145,6 +146,8 @@ owns engine selection and configuration.
 ## Protocol Compliance
 
 - [ ] Project-state discovery precedes user questions.
+- [ ] Missing, unreadable, or invalid canonical configuration returns `Verdict: **BLOCKED**` before onboarding.
+- [ ] A returning user with `engine configured, concept exists` skips onboarding entirely.
 - [ ] Ordered decisions map exactly to Paths A–D.
 - [ ] `.codex/studio.toml` is the engine and persistent review-depth authority; no separate review-depth file is used.
 - [ ] Discovery and routing are read-only.

@@ -368,9 +368,10 @@ class OperationsSkillTests(unittest.TestCase):
         self.assertIn("tools/codex_studio/validate.py", skill_test)
         self.assertIn("exactly `name` and `description`", skill_test)
         self.assertIn("`name` must equal the skill directory name", skill_test)
-        self.assertIn("nonblank and trigger-oriented", skill_test)
+        self.assertIn("nonblank", skill_test)
         self.assertIn("does not require a literal `Use when` prefix", skill_test)
         self.assertNotIn("beginning with `Use when`", skill_test)
+        self.assertIn("does not judge whether the prose is trigger-oriented", skill_test)
 
         improve = self.skill_text("skill-improve")
         for phrase in (

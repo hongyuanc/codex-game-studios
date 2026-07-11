@@ -151,22 +151,24 @@ separate invocation and not part of this skill.
 
 ---
 
-### Case 5: Director Gate Check — No gate; CD-PLAYTEST is a separate invocation
+### Case 5: Optional Director Gate — CD-PLAYTEST runs only in full
 
 **Fixture:**
 - Playtest notes provided
+- `.codex/studio.toml` contains `full`
 
 **Input:** `$playtest-report`
 
 **Expected behavior:**
 1. Skill generates and writes the playtest report
-2. No director agents are spawned (CD-PLAYTEST is not invoked here)
-3. No gate IDs appear in output
+2. CD-PLAYTEST is optional: run it only in `full`; phase-gated and solo skip it.
+3. Pass the structured report, pillars/core fantasy, and tested hypothesis to the creative director.
+4. Record the director assessment in the report before saving.
 
 **Assertions:**
-- [ ] No director gate is invoked
-- [ ] No CD-PLAYTEST gate skip message appears
-- [ ] Verdict is COMPLETE without any gate check
+- [ ] CD-PLAYTEST runs in full mode.
+- [ ] Phase-gated and solo emit the optional-gate skip and proceed to save.
+- [ ] The assessment is included before the report's COMPLETE verdict.
 
 ---
 
@@ -182,8 +184,8 @@ separate invocation and not part of this skill.
 
 ## Coverage Notes
 
-- The CD-PLAYTEST director gate (creative director reviews playtest insights
-  for design implications) is a separate invocation and is not tested here.
+- CD-PLAYTEST is an optional inline gate governed by the runtime review-mode
+  check; it is not a separate user invocation.
 - Video recording or screenshot attachments are not tested; the report is a
   text-only document.
 - The case where a tester's identity is unknown (anonymous feedback) follows

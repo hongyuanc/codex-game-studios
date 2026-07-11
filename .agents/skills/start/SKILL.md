@@ -31,14 +31,17 @@ Do not emit a raw scan log; Phase 2 presents the relevant evidence as a concise
 project-state summary before asking the user to confirm the starting point.
 
 Check:
-- **Engine configured?** Read `.codex/studio.toml`. If it contains
+- **Engine configured?** Read `.codex/studio.toml`. If it is missing, unreadable, or invalid TOML, report that the canonical studio authority is
+  unavailable, do not infer values from another file, and do not continue to onboarding. Offer restoration or an explicitly approved repair, then stop
+  with `Verdict: **BLOCKED**`. If it contains
   `engine = "unconfigured"`, no engine pack is active. Use
   `.codex/docs/technical-preferences.md` only for the selected engine's detailed
   preferences after activation.
 - **Game concept exists?** Check for `design/gdd/game-concept.md`.
 - **Source code exists?** repository file search for source files in `src/` (`*.gd`, `*.cs`, `*.cpp`, `*.h`, `*.rs`, `*.py`, `*.js`, `*.ts`).
 - **Prototypes exist?** Check for subdirectories in `prototypes/`.
-- **Design docs exist?** Count markdown files in `design/gdd/`.
+- **Design docs exist?** Count real game-design Markdown artifacts in
+  `design/gdd/`; exclude every nested `AGENTS.md` and instruction-only files such as `.gitkeep` from artifact counts.
 - **Production artifacts?** Check for files in `production/sprints/` or `production/milestones/`.
 
 Store these findings internally to validate the user's self-assessment and tailor recommendations.

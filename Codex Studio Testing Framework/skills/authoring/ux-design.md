@@ -20,10 +20,7 @@
 cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
 modes, and edge conditions.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. After each section write, update session state; a new path, section, or scope expansion requires fresh approval.
 
 ---
 
@@ -34,7 +31,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Skeleton creation and each section follow the runtime's bounded approval/write cycle
 - [ ] Has a next-step handoff (e.g., `$ux-review` to validate the completed spec)
 
 ---
@@ -57,18 +54,17 @@ review skill invoked after this skill completes.
 **Input:** `$ux-design hud`
 
 **Expected behavior:**
-1. Skill drafts an in-memory skeleton for `design/ux/hud.md` with all section headers
-2. Skill discusses and drafts each section: User Flows, Interaction States
+1. Skill identifies `design/ux/hud.md`, presents the skeleton proposal, and writes it only after approval.
+2. Skill discusses and presents one section draft at a time: User Flows, Interaction States
    (normal/hover/focus/disabled), Wireframe Description, Accessibility Notes
-3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-   section [N] to `design/ux/hud.md`?"
-4. Each section is written in sequence after approval
+3. Ask "Approve the [Section Name] section?" after showing that complete draft.
+4. Write the approved section without a second per-file prompt, update the runtime-directed session record, and continue.
 5. After all sections are written, verdict is COMPLETE
 6. Skill suggests running `$ux-review` as the next step
 
 **Assertions:**
-- [ ] The in-memory skeleton is drafted first (with empty section bodies)
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Skeleton creation is approved before its write
+- [ ] Each section is approved before its write and does not receive duplicate per-file approval
 - [ ] All required sections are present: User Flows, Interaction States,
      Wireframe Description, Accessibility Notes
 - [ ] Handoff to `$ux-review` is at the end
@@ -89,15 +85,14 @@ review skill invoked after this skill completes.
 2. Skill reports: "UX spec already exists for HUD — offering to retrofit"
 3. Skill lists all sections and asks which to update
 4. User selects Accessibility Notes
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-   Accessibility Notes to `design/ux/hud.md`?"
-6. Only that section is updated; other sections are preserved; verdict is COMPLETE
+5. Present the Accessibility Notes draft and obtain approval.
+6. Write only that approved section, update session state, and preserve all other sections; verdict is COMPLETE.
 
 **Assertions:**
 - [ ] Existing spec is detected and retrofit is offered
 - [ ] User selects which section(s) to update
 - [ ] Only the selected section is updated — other sections unchanged
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The approved selected section is written without another per-file approval
 - [ ] Verdict is COMPLETE
 
 ---
@@ -137,7 +132,7 @@ review skill invoked after this skill completes.
 1. Skill detects no screen name or argument provided
 2. Skill outputs a usage error: "Screen name required. Usage: `$ux-design [screen-name]`"
 3. Skill provides examples: `$ux-design hud`, `$ux-design main-menu`, `$ux-design inventory`
-4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+4. Skill stops without proposing or writing an artifact.
 
 **Assertions:**
 - [ ] Usage error is clearly stated
@@ -168,9 +163,10 @@ review skill invoked after this skill completes.
 
 ## Protocol Compliance
 
-- [ ] Drafts an in-memory skeleton with all section headers before discussing content
+- [ ] Skeleton creation is approved before writing empty section headers
 - [ ] Discusses and drafts one section at a time
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Every section draft is shown and approved before its incremental write
+- [ ] Session state is updated after each section without redundant per-file approval
 - [ ] Detects existing spec and offers retrofit path
 - [ ] Ends with handoff to `$ux-review`
 - [ ] Verdict is COMPLETE when all sections are written

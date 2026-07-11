@@ -1,4 +1,5 @@
 from pathlib import Path
+import tomllib
 import unittest
 
 from tools.codex_studio.validate import validate_skill
@@ -8,7 +9,64 @@ ROOT = Path(__file__).resolve().parents[2]
 START = ROOT / ".agents/skills/start/SKILL.md"
 
 
+def detect_start_state(root: Path) -> dict[str, object]:
+    studio = tomllib.loads((root / ".codex/studio.toml").read_text(encoding="utf-8"))
+    instruction_only = {"AGENTS.md", ".gitkeep"}
+    source_suffixes = {".gd", ".cs", ".cpp", ".h", ".rs", ".py", ".js", ".ts"}
+    source_files = [
+        path for path in (root / "src").rglob("*")
+        if path.is_file() and path.name not in instruction_only and path.suffix in source_suffixes
+    ]
+    design_docs = [
+        path for path in (root / "design/gdd").rglob("*.md")
+        if path.name not in instruction_only
+    ]
+    prototypes = [path for path in (root / "prototypes").iterdir() if path.is_dir()]
+    production_files = [
+        path
+        for directory in (root / "production/sprints", root / "production/milestones")
+        if directory.is_dir()
+        for path in directory.rglob("*")
+        if path.is_file() and path.name not in instruction_only
+    ]
+    concept = root / "design/gdd/game-concept.md"
+    fresh = (
+        studio["engine"] == "unconfigured"
+        and not concept.is_file()
+        and not source_files
+        and not design_docs
+        and not prototypes
+        and not production_files
+    )
+    return {
+        "engine": studio["engine"],
+        "source_files": source_files,
+        "design_docs": design_docs,
+        "prototypes": prototypes,
+        "production_files": production_files,
+        "fresh": fresh,
+    }
+
+
 class StartSkillTests(unittest.TestCase):
+    def test_clean_template_heuristic_ignores_instruction_only_files(self):
+        state = detect_start_state(ROOT)
+        self.assertEqual("unconfigured", state["engine"])
+        self.assertEqual([], state["source_files"])
+        self.assertEqual([], state["design_docs"])
+        self.assertEqual([], state["prototypes"])
+        self.assertEqual([], state["production_files"])
+        self.assertTrue(state["fresh"])
+        text = START.read_text(encoding="utf-8")
+        self.assertIn("exclude every nested `AGENTS.md`", text)
+        self.assertIn("instruction-only files such as `.gitkeep`", text)
+
+    def test_start_blocks_when_canonical_studio_config_is_unreadable(self):
+        text = START.read_text(encoding="utf-8")
+        self.assertIn("missing, unreadable, or invalid TOML", text)
+        self.assertIn("Verdict: **BLOCKED**", text)
+        self.assertIn("do not continue to onboarding", text)
+
     def test_start_is_native_and_detects_unconfigured_fresh_projects(self):
         text = START.read_text(encoding="utf-8")
         self.assertEqual([], validate_skill(START))
@@ -73,6 +131,11 @@ class StartSkillTests(unittest.TestCase):
         self.assertIn("lean optional-review depth", gates)
         self.assertIn("mandatory director gates still run", gates)
         self.assertIn('review_mode = "phase-gated"', gates)
+
+    def test_returning_engine_and_concept_skip_onboarding(self):
+        text = START.read_text(encoding="utf-8")
+        self.assertIn("engine configured, concept exists", text)
+        self.assertIn("Skip onboarding entirely", text)
 
 
 if __name__ == "__main__":

@@ -143,7 +143,7 @@ director review is required at the analysis stage.
 
 ---
 
-### Case 5: Director Gate — No gate spawned regardless of review mode
+### Case 5: Mandatory Director Gate — TD-CHANGE-IMPACT runs in every mode
 
 **Fixture:**
 - A GDD has been revised with downstream references
@@ -153,15 +153,15 @@ director review is required at the analysis stage.
 
 **Expected behavior:**
 1. Skill reads the GDD and traces downstream references
-2. Skill does NOT read `.codex/studio.toml`
-3. No director gate agents are spawned at any point
-4. Impact report is produced and the complete affected-artifact changeset proceeds to approval
+2. Produce the Design Change Impact Report.
+3. TD-CHANGE-IMPACT is mandatory in `full`, `phase-gated`, and `solo`.
+4. Delegate the full impact report to the technical director and resolve its verdict.
+5. Only then may the complete affected-artifact changeset proceed to approval.
 
 **Assertions:**
-- [ ] No director gate agents are spawned (no CD-, TD-, PR-, AD- prefixed gates)
-- [ ] Skill does NOT read `.codex/studio.toml`
-- [ ] Output contains no "Gate: [GATE-ID]" or gate-skipped entries
-- [ ] Review mode has no effect on this skill's behavior
+- [ ] TD-CHANGE-IMPACT runs in all three review modes.
+- [ ] Solo and phase-gated never skip this mandatory architecture gate.
+- [ ] CONCERNS or REJECT blocks resolution until addressed.
 
 ---
 
@@ -171,7 +171,7 @@ director review is required at the analysis stage.
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] In Progress stories flagged with elevated warning before their approval ask
-- [ ] No director gates — no .codex/studio.toml read
+- [ ] Mandatory TD-CHANGE-IMPACT behavior matches the runtime skill.
 - [ ] Ends with next-step handoff appropriate to verdict (COMPLETE or NO IMPACT)
 
 ---

@@ -198,8 +198,9 @@ class TestingFrameworkTests(unittest.TestCase):
             "exactly `name` and `description`; `name` equals the skill directory",
             skill_test,
         )
-        self.assertIn("description is nonblank and trigger-oriented", skill_test)
+        self.assertIn("description is nonblank", skill_test)
         self.assertIn("does not require a literal `Use when` prefix", skill_test)
+        self.assertIn("does not evaluate whether prose is trigger-oriented", skill_test)
 
         failures = []
         for path in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
@@ -280,37 +281,101 @@ class TestingFrameworkTests(unittest.TestCase):
             self.assertIn(token, runtime)
             self.assertIn(token, text)
         forbidden = (
-            "project name", "3 engine options", "AGENTS.md", "directory structure",
+            "project name", "3 engine options", "directory structure",
             "$setup-engine godot", "initial stubs", "restart from scratch",
         )
         for token in forbidden:
             self.assertNotIn(token, text)
 
-    def test_authoring_specs_gate_complete_changeset_before_writes(self):
-        canonical = (
+        correspondence = (
+            "exclude every nested `AGENTS.md`",
+            "instruction-only files such as `.gitkeep`",
+            "missing, unreadable, or invalid TOML",
+            "Verdict: **BLOCKED**",
+            "engine configured, concept exists",
+            "Skip onboarding entirely",
+        )
+        for token in correspondence:
+            self.assertIn(token, runtime)
+            self.assertIn(token, text)
+
+    def test_incremental_authoring_specs_match_runtime_section_approval(self):
+        incremental = (
+            "Draft and present one section, obtain approval, then write that approved "
+            "section to the already identified artifact path"
+        )
+        boundary = (
+            "No write occurs before that section approval, and no per-file reapproval "
+            "is required inside the approved section"
+        )
+        runtime_markers = {
+            "design-system": ("Approval  ->  Write", "After writing each section"),
+            "art-bible": ("Write the approved section to file immediately",),
+            "ux-design": ("Approval  ->  Write", "After writing each section"),
+            "create-architecture": ("Incremental writing", "write each approved section immediately"),
+        }
+        failures = []
+        for name, markers in runtime_markers.items():
+            runtime = (ROOT / f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
+            spec = next((NEW / "skills/authoring").glob(f"{name}.md")).read_text(encoding="utf-8")
+            for marker in markers:
+                if marker not in runtime:
+                    failures.append(f"{name}: runtime marker missing: {marker}")
+            if incremental not in spec:
+                failures.append(f"{name}: framework lacks incremental section cycle")
+            if boundary not in spec:
+                failures.append(f"{name}: framework lacks section approval boundary")
+            if "write once" in spec.lower() or "single write" in spec.lower():
+                failures.append(f"{name}: framework incorrectly requires atomic write")
+
+        full_changeset = (
             "The parent presents one complete proposed changeset containing every "
             "target path and material edit, then obtains approval before any write"
         )
-        failures = []
         for path in sorted((NEW / "skills/authoring").glob("*.md")):
-            text = path.read_text(encoding="utf-8")
-            lowered = text.lower()
-            if canonical not in text:
-                failures.append(f"{path.name}: missing complete changeset gate")
-            for stale in (
-                "written with only user approval",
-                "written with user approval only",
-                "written individually after gate + user approval",
-                "written per-section",
-                "write each section after approval",
-                "creates a skeleton file",
-                "creates skeleton `",
-                "skeleton file is created",
-                "creates skeleton file",
-            ):
-                if stale in lowered:
-                    failures.append(f"{path.name}: stale sequencing: {stale}")
+            if path.stem not in runtime_markers and full_changeset not in path.read_text(encoding="utf-8"):
+                failures.append(f"{path.name}: full-changeset workflow lost its gate")
         self.assertEqual([], failures)
+
+    def test_gate_specs_match_runtime_mode_contracts(self):
+        rubric = (NEW / "quality-rubric.md").read_text(encoding="utf-8")
+        gate_check = (NEW / "skills/gate/gate-check.md").read_text(encoding="utf-8")
+        for text in (rubric, gate_check):
+            self.assertIn(
+                "mandatory `*-PHASE-GATE` directors run in `full`, `phase-gated`, and `solo`",
+                text,
+            )
+            self.assertIn("only optional gates vary by review mode", text)
+
+        pairs = {
+            "create-control-manifest": (
+                "Read and resolve `review_mode` from `.codex/studio.toml`",
+                "TD-MANIFEST is optional: run it only in `full`; skip it in `phase-gated` and `solo`",
+            ),
+            "prototype": (
+                "game pillars not yet defined",
+                "CD-PLAYTEST is optional: run it only in `full` when game pillars exist",
+            ),
+            "playtest-report": (
+                "CD-PLAYTEST skipped — Solo mode",
+                "CD-PLAYTEST is optional: run it only in `full`",
+            ),
+            "propagate-design-change": (
+                "TD-CHANGE-IMPACT is required in full, lean, and solo modes",
+                "TD-CHANGE-IMPACT is mandatory in `full`, `phase-gated`, and `solo`",
+            ),
+        }
+        locations = {
+            "create-control-manifest": "pipeline",
+            "prototype": "utility",
+            "playtest-report": "utility",
+            "propagate-design-change": "pipeline",
+        }
+        for name, (runtime_token, spec_token) in pairs.items():
+            runtime = (ROOT / f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
+            spec = (NEW / f"skills/{locations[name]}/{name}.md").read_text(encoding="utf-8")
+            self.assertIn(runtime_token, runtime, name)
+            self.assertIn(spec_token, spec, name)
 
     def test_framework_core_documents_define_codex_native_protocol(self):
         combined = "\n".join(

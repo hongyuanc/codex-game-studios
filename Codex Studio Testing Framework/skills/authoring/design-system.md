@@ -20,10 +20,7 @@
 cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
 modes, and edge conditions.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. After each section write, update the existing session-state artifact as the runtime directs. A new path, new section, or scope expansion requires fresh approval.
 
 ---
 
@@ -34,9 +31,9 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Each section follows Context → Questions → Options → Decision → Draft → Approval → Write
 - [ ] Has a next-step handoff at the end
-- [ ] Documents skeleton-first drafting in memory; no skeleton or content is written before complete-changeset approval
+- [ ] Skeleton creation has its own explicit approval; later approved sections are written incrementally
 - [ ] Under `review_mode = "phase-gated"`, per-skill CD-GDD-ALIGN is skipped outside a phase gate
 - [ ] Documents retrofit mode for existing GDD files
 
@@ -46,15 +43,15 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 `.codex/studio.toml` is authoritative. With
 `review_mode = "phase-gated"`, `$design-system` does not run a per-section
-director gate outside a phase transition. Section drafts remain conversational
-and in memory. After all approved section drafts are assembled, the parent shows
-the complete file changeset and obtains approval before the single write.
+director gate outside a phase transition. This mode choice does not alter the
+runtime section cycle: present one section draft, obtain its approval, write the
+approved section, and update session state before continuing.
 
 ---
 
 ## Test Cases
 
-### Case 1: Happy Path — New GDD drafted section by section, written once
+### Case 1: Happy Path — New GDD written one approved section at a time
 
 **Fixture:**
 - No existing GDD for the target system in `design/gdd/`
@@ -63,18 +60,18 @@ the complete file changeset and obtains approval before the single write.
 **Input:** `$design-system [system-name]`
 
 **Expected behavior:**
-1. Skill drafts an in-memory skeleton for `design/gdd/[system-name].md` with all 8 section headers.
-2. For each section, discuss with the user, draft content, and obtain conversational approval without writing.
+1. Skill presents the skeleton proposal and creates `design/gdd/[system-name].md` only after that proposal is approved.
+2. For each section, discuss with the user and present the complete section draft.
 3. Because this is outside a phase gate, no CD-GDD-ALIGN child is invoked.
-4. Assemble all approved, non-empty sections into one proposed file.
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-6. Write the approved GDD once.
+4. Obtain explicit approval for that section.
+5. Write the approved section to the identified GDD without a second per-file prompt.
+6. Update the runtime-directed session record, then continue to the next section.
 
 **Assertions:**
-- [ ] The skeleton and section bodies remain in memory until final approval
+- [ ] Skeleton creation is approved before its write
 - [ ] CD-GDD-ALIGN does not run outside a phase gate
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] No section is written until the complete changeset is shown and approved
+- [ ] No section is written before that section's approval
+- [ ] No duplicate per-file approval is requested inside the approved section
 - [ ] All 8 sections are present in the final GDD file
 
 ---
@@ -90,15 +87,15 @@ the complete file changeset and obtains approval before the single write.
 1. Skill detects existing GDD file and reads its current content
 2. Skill offers retrofit mode: "GDD already exists. Which section would you like to update?"
 3. User selects a specific section (e.g., Formulas)
-4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-5. Only the selected section is updated — other sections are not modified
+4. Present the selected section draft and obtain its approval.
+5. Write only the approved section and update session state; other sections are not modified.
 
 **Assertions:**
 - [ ] Skill detects and reads existing GDD before offering retrofit mode
 - [ ] User is asked which section to update — not asked to rewrite the whole document
 - [ ] Only the selected section is rewritten — others remain unchanged
 - [ ] CD-GDD-ALIGN still runs on the updated section
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] The approved selected section is written without a second per-file approval
 
 ---
 
@@ -118,7 +115,7 @@ the complete file changeset and obtains approval before the single write.
 4. No part of the GDD is written while MAJOR REVISION is unresolved
 5. User rewrites the section in collaboration with the skill
 6. CD-GDD-ALIGN runs again on the revised section
-7. After all feedback is resolved, the parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+7. After feedback is resolved, present the revised section, obtain approval, write that section, and update session state.
 
 **Assertions:**
 - [ ] No GDD write occurs when CD-GDD-ALIGN returns MAJOR REVISION
@@ -128,7 +125,7 @@ the complete file changeset and obtains approval before the single write.
 
 ---
 
-### Case 4: Non-Phase Workflow — Director gate skipped and write remains atomic
+### Case 4: Non-Phase Workflow — Director gate skipped; section cycle remains incremental
 
 **Fixture:**
 - New GDD being authored
@@ -137,16 +134,16 @@ the complete file changeset and obtains approval before the single write.
 **Input:** `$design-system [system-name]`
 
 **Expected behavior:**
-1. An 8-section skeleton and each section body are drafted in memory and shown to the user.
+1. The approved skeleton exists and the current section draft is shown to the user.
 2. CD-GDD-ALIGN is not invoked because this is outside a phase gate.
-3. The parent presents the complete proposed GDD changeset and obtains approval before any write.
-4. The GDD is written once after approval; no gate review occurs.
+3. The current section is approved and written to the GDD.
+4. Session state is updated and the next section begins; no gate review occurs.
 
 **Assertions:**
 - [ ] The phase-gated policy is stated without producing repetitive per-section skip messages
-- [ ] Section approval does not itself authorize a filesystem write
+- [ ] Section approval authorizes exactly that section's write to the identified GDD path
 - [ ] Skill does NOT spawn any CD-GDD-ALIGN gate in a non-phase workflow
-- [ ] Full GDD is written only after the complete changeset is shown and approved
+- [ ] No unrelated section or file is changed
 
 ---
 
@@ -161,14 +158,14 @@ the complete file changeset and obtains approval before the single write.
 
 **Expected behavior:**
 1. Section discussion produces no approved content
-2. Skill does NOT add an empty or placeholder body to the proposed changeset
-3. The section header remains in the in-memory skeleton but the body stays empty
+2. Skill does NOT add an empty or placeholder body to the GDD
+3. The existing skeleton header remains and its body stays empty
 4. Skill moves to the next section without writing
 5. At the end, incomplete sections are listed and user is reminded to return to them
 
 **Assertions:**
 - [ ] Empty or unapproved sections are not included as file content
-- [ ] The in-memory skeleton retains the section header
+- [ ] The approved skeleton retains the section header
 - [ ] Skill tracks and lists incomplete sections at the end of the session
 - [ ] Skill does NOT write "TBD" or placeholder content without user approval
 
@@ -176,11 +173,11 @@ the complete file changeset and obtains approval before the single write.
 
 ## Protocol Compliance
 
-- [ ] Skeleton and content are drafted in memory before any filesystem write
+- [ ] Skeleton creation and each section write have their own bounded approval
 - [ ] CD-GDD-ALIGN is limited to an explicit phase transition
 - [ ] Outside a phase gate, no director child is spawned
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] MAJOR REVISION from CD-GDD-ALIGN blocks the complete GDD write until resolved
+- [ ] Each approved section is written incrementally without redundant per-file approval
+- [ ] MAJOR REVISION from CD-GDD-ALIGN blocks the affected section write until resolved
 - [ ] Only approved, non-empty sections are written to the file
 - [ ] Ends with next-step handoff: `$review-all-gdds` or `$map-systems next`
 

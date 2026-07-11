@@ -125,6 +125,11 @@ Ask one concise question and wait for the answer:
 
 ## 4b. Director Gate — Technical Review
 
+Read and resolve `review_mode` from `.codex/studio.toml` before applying this
+mode check. Treat `review_mode = "phase-gated"` as lean optional-review depth.
+If the canonical setting is missing or unreadable, stop and surface the blocker
+instead of guessing a mode.
+
 **Review mode check** — apply before delegating to TD-MANIFEST:
 - `solo` → skip. Note: "TD-MANIFEST skipped — Solo mode." Proceed to Phase 5.
 - `lean` → skip. Note: "TD-MANIFEST skipped — Lean mode." Proceed to Phase 5.

@@ -149,22 +149,25 @@ None. Prototypes are throwaway validation artifacts. No director gates apply.
 
 ---
 
-### Case 5: Director Gate Check — No gate; prototypes are validation artifacts
+### Case 5: Optional Director Gate — CD-PLAYTEST requires full mode and pillars
 
 **Fixture:**
 - Mechanic concept provided
+- `.codex/studio.toml` contains `full`
+- `design/gdd/game-concept.md` exists with game pillars
 
 **Input:** `$prototype wall-jump`
 
 **Expected behavior:**
 1. Skill creates and documents the prototype
-2. No director agents are spawned
-3. No gate IDs appear in output
+2. CD-PLAYTEST is optional: run it only in `full` when game pillars exist.
+3. The creative director reviews the report against those pillars before the final recommendation.
 
 **Assertions:**
-- [ ] No director gate is invoked
-- [ ] No gate skip messages appear
-- [ ] Verdict is PROTOTYPE COMPLETE or PROTOTYPE ABANDONED — no gate verdict
+- [ ] CD-PLAYTEST runs in this full-mode fixture because pillars exist.
+- [ ] Phase-gated and solo skip this optional gate.
+- [ ] Full mode also skips CD-PLAYTEST when game pillars are not yet defined.
+- [ ] The prototype verdict incorporates the director result when the gate runs.
 
 ---
 

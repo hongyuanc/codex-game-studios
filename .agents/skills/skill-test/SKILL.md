@@ -55,15 +55,17 @@ For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Fr
 For each skill being tested, read its `SKILL.md` fully and run all 7 checks:
 
 ### Check 1 — Native Skill Contract
-The YAML frontmatter must contain exactly `name` and `description`; `name` must equal the skill directory name, and `description` must be nonblank and trigger-oriented.
+The YAML frontmatter must contain exactly `name` and `description`; `name` must equal the skill directory name, and `description` must be nonblank.
 This static contract does not require a literal `Use when` prefix.
 
 Delegate the structural decision to `validate_skill` in
 `tools/codex_studio/validate.py` so the runtime validator remains the single
 implementation of this contract and non-native interaction primitives, legacy
 paths, model metadata, and tool metadata also fail this check.
+`validate_skill` does not judge whether the prose is trigger-oriented; that is a
+human or behavioral-spec quality review, not a structural validator rule.
 
-**FAIL** for any validator issue or missing trigger-oriented description.
+**FAIL** for any validator issue or blank description.
 ### Check 2 — Multiple Phases
 The skill must have ≥2 numbered phase headings. Look for patterns like:
 - `## Phase N` or `## Phase N:`

@@ -34,13 +34,14 @@ Every category inherits these checks before its domain metrics are scored:
 
 Gate skills control phase transitions. They must enforce correctness without
 auto-advancing stage and must respect the three review modes.
+For every phase transition, mandatory `*-PHASE-GATE` directors run in `full`, `phase-gated`, and `solo`; only optional gates vary by review mode.
 
 | Metric | PASS criteria |
 |---|---|
 | **G1 — Review mode read** | Skill reads `.codex/studio.toml` (or equivalent) before deciding which directors to spawn |
-| **G2 — Full mode: direct-child panel** | In `full` mode, the 4 directors (CD, TD, PR, AD) are independent direct-child custom-agent delegations; the parent waits for and synthesizes every verdict |
-| **G3 — Phase-gated mode: PHASE-GATE only** | In `phase-gated` mode, only `*-PHASE-GATE` gates run; inline gates (CD-PILLARS, TD-ARCHITECTURE, etc.) are skipped |
-| **G4 — Solo mode: no directors** | In `solo` mode, no director gates spawn; each is noted as "skipped — Solo mode" |
+| **G2 — Mandatory phase panel** | Mandatory `*-PHASE-GATE` directors run in `full`, `phase-gated`, and `solo`; the directors are independent direct-child custom-agent delegations and the parent waits for and synthesizes every verdict |
+| **G3 — Optional gates vary** | Only optional gates vary by review mode: `full` runs them, while `phase-gated` and `solo` skip them unless a runtime skill explicitly defines a narrower condition |
+| **G4 — Required gates are invariant** | `solo` never suppresses a gate that the runtime marks mandatory; every skip message is limited to an optional gate |
 | **G5 — No auto-advance** | Skill never changes `production/stage.txt` unless that path and transition are part of one complete approved changeset |
 
 ---
@@ -186,7 +187,7 @@ gates, the gate mode logic must also be correct.
 
 | Metric | PASS criteria |
 |---|---|
-| **U1 — Passes all 7 static checks** | `$skill-test static [name]` returns COMPLIANT with 0 FAILs |
+| **U1 — Passes all 7 static checks** | `$skill-test static [name]` returns COMPLIANT with 0 FAILs. The native contract checks exact `{name, description}` frontmatter, `name` equal to the directory, a nonblank description, and forbidden native hazards; it does not evaluate whether prose is trigger-oriented |
 | **U2 — Gate mode correct (if applicable)** | If the skill spawns any director gate, it reads `review_mode` from `.codex/studio.toml` and applies full/phase-gated/solo logic correctly |
 
 ---

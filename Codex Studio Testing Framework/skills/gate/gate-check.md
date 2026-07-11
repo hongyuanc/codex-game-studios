@@ -142,6 +142,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ### Case 5: Director Gate — phase-gated vs full vs solo mode
 
+For phase transitions, mandatory `*-PHASE-GATE` directors run in `full`, `phase-gated`, and `solo`; only optional gates vary by review mode.
+
 **Fixture:**
 - `.codex/studio.toml` exists (or equivalent state file)
 - All required artifacts for the target gate are present
@@ -169,21 +171,21 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] A CONCERNS verdict from any one director propagates to overall verdict
 - [ ] Verdict is NOT auto-PASS if any director returns CONCERNS or REJECT
 
-**Case 5b — solo mode:**
-- `.codex/studio.toml` contains `solo`
+**Case 5b — phase-gated and solo modes:**
+- `.codex/studio.toml` contains `phase-gated` or `solo`
 
-**Input:** `$gate-check systems-design` (with solo mode active)
+**Input:** `$gate-check systems-design`
 
 **Expected behavior:**
-1. Skill reads review mode — determines `solo`
-2. Each director is noted as skipped: "[CD-PHASE-GATE] skipped — Solo mode"
-3. Gate verdict is derived from artifact/quality checks only
-4. No director gates spawn
+1. Skill reads the review mode.
+2. Skill still spawns CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE in parallel because they are mandatory.
+3. The parent waits for and synthesizes all four verdicts.
+4. Optional inline gates remain skipped according to the selected mode.
 
 **Assertions (5b):**
-- [ ] No director gates are spawned in solo mode
-- [ ] Each skipped gate is explicitly noted in output: "[GATE-ID] skipped — Solo mode"
-- [ ] Verdict is based on artifact and quality checks only
+- [ ] All four mandatory PHASE-GATE directors run in phase-gated and solo modes.
+- [ ] Only optional gates vary by review mode.
+- [ ] A CONCERNS or REJECT verdict still propagates to the overall result.
 
 **Note on Case 3 correction:**
 The Case 3 assertions previously stated "Skill does not ask the user which gate to check

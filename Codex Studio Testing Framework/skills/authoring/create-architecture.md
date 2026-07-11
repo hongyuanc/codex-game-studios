@@ -20,10 +20,7 @@
 cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
 modes, and edge conditions.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. Continue sequentially and update session state at the runtime handoff; new paths or scope expansion require fresh approval.
 
 ---
 
@@ -34,7 +31,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keywords: APPROVED, NEEDS REVISION, MAJOR REVISION NEEDED
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Draft-before-approval and incremental section writes match the runtime protocol
 - [ ] Has a next-step handoff at the end (`$architecture-review` or `$create-control-manifest`)
 - [ ] Documents skeleton-first approach
 - [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
@@ -45,8 +42,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ## Director Gate Checks
 
 In `full` mode: TD-ARCHITECTURE (technical-director) and LP-FEASIBILITY
-(lead-programmer) spawn in parallel after all sections are drafted and before
-any final approval write.
+(lead-programmer) spawn in parallel after the approved sections have been
+written and before final sign-off.
 
 In `phase-gated` mode: both gates are skipped. Output notes:
 "TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
@@ -67,16 +64,16 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Input:** `$create-architecture`
 
 **Expected behavior:**
-1. Skill drafts an in-memory skeleton for `docs/architecture/architecture.md` with all required section headers
-2. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-3. After all sections are drafted: TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel
+1. Skill identifies `docs/architecture/architecture.md` and presents the first architecture section draft.
+2. Obtain approval, write that approved section immediately, and continue sequentially.
+3. After all scoped sections are written: TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel.
 4. Both gates return APPROVED
 5. The parent asks one explicit completion decision in its own turn.
 6. Session state updated
 
 **Assertions:**
-- [ ] The in-memory skeleton is drafted with all section headers before any content is written
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Each section is shown and approved before its write
+- [ ] No per-file reapproval is requested inside an approved section
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel (not sequentially)
 - [ ] Both gates complete before the final completion confirmation
 - [ ] Verdict is APPROVED when both gates return APPROVED
@@ -108,7 +105,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ---
 
-### Case 3: Phase-gated Mode — Gates skipped, atomic write still requires approval
+### Case 3: Phase-gated Mode — Gates skipped, incremental writes remain approved
 
 **Fixture:**
 - No existing architecture doc
@@ -117,15 +114,15 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Input:** `$create-architecture`
 
 **Expected behavior:**
-1. The in-memory skeleton is drafted
-2. All sections are authored and approved conversationally in memory
+1. The current section is drafted and shown inline.
+2. Each section is approved and written immediately before moving to the next.
 3. After completion: TD-ARCHITECTURE and LP-FEASIBILITY are skipped
 4. Output notes: "TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode"
-5. The complete architecture changeset is shown and approved before the document is written once
+5. No final atomic rewrite occurs; final sign-off and session-state update follow the completed section cycle.
 
 **Assertions:**
 - [ ] Both gate skip notes appear in output
-- [ ] Architecture document is written only after the complete changeset is shown and approved in phase-gated mode
+- [ ] No section write occurs before that section's approval
 - [ ] Skill does NOT block completion because gates were skipped
 - [ ] Next-step handoff is still present
 
@@ -142,8 +139,8 @@ In `solo` mode: both gates are skipped with equivalent notes.
 1. Skill detects existing architecture doc and reads its current content
 2. Skill offers retrofit mode: "Architecture doc already exists. Which section would you like to update?"
 3. User selects a section
-4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-5. Only the selected section is updated — other sections unchanged
+4. Present the selected section draft and obtain approval.
+5. Write only the approved section — other sections remain unchanged.
 
 **Assertions:**
 - [ ] Skill detects and reads the existing architecture doc before offering retrofit
@@ -179,8 +176,8 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ## Protocol Compliance
 
-- [ ] In-memory skeleton drafted with all section headers before any content is written
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Sections are drafted, approved, and written sequentially
+- [ ] Session state is updated at handoff without redundant approval for the already approved section write
 - [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel in full mode
 - [ ] Skipped gates noted by name and mode in phase-gated/solo output
 - [ ] Proposed ADR references flagged as risks in the document

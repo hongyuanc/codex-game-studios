@@ -423,9 +423,10 @@ same filenames.
   gates remain active; `solo` also preserves explicitly required gates.
 - Runtime `$skill-test`, its framework spec, and the quality rubric share the
   exact `validate_skill` discovery contract: frontmatter contains only `name`
-  and `description`, the name matches the directory, and the trigger-oriented
-  description is nonblank without requiring a literal prefix. All 73 shipped
-  skills are checked against the runtime validator.
+  and `description`, the name matches the directory, and the description is
+  nonblank. Static validation does not require a literal prefix or judge
+  whether the prose is trigger-oriented. All 73 shipped skills are checked
+  against the runtime validator.
 - Every framework agent spec records and is tested against both the exact
   `model` and exact `model_reasoning_effort` in its TOML profile. Framework
   paths now resolve to real native locations, authoring specs gate one complete
@@ -443,6 +444,24 @@ same filenames.
   rejects metadata tampering and any extra, missing, or symlinked native file
   outside the exact 127 mappings plus the `vertical-slice` extension.
 
+## Runtime/framework semantic alignment
+
+- `$start` now classifies the clean checkout as fresh by excluding nested
+  `AGENTS.md`, `.gitkeep`, and other instruction-only placeholders from artifact
+  evidence. Missing, unreadable, or invalid `.codex/studio.toml` blocks instead
+  of guessing, while a configured engine plus concept takes the returning-user
+  route and skips onboarding.
+- Mandatory `*-PHASE-GATE` directors run in `full`, `phase-gated`, and `solo`;
+  only optional gates vary by review mode. The framework now matches the runtime
+  contracts for optional TD-MANIFEST and CD-PLAYTEST gates and mandatory
+  TD-CHANGE-IMPACT review.
+- The design-system, art-bible, UX-design, and create-architecture framework
+  specs preserve their runtime incremental workflow: present one section,
+  obtain section approval, write only that bounded section, then update session
+  progress without requesting duplicate per-file approval.
+- Cross-runtime/framework tests pin these start routing, gate-mode, incremental
+  authoring, and structural skill-validation semantics.
+
 ## Known limitation
 
 The hook runner defends repository boundaries with reviewed path checks and
@@ -453,8 +472,8 @@ reparse-point cases.
 
 ## Final automated gate
 
-- `python3 -m unittest discover -s tests/studio -p 'test_*.py' -v`:
-  **243 tests, OK; zero skips**.
+- `python3 -m unittest discover -s tests -v`:
+  **247 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,

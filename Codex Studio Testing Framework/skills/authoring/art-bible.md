@@ -20,10 +20,7 @@
 cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
 modes, and edge conditions.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. Continue sequentially; a new section decision, path, or scope expansion requires fresh approval.
 
 ---
 
@@ -34,7 +31,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
 - [ ] Has ≥2 phase headings
 - [ ] Contains verdict keyword: COMPLETE
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Each section follows Question → Options → Decision → Draft → Approval → Write
 - [ ] Documents the AD-ART-BIBLE director gate and its mode behavior
 - [ ] Has a next-step handoff (e.g., `$asset-spec` or `$design-system`)
 
@@ -60,17 +57,17 @@ Verified automatically by `$skill-test static` — no fixture needed.
 **Input:** `$art-bible`
 
 **Expected behavior:**
-1. Skill drafts an in-memory skeleton for `design/art-bible.md` with all section headers
-2. Skill discusses and drafts each section with user collaboration
-3. After all sections are drafted, AD-ART-BIBLE gate is invoked (art director review)
+1. Skill identifies `design/art-bible.md`, then discusses and drafts the first section.
+2. Present that section, obtain approval, and write it immediately; repeat sequentially for the scoped sections.
+3. After all scoped sections are written, AD-ART-BIBLE is invoked for art-director review.
 4. AD-ART-BIBLE returns APPROVED
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-6. All sections written after approval; verdict is COMPLETE
+5. Any requested revision returns to the affected section's draft/approval/write cycle.
+6. Verdict is COMPLETE after the scoped sections and review are complete.
 
 **Assertions:**
-- [ ] The in-memory skeleton is drafted first (before any section content is written)
+- [ ] Each section is presented and approved before its write
 - [ ] AD-ART-BIBLE gate is invoked in full mode after draft is complete
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] No second per-file approval is requested for an approved section
 - [ ] All sections are present in the final file
 - [ ] Verdict is COMPLETE
 
@@ -92,17 +89,17 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. Skill returns to the Color Palette section for revision
 4. User and skill revise the palette to align with game concept tone
 5. AD-ART-BIBLE is not re-invoked (user decides to proceed after revision)
-6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+6. Present the revised section, obtain approval, and write it without reapproving unrelated sections.
 
 **Assertions:**
-- [ ] CONCERNS are shown to user before any section is written
+- [ ] CONCERNS are shown before the affected section is revised again
 - [ ] Skill returns to the affected section for revision (not all sections)
 - [ ] Revised content (not original) is written to file
 - [ ] Verdict is COMPLETE after revision and approval
 
 ---
 
-### Case 3: Phase-gated Mode — Gate skipped, atomic write still requires approval
+### Case 3: Phase-gated Mode — Gate skipped, section approval remains incremental
 
 **Fixture:**
 - No existing art bible
@@ -112,10 +109,10 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Expected behavior:**
 1. Skill reads review mode — determines `phase-gated`
-2. Skill drafts all sections with user collaboration
+2. Skill drafts, presents, approves, and writes one section at a time
 3. AD-ART-BIBLE gate is skipped: output notes "[AD-ART-BIBLE] skipped — phase-gated mode"
-4. Skill asks for conversational approval of each section without writing
-5. Skill presents the complete art-bible changeset, obtains final approval, and writes once; verdict is COMPLETE
+4. Each approved section is written immediately to the identified art-bible path
+5. No final atomic rewrite or redundant per-file approval occurs; verdict is COMPLETE
 
 **Assertions:**
 - [ ] AD-ART-BIBLE gate is NOT invoked in phase-gated mode
@@ -139,8 +136,8 @@ Verified automatically by `$skill-test static` — no fixture needed.
 3. User selects Character Design Rules
 4. Skill drafts updated content; in full mode, AD-ART-BIBLE is invoked for the
    revised section before writing
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-6. Only that section is updated; other sections preserved; verdict is COMPLETE
+5. Present and approve the revised section, then write only that section.
+6. Other sections are preserved; verdict is COMPLETE.
 
 **Assertions:**
 - [ ] Existing art bible is detected and retrofit is offered
@@ -161,7 +158,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 **Expected behavior:**
 1. Skill reads review mode — determines `solo`
-2. Art bible is drafted and written only after the complete changeset is shown and approved
+2. Each section is drafted, approved, and written sequentially
 3. AD-ART-BIBLE gate is skipped: output notes "[AD-ART-BIBLE] skipped — solo mode"
 4. No director agents are spawned
 5. Verdict is COMPLETE
@@ -176,11 +173,11 @@ Verified automatically by `$skill-test static` — no fixture needed.
 
 ## Protocol Compliance
 
-- [ ] Drafts an in-memory skeleton immediately with all section headers
+- [ ] Identifies the artifact path before authoring and writes only approved sections
 - [ ] Discusses and drafts one section at a time
 - [ ] AD-ART-BIBLE gate runs in full mode after all sections are drafted
 - [ ] AD-ART-BIBLE is skipped in phase-gated and solo modes — noted by name
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] No write precedes section approval and no approved section gets redundant per-file reapproval
 - [ ] Verdict is COMPLETE when all sections are written
 
 ---

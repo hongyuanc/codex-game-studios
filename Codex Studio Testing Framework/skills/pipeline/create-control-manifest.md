@@ -143,7 +143,7 @@ review gate is needed.
 
 ---
 
-### Case 5: Director Gate — No gate spawned; no .codex/studio.toml read
+### Case 5: Optional Director Gate — TD-MANIFEST runs only in full
 
 **Fixture:**
 - 4 Accepted ADRs exist
@@ -153,16 +153,15 @@ review gate is needed.
 
 **Expected behavior:**
 1. Skill reads ADRs and drafts manifest
-2. Skill does NOT read `.codex/studio.toml`
-3. No director gate agents are spawned at any point
-4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-5. Review mode setting has no effect on this skill's behavior
+2. Read and resolve `review_mode` from `.codex/studio.toml` before deciding whether to delegate.
+3. TD-MANIFEST is optional: run it only in `full`; skip it in `phase-gated` and `solo`.
+4. In this `full` fixture, delegate to the technical director and apply its verdict before writing.
+5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
-- [ ] No director gate agents are spawned (no CD-, TD-, PR-, AD- prefixed gates)
-- [ ] Skill does NOT read `.codex/studio.toml`
-- [ ] Output contains no "Gate: [GATE-ID]" or gate-skipped entries
-- [ ] The manifest is generated from ADRs alone, with no external gate review
+- [ ] The canonical review mode is resolved before the gate decision.
+- [ ] Full mode runs TD-MANIFEST; phase-gated and solo skip it with an optional-gate note.
+- [ ] TD-MANIFEST feedback is resolved before the approved manifest write.
 
 ---
 
@@ -172,7 +171,7 @@ review gate is needed.
 - [ ] Only Accepted ADRs included — Proposed ones noted as excluded
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] No director gates — no .codex/studio.toml read
+- [ ] TD-MANIFEST mode behavior matches the runtime skill exactly.
 - [ ] Ends with next-step handoff: `$create-epics` or `$create-stories`
 
 ---
