@@ -19,48 +19,54 @@ Each immutable source pack contains exactly five Codex agent profiles under `.co
 
 ## Gather decisions
 
-Read `design/gdd/game-concept.md`, `AGENTS.md`, `.codex/studio.toml`, and `.codex/docs/technical-preferences.md` when present. Gather only missing information, one decision per turn:
+Read `design/gdd/game-concept.md`, `AGENTS.md`, `.codex/studio.toml`, and `.codex/docs/technical-preferences.md` when present. Gather only missing information in this exact order:
 
-1. Engine: Godot, Unity, or Unreal.
-2. Exact stable engine version. Verify current versions against official engine documentation when the user has not supplied one.
-3. Primary language: GDScript/C# for Godot, C# for Unity, or C++/Blueprint for Unreal.
-4. Target platforms and primary input.
-5. Testing framework and performance-budget preference.
+1. **Engine** — Godot, Unity, or Unreal.
+2. **Exact engine version** — verify the stable version against official engine documentation when the user has not supplied one.
+3. **Primary language** — `gdscript` or `csharp` for Godot, `csharp` for Unity, and `cpp` or `blueprint` for Unreal.
+4. **Target platform** — the concrete initial platform target.
+5. **Primary input** — the dominant input method for that platform and game.
+6. **Testing framework** — the engine-appropriate test framework to record.
+7. **Performance budget** — accept defaults or gather the target frame/memory budget.
 
-Use `request_user_input` when it is available and appropriate. Ask a concise direct question otherwise. Never bundle independent decisions or silently choose an engine/version.
+Ask exactly one unresolved decision, then stop and wait. Use `request_user_input` when it is available and appropriate. Ask a concise direct question otherwise. Never bundle independent decisions or silently choose an engine/version.
 
 ## Plan before mutation
 
 Run a read-only plan with the chosen values:
 
 ```bash
-python3 -m tools.codex_studio.engine_pack --root . --engine godot --version 4.6 --language gdscript --dry-run
+python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <exact-version> --language <primary-language> --dry-run
 ```
 
 Replace the example values with the user's selection. The command must exit successfully. Present its complete activation plan, including every install, every removal, and the configuration change. Also summarize the proposed `AGENTS.md`, `.codex/docs/technical-preferences.md`, build/test command, and engine-reference updates as one bounded changeset.
 
-Request explicit approval for that complete changeset. Do not run `--apply`, edit preferences, or update references before approval. A dry run is not approval.
+Request explicit approval for that complete changeset. No project write is allowed before this approval. Do not run the apply command, edit preferences, or update references before approval. A dry run is not approval.
 
 ## Apply the approved pack
 
 After explicit approval, run the exact corresponding transaction:
 
 ```bash
-python3 -m tools.codex_studio.engine_pack --root . --engine godot --version 4.6 --language gdscript --apply
+python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <exact-version> --language <primary-language> --apply
 ```
 
-The transaction rejects unmanaged collisions, symlinks, modified generated profiles, malformed state, stale plans, source changes, and path traversal. It preserves unmanaged profiles and rolls the agent directory, active manifest, and studio configuration back byte-for-byte on any failure.
+The transaction rejects unmanaged collisions, symlinks/reparse points, modified generated profiles, malformed state, stale plans, source changes, and path traversal. It is serialized for cooperating writers and recoverable, not magically atomic to lock-ignorant readers or across arbitrary power-loss/filesystem behavior. Before mutation it persists the original agent tree, manifest, and studio configuration under `.codex/engine-pack-recovery`. It attempts byte-for-byte logical rollback on failure; if rollback itself fails, it preserves the only good backup and journal for explicit recovery:
+
+```bash
+python3 -m tools.codex_studio.engine_pack --root . --recover
+```
 
 If activation fails:
 
 1. Stop all remaining setup writes.
-2. Show the error and rollback evidence (engine, manifest presence/hash, config hash, and managed-profile validation).
-3. Do not claim that setup succeeded.
+2. Show the error and rollback evidence (engine, manifest presence/hash, config hash, managed-profile validation, and persistent journal state).
+3. Never claim setup succeeded.
 4. Resolve the safety issue only with the user; never delete or overwrite an unmanaged/modified file.
 
 ## Complete approved integration
 
-Only after activation succeeds:
+Only after activation succeeds, apply the complete approved write scope:
 
 - Update the Technology Stack and engine reference import in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.

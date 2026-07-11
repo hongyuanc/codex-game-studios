@@ -1,19 +1,48 @@
+"""Serialized, recoverable activation of Codex game-engine agent packs.
+
+The cooperative project lock serializes this tool's writers.  A persistent,
+same-filesystem recovery journal makes interrupted transactions recoverable.
+It does not make multi-file updates atomically visible to lock-ignorant readers
+or provide a filesystem-independent power-loss guarantee.
+"""
+
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import stat
 import sys
 import tempfile
+import threading
 import tomllib
-from typing import Callable, Sequence
+from typing import Callable, Iterator, Sequence
+import unicodedata
+import uuid
+
+try:  # POSIX advisory locking.
+    import fcntl  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - exercised on Windows.
+    fcntl = None
+
+try:  # Windows byte-range locking.
+    import msvcrt  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - exercised on POSIX.
+    msvcrt = None
 
 
 SUPPORTED_ENGINES = ("godot", "unity", "unreal")
+ALLOWED_LANGUAGES = {
+    "godot": frozenset({"gdscript", "csharp"}),
+    "unity": frozenset({"csharp"}),
+    "unreal": frozenset({"cpp", "blueprint", "cpp-blueprint"}),
+}
 STUDIO_KEYS = (
     "engine",
     "engine_version",
@@ -22,10 +51,16 @@ STUDIO_KEYS = (
     "active_engine_pack",
     "model_policy",
 )
+RECOVERY_NAME = "engine-pack-recovery"
+LOCK_NAME = "engine-pack.lock"
+_THREAD_LOCKS: dict[str, threading.Lock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
 
 
 @dataclasses.dataclass(frozen=True)
 class StudioConfig:
+    """Canonical six-field studio configuration."""
+
     engine: str
     engine_version: str
     language: str
@@ -36,6 +71,8 @@ class StudioConfig:
 
 @dataclasses.dataclass(frozen=True)
 class ActivationPlan:
+    """Immutable plan bound to one project state and source-pack revision."""
+
     root: Path
     engine: str
     install: tuple[Path, ...]
@@ -46,16 +83,65 @@ class ActivationPlan:
     no_op: bool
 
 
-@dataclasses.dataclass(frozen=True)
-class _Backup:
-    directory: Path
-    agents_existed: bool
-    manifest_existed: bool
-    config_existed: bool
+class ActivationRecoveryError(RuntimeError):
+    """Raised when both activation and its durable rollback fail."""
+
+    def __init__(self, original: BaseException, rollback: BaseException):
+        self.original = original
+        self.rollback = rollback
+        super().__init__(f"activation failed: {original}; rollback failed: {rollback}")
 
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _link_kind(metadata: os.stat_result) -> str | None:
+    if stat.S_ISLNK(metadata.st_mode):
+        return "symlink"
+    attributes = int(getattr(metadata, "st_file_attributes", 0) or 0)
+    reparse_flag = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+    reparse_tag = int(getattr(metadata, "st_reparse_tag", 0) or 0)
+    if attributes & reparse_flag:
+        if reparse_tag & 0x20000000:
+            return "name-surrogate reparse point"
+        return "reparse point or junction"
+    if reparse_tag:
+        return "name-surrogate reparse point" if reparse_tag & 0x20000000 else "reparse point"
+    return None
+
+
+def _checked_lstat(path: Path, label: str, *, missing_ok: bool = False) -> os.stat_result | None:
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        if missing_ok:
+            return None
+        raise ValueError(f"{label} is missing: {path}") from None
+    kind = _link_kind(metadata)
+    if kind:
+        raise ValueError(f"{label} must not be a symlink, junction, or reparse/name-surrogate point ({kind}): {path}")
+    return metadata
+
+
+def _require_directory(path: Path, label: str) -> os.stat_result:
+    metadata = _checked_lstat(path, label)
+    assert metadata is not None
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"{label} is not a directory: {path}")
+    return metadata
+
+
+def _normalize_root(root: Path) -> Path:
+    candidate = Path(root).absolute()
+    _require_directory(candidate, "project root")
+    return candidate.resolve()
+
+
+def _control_directory(root: Path) -> Path:
+    control = root / ".codex"
+    _require_directory(control, "Codex control directory")
+    return control
 
 
 def _safe_filename(name: object) -> str:
@@ -66,42 +152,73 @@ def _safe_filename(name: object) -> str:
         or "\\" in name
         or Path(name).name != name
         or Path(name).is_absolute()
+        or name in {".", ".."}
+        or Path(name).suffix != ".toml"
+        or re.fullmatch(r"[a-z0-9][a-z0-9-]*\.toml", name) is None
     ):
-        raise ValueError("active-engine manifest contains an unsafe generated filename")
-    if Path(name).suffix != ".toml" or name in {".", ".."}:
-        raise ValueError("active-engine manifest contains an invalid generated filename")
+        raise ValueError("invalid or unsafe profile filename")
     return name
 
 
-def _read_regular_file(path: Path, label: str) -> bytes:
-    if path.is_symlink():
-        raise ValueError(f"{label} must not be a symlink: {path}")
-    if not path.is_file():
-        raise ValueError(f"{label} is missing or not a regular file: {path}")
-    return path.read_bytes()
+def _secure_read(path: Path, label: str) -> bytes:
+    before = _checked_lstat(path, label)
+    assert before is not None
+    if not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"{label} is not a regular file: {path}")
+    flags = os.O_RDONLY | int(getattr(os, "O_NOFOLLOW", 0))
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if _link_kind(opened) or not stat.S_ISREG(opened.st_mode):
+            raise ValueError(f"{label} became a link or non-regular file: {path}")
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError(f"{label} changed while it was opened: {path}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
 
 
-def _control_directory(root: Path) -> Path:
-    control = root / ".codex"
-    if control.is_symlink():
-        raise ValueError("Codex control directory must not be a symlink")
-    if not control.is_dir():
-        raise ValueError("Codex control directory is missing or not a directory")
-    return control
+def _validate_text(value: str, label: str, *, required: bool) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} must be a string")
+    if required and not value:
+        raise ValueError(f"{label} is required")
+    if value != value.strip():
+        raise ValueError(f"{label} must not contain leading or trailing whitespace")
+    if any(
+        unicodedata.category(character).startswith("C")
+        or unicodedata.category(character) in {"Zl", "Zp"}
+        for character in value
+    ):
+        raise ValueError(f"{label} must not contain control characters")
+    return value
+
+
+def _validate_target_values(engine: str, version: str, language: str, *, require_complete: bool) -> None:
+    _validate_text(version, "engine version", required=require_complete)
+    _validate_text(language, "primary language", required=require_complete)
+    if language and language not in ALLOWED_LANGUAGES[engine]:
+        allowed = ", ".join(sorted(ALLOWED_LANGUAGES[engine]))
+        raise ValueError(f"primary language {language!r} is incompatible with {engine}; allowed: {allowed}")
 
 
 def load_studio_config(root: Path) -> StudioConfig:
-    root = Path(root).resolve()
+    """Load and strictly validate `.codex/studio.toml`."""
+
+    root = _normalize_root(root)
     path = _control_directory(root) / "studio.toml"
     try:
-        raw = _read_regular_file(path, "studio config")
-        data = tomllib.loads(raw.decode("utf-8"))
+        data = tomllib.loads(_secure_read(path, "studio config").decode("utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError) as error:
         raise ValueError(f"invalid studio config: {error}") from error
-    if set(data) != set(STUDIO_KEYS):
-        raise ValueError(f"invalid studio config fields: expected {list(STUDIO_KEYS)}")
-    if any(not isinstance(data[key], str) for key in STUDIO_KEYS):
-        raise ValueError("invalid studio config: all fields must be strings")
+    if set(data) != set(STUDIO_KEYS) or any(not isinstance(data.get(key), str) for key in STUDIO_KEYS):
+        raise ValueError(f"invalid studio config fields: expected six string fields {list(STUDIO_KEYS)}")
     config = StudioConfig(**{key: data[key] for key in STUDIO_KEYS})
     if config.engine not in (*SUPPORTED_ENGINES, "unconfigured"):
         raise ValueError(f"invalid studio config engine: {config.engine}")
@@ -111,18 +228,51 @@ def load_studio_config(root: Path) -> StudioConfig:
         raise ValueError("invalid studio config: unconfigured engine requires active_engine_pack = none")
     if config.engine in SUPPORTED_ENGINES and config.active_engine_pack != config.engine:
         raise ValueError("invalid studio config: engine and active_engine_pack differ")
+    if config.engine in SUPPORTED_ENGINES:
+        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=False)
     return config
 
 
-def _load_manifest(root: Path, config: StudioConfig) -> dict[str, object] | None:
-    path = root / ".codex/active-engine.json"
-    if not path.exists() and not path.is_symlink():
+def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
+    packs_root = _control_directory(root) / "agent-packs"
+    _require_directory(packs_root, "engine packs directory")
+    entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
+    if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
+        raise ValueError("engine packs must contain exactly godot, unity, and unreal")
+    result: dict[str, tuple[tuple[Path, str], ...]] = {}
+    for directory in entries:
+        _require_directory(directory, f"{directory.name} engine pack")
+        children = sorted(directory.iterdir(), key=lambda path: path.name)
+        profiles: list[tuple[Path, str]] = []
+        for source in children:
+            name = _safe_filename(source.name)
+            raw = _secure_read(source, "engine pack source profile")
+            try:
+                profile = tomllib.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+                raise ValueError(f"invalid engine pack profile {source}: {error}") from error
+            if profile.get("name") != Path(name).stem:
+                raise ValueError(f"engine pack profile name must match filename: {name}")
+            profiles.append((source, _sha256(raw)))
+        if len(profiles) != 5:
+            raise ValueError(f"engine pack {directory.name} must contain exactly five profiles")
+        result[directory.name] = tuple(profiles)
+    return result
+
+
+def _load_manifest(
+    root: Path,
+    config: StudioConfig,
+    packs: dict[str, tuple[tuple[Path, str], ...]],
+) -> dict[str, object] | None:
+    path = _control_directory(root) / "active-engine.json"
+    metadata = _checked_lstat(path, "active-engine manifest", missing_ok=True)
+    if metadata is None:
         if config.engine != "unconfigured" or config.active_engine_pack != "none":
             raise ValueError("active-engine manifest is missing for configured engine")
         return None
     try:
-        raw = _read_regular_file(path, "active-engine manifest")
-        data = json.loads(raw.decode("utf-8"))
+        data = json.loads(_secure_read(path, "active-engine manifest").decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise ValueError(f"invalid active-engine manifest: {error}") from error
     if not isinstance(data, dict) or set(data) != {"engine", "generated"}:
@@ -141,56 +291,37 @@ def _load_manifest(root: Path, config: StudioConfig) -> dict[str, object] | None
         except ValueError as error:
             raise ValueError(f"invalid active-engine manifest hash for {name}") from error
         normalized[name] = raw_hash.lower()
-    if len(normalized) != 5:
-        raise ValueError("invalid active-engine manifest: exactly five generated profiles are required")
+    expected = {source.name: digest for source, digest in packs[str(engine)]}
+    if normalized != expected:
+        raise ValueError("active-engine manifest generated ownership does not exactly match its declared immutable source pack")
     if config.engine != engine or config.active_engine_pack != engine:
         raise ValueError("active-engine manifest and studio config disagree")
     return {"engine": engine, "generated": normalized}
 
 
-def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
-    packs_root = root / ".codex/agent-packs"
-    if packs_root.is_symlink() or not packs_root.is_dir():
-        raise ValueError("engine pack directory is missing or symlinked")
-    entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
-    if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
-        raise ValueError("engine packs must contain exactly godot, unity, and unreal")
-    result: dict[str, tuple[tuple[Path, str], ...]] = {}
-    for directory in entries:
-        if directory.is_symlink() or not directory.is_dir():
-            raise ValueError(f"engine pack must be a regular directory, not a symlink: {directory}")
-        children = sorted(directory.iterdir(), key=lambda path: path.name)
-        if len(children) != 5:
-            raise ValueError(f"engine pack {directory.name} must contain exactly five profiles")
-        profiles: list[tuple[Path, str]] = []
-        for source in children:
-            if source.suffix != ".toml" or Path(source.name).name != source.name:
-                raise ValueError(f"engine pack {directory.name} contains an invalid filename: {source.name}")
-            raw = _read_regular_file(source, "engine pack profile")
-            try:
-                profile = tomllib.loads(raw.decode("utf-8"))
-            except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
-                raise ValueError(f"invalid engine pack profile {source}: {error}") from error
-            if profile.get("name") != source.stem:
-                raise ValueError(f"engine pack profile name must match filename: {source.name}")
-            profiles.append((source, _sha256(raw)))
-        result[directory.name] = tuple(profiles)
-    return result
+def _agents_directory(root: Path, *, create: bool = False) -> Path:
+    agents = _control_directory(root) / "agents"
+    metadata = _checked_lstat(agents, "active agents directory", missing_ok=True)
+    if metadata is None and create:
+        os.mkdir(agents, 0o755)
+        metadata = _checked_lstat(agents, "active agents directory")
+    if metadata is not None and not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("active agents path is not a directory")
+    return agents
 
 
 def _validate_managed_profiles(root: Path, manifest: dict[str, object] | None) -> dict[str, str]:
+    agents = _agents_directory(root)
     if manifest is None:
         return {}
     generated = manifest["generated"]
     assert isinstance(generated, dict)
-    agents = root / ".codex/agents"
-    if agents.is_symlink() or not agents.is_dir():
-        raise ValueError("active agents directory is missing or symlinked")
+    if _checked_lstat(agents, "active agents directory", missing_ok=True) is None:
+        raise ValueError("active agents directory is missing")
     result: dict[str, str] = {}
     for name, expected in sorted(generated.items()):
         assert isinstance(name, str) and isinstance(expected, str)
-        target = agents / name
-        raw = _read_regular_file(target, "generated profile")
+        raw = _secure_read(agents / name, "generated profile")
         actual = _sha256(raw)
         if actual != expected:
             raise ValueError(f"generated profile was modified: {name}")
@@ -199,21 +330,22 @@ def _validate_managed_profiles(root: Path, manifest: dict[str, object] | None) -
 
 
 def _tree_digest(path: Path) -> bytes:
-    records: list[bytes] = []
-    if not path.exists() and not path.is_symlink():
+    metadata = _checked_lstat(path, "active agents directory", missing_ok=True)
+    if metadata is None:
         return b"ABSENT\0"
-    if path.is_symlink():
-        return b"SYMLINK\0" + os.readlink(path).encode("utf-8", "surrogateescape")
-    if not path.is_dir():
-        return b"NON_DIRECTORY\0" + path.read_bytes()
+    if not stat.S_ISDIR(metadata.st_mode):
+        return b"NON_DIRECTORY\0"
+    records: list[bytes] = []
     for item in sorted(path.rglob("*"), key=lambda value: value.relative_to(path).as_posix()):
         name = item.relative_to(path).as_posix().encode("utf-8", "surrogateescape")
-        if item.is_symlink():
+        item_metadata = os.lstat(item)
+        kind = _link_kind(item_metadata)
+        if kind:
             records.extend((b"L\0", name, b"\0", os.readlink(item).encode("utf-8", "surrogateescape"), b"\0"))
-        elif item.is_dir():
+        elif stat.S_ISDIR(item_metadata.st_mode):
             records.extend((b"D\0", name, b"\0"))
-        elif item.is_file():
-            records.extend((b"F\0", name, b"\0", hashlib.sha256(item.read_bytes()).digest()))
+        elif stat.S_ISREG(item_metadata.st_mode):
+            records.extend((b"F\0", name, b"\0", hashlib.sha256(_secure_read(item, "agent file")).digest()))
         else:
             records.extend((b"O\0", name, b"\0"))
     return b"".join(records)
@@ -221,40 +353,83 @@ def _tree_digest(path: Path) -> bytes:
 
 def _state_digest(root: Path) -> str:
     digest = hashlib.sha256()
-    for relative in (".codex/studio.toml", ".codex/active-engine.json"):
-        path = root / relative
-        digest.update(relative.encode("utf-8") + b"\0")
-        if path.is_symlink():
-            digest.update(b"L\0" + os.readlink(path).encode("utf-8", "surrogateescape"))
-        elif path.is_file():
-            digest.update(b"F\0" + path.read_bytes())
-        else:
-            digest.update(b"A\0")
-    digest.update(b"agents\0" + _tree_digest(root / ".codex/agents"))
+    control = _control_directory(root)
+    for name in ("studio.toml", "active-engine.json"):
+        path = control / name
+        digest.update(name.encode() + b"\0")
+        metadata = _checked_lstat(path, name, missing_ok=True)
+        digest.update(b"A\0" if metadata is None else b"F\0" + _secure_read(path, name))
+    digest.update(b"agents\0" + _tree_digest(control / "agents"))
     return digest.hexdigest()
 
 
+def _journal_path(recovery: Path) -> Path:
+    return recovery / "journal.json"
+
+
+def _read_journal(recovery: Path) -> dict[str, object]:
+    _require_directory(recovery, "engine-pack recovery directory")
+    try:
+        data = json.loads(_secure_read(_journal_path(recovery), "engine-pack recovery journal").decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise ValueError(f"invalid engine-pack recovery journal: {error}") from error
+    required = {
+        "version",
+        "phase",
+        "agents_existed",
+        "manifest_existed",
+        "config_existed",
+        "agents_digest",
+        "manifest_sha256",
+        "config_sha256",
+    }
+    if not isinstance(data, dict) or set(data) != required or data.get("version") != 1:
+        raise ValueError("invalid engine-pack recovery journal schema")
+    boolean_keys = {"agents_existed", "manifest_existed", "config_existed"}
+    digest_keys = {"agents_digest", "manifest_sha256", "config_sha256"}
+    if (
+        not isinstance(data["phase"], str)
+        or any(not isinstance(data[key], bool) for key in boolean_keys)
+        or any(data[key] is not None and not isinstance(data[key], str) for key in digest_keys)
+    ):
+        raise ValueError("invalid engine-pack recovery journal values")
+    return data
+
+
+def _inspect_auxiliary_paths(root: Path) -> tuple[Path, dict[str, object] | None]:
+    control = _control_directory(root)
+    lock_path = control / LOCK_NAME
+    lock_metadata = _checked_lstat(lock_path, "engine-pack lock", missing_ok=True)
+    if lock_metadata is not None and not stat.S_ISREG(lock_metadata.st_mode):
+        raise ValueError("engine-pack lock is not a regular file")
+    recovery = control / RECOVERY_NAME
+    recovery_metadata = _checked_lstat(recovery, "engine-pack recovery directory", missing_ok=True)
+    if recovery_metadata is None:
+        return recovery, None
+    return recovery, _read_journal(recovery)
+
+
 def plan_activation(root: Path, engine: str, *, version: str = "", language: str = "") -> ActivationPlan:
-    root = Path(root).resolve()
+    """Build a deterministic, read-only activation plan."""
+
+    root = _normalize_root(root)
     if engine not in SUPPORTED_ENGINES:
         raise ValueError(f"unsupported engine: {engine}")
-    if not isinstance(version, str) or not isinstance(language, str):
-        raise ValueError("engine version and language must be strings")
+    _validate_target_values(engine, version, language, require_complete=False)
+    _recovery, journal = _inspect_auxiliary_paths(root)
+    if journal is not None and journal["phase"] not in {"committed", "rolled-back"}:
+        raise ValueError("incomplete engine-pack recovery journal; run the CLI with --recover before planning")
     config = load_studio_config(root)
     packs = _validate_packs(root)
-    manifest = _load_manifest(root, config)
+    manifest = _load_manifest(root, config, packs)
     managed = _validate_managed_profiles(root, manifest)
     selected = packs[engine]
     selected_hashes = tuple((source.name, digest) for source, digest in selected)
-    agents = root / ".codex/agents"
-    if agents.exists() or agents.is_symlink():
-        if agents.is_symlink() or not agents.is_dir():
-            raise ValueError("active agents path must be a regular directory, not a symlink")
+    agents = _agents_directory(root)
     for source, _digest in selected:
         target = agents / source.name
-        if target.is_symlink():
-            raise ValueError(f"target profile must not be a symlink: {source.name}")
-        if target.exists() and source.name not in managed:
+        target_metadata = _checked_lstat(target, "target profile", missing_ok=True)
+        if target_metadata is not None and source.name not in managed:
             raise ValueError(f"unmanaged profile collision: {source.name}")
     target_config = dataclasses.replace(
         config,
@@ -266,7 +441,6 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
     same_profiles = bool(manifest) and manifest["engine"] == engine and dict(selected_hashes) == managed
     install = () if same_profiles else tuple(source for source, _digest in selected)
     remove = () if same_profiles else tuple(agents / name for name in sorted(managed))
-    no_op = same_profiles and target_config == config
     return ActivationPlan(
         root=root,
         engine=engine,
@@ -275,11 +449,13 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
         target_config=target_config,
         source_hashes=selected_hashes,
         state_digest=_state_digest(root),
-        no_op=no_op,
+        no_op=same_profiles and target_config == config,
     )
 
 
 def _serialize_config(config: StudioConfig) -> bytes:
+    """Serialize studio configuration deterministically as TOML-safe strings."""
+
     values = dataclasses.asdict(config)
     return "".join(f"{key} = {json.dumps(values[key], ensure_ascii=False)}\n" for key in STUDIO_KEYS).encode("utf-8")
 
@@ -289,8 +465,12 @@ def _serialize_manifest(engine: str, generated: dict[str, str]) -> bytes:
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    parent = path.parent
+    _require_directory(parent, f"parent directory for {path.name}")
+    existing = _checked_lstat(path, f"atomic-write target {path.name}", missing_ok=True)
+    if existing is not None and not stat.S_ISREG(existing.st_mode):
+        raise ValueError(f"atomic-write target is not a regular file: {path}")
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as stream:
@@ -303,51 +483,268 @@ def _atomic_write(path: Path, content: bytes) -> None:
             temporary.unlink()
 
 
-def _remove_path(path: Path) -> None:
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-    elif path.is_dir():
-        shutil.rmtree(path)
+def _write_journal(recovery: Path, journal: dict[str, object], phase: str) -> None:
+    journal["phase"] = phase
+    _atomic_write(_journal_path(recovery), (json.dumps(journal, sort_keys=True, indent=2) + "\n").encode())
+
+
+def _copy_agents(source: Path, destination: Path) -> None:
+    shutil.copytree(source, destination, symlinks=True)
+
+
+def _create_recovery(root: Path) -> tuple[Path, dict[str, object]]:
+    control = _control_directory(root)
+    recovery = control / RECOVERY_NAME
+    if _checked_lstat(recovery, "engine-pack recovery directory", missing_ok=True) is not None:
+        raise ValueError("engine-pack recovery directory already exists")
+    stage = control / f".{RECOVERY_NAME}-stage-{uuid.uuid4().hex}"
+    os.mkdir(stage, 0o700)
+    journal: dict[str, object] = {
+        "version": 1,
+        "phase": "prepared",
+        "agents_existed": False,
+        "manifest_existed": False,
+        "config_existed": False,
+        "agents_digest": None,
+        "manifest_sha256": None,
+        "config_sha256": None,
+    }
+    try:
+        agents = _agents_directory(root)
+        agents_metadata = _checked_lstat(agents, "active agents directory", missing_ok=True)
+        journal["agents_existed"] = agents_metadata is not None
+        if agents_metadata is not None:
+            _copy_agents(agents, stage / "backup-agents")
+            journal["agents_digest"] = _sha256(_tree_digest(stage / "backup-agents"))
+        else:
+            (stage / "agents-absent").write_bytes(b"")
+        for key, name, backup_name in (
+            ("manifest_existed", "active-engine.json", "backup-manifest"),
+            ("config_existed", "studio.toml", "backup-config"),
+        ):
+            path = control / name
+            metadata = _checked_lstat(path, name, missing_ok=True)
+            journal[key] = metadata is not None
+            if metadata is not None:
+                original = _secure_read(path, name)
+                (stage / backup_name).write_bytes(original)
+                journal["manifest_sha256" if key == "manifest_existed" else "config_sha256"] = _sha256(original)
+            else:
+                (stage / f"{backup_name}-absent").write_bytes(b"")
+        (stage / "journal.json").write_bytes((json.dumps(journal, sort_keys=True, indent=2) + "\n").encode())
+        os.replace(stage, recovery)
+    except BaseException:
+        if stage.exists() and not stage.is_symlink():
+            shutil.rmtree(stage)
+        raise
+    return recovery, journal
+
+
+def _failed_name(recovery: Path, label: str) -> Path:
+    return recovery / f"failed-{label}-{uuid.uuid4().hex}"
+
+
+def _restore_file(control: Path, recovery: Path, target_name: str, backup_name: str, existed: bool) -> None:
+    target = control / target_name
+    target_metadata = _checked_lstat(target, target_name, missing_ok=True)
+    if existed:
+        backup = recovery / backup_name
+        content = _secure_read(backup, f"recovery {backup_name}")
+        _atomic_write(target, content)
+    elif target_metadata is not None:
+        os.replace(target, _failed_name(recovery, target_name))
+
+
+def _restore_backup(root: Path, recovery: Path, journal: dict[str, object]) -> None:
+    """Restore logical state while retaining the only good backup on failure."""
+
+    control = _control_directory(root)
+    if bool(journal["agents_existed"]):
+        actual_agents_digest = _sha256(_tree_digest(recovery / "backup-agents"))
+        if actual_agents_digest != journal["agents_digest"]:
+            raise ValueError("recovery agent-tree backup hash does not match journal")
+    for existed_key, backup_name, digest_key in (
+        ("manifest_existed", "backup-manifest", "manifest_sha256"),
+        ("config_existed", "backup-config", "config_sha256"),
+    ):
+        if bool(journal[existed_key]):
+            if _sha256(_secure_read(recovery / backup_name, f"recovery {backup_name}")) != journal[digest_key]:
+                raise ValueError(f"recovery {backup_name} hash does not match journal")
+    agents = control / "agents"
+    agents_metadata = _checked_lstat(agents, "active agents directory", missing_ok=True)
+    if bool(journal["agents_existed"]):
+        backup = recovery / "backup-agents"
+        _require_directory(backup, "recovery agent backup")
+        restore = recovery / f"restore-agents-{uuid.uuid4().hex}"
+        _copy_agents(backup, restore)
+        if agents_metadata is not None:
+            os.replace(agents, _failed_name(recovery, "agents"))
+        os.replace(restore, agents)
+    elif agents_metadata is not None:
+        os.replace(agents, _failed_name(recovery, "agents"))
+    _restore_file(control, recovery, "active-engine.json", "backup-manifest", bool(journal["manifest_existed"]))
+    _restore_file(control, recovery, "studio.toml", "backup-config", bool(journal["config_existed"]))
+    _write_journal(recovery, journal, "rolled-back")
+    _retire_recovery(recovery)
+
+
+def _retire_recovery(recovery: Path) -> None:
+    retired = recovery.parent / f".{RECOVERY_NAME}-retired-{uuid.uuid4().hex}"
+    os.replace(recovery, retired)
+    try:
+        shutil.rmtree(retired)
+    except OSError:
+        # Logical state and the canonical journal path are already terminal.
+        # A later housekeeping pass may remove the uniquely named artifact.
+        pass
+
+
+def _try_os_lock(descriptor: int) -> None:
+    if fcntl is not None:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError("engine-pack activation is locked by another writer") from error
+    elif msvcrt is not None:  # pragma: no cover - Windows only.
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        if os.fstat(descriptor).st_size == 0:
+            os.write(descriptor, b"\0")
+            os.fsync(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+        except OSError as error:
+            raise ValueError("engine-pack activation is locked by another writer") from error
+
+
+def _unlock_os(descriptor: int) -> None:
+    if fcntl is not None:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+    elif msvcrt is not None:  # pragma: no cover - Windows only.
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+
+
+@contextlib.contextmanager
+def _activation_lock(root: Path) -> Iterator[None]:
+    control = _control_directory(root)
+    lock_path = control / LOCK_NAME
+    existing = _checked_lstat(lock_path, "engine-pack lock", missing_ok=True)
+    if existing is not None and not stat.S_ISREG(existing.st_mode):
+        raise ValueError("engine-pack lock is not a regular file")
+    key = str(root)
+    with _THREAD_LOCKS_GUARD:
+        thread_lock = _THREAD_LOCKS.setdefault(key, threading.Lock())
+    if not thread_lock.acquire(blocking=False):
+        raise ValueError("engine-pack activation is locked by another writer")
+    descriptor = -1
+    os_locked = False
+    try:
+        flags = os.O_RDWR | os.O_CREAT | int(getattr(os, "O_NOFOLLOW", 0))
+        descriptor = os.open(lock_path, flags, 0o600)
+        opened = os.fstat(descriptor)
+        if _link_kind(opened) or not stat.S_ISREG(opened.st_mode):
+            raise ValueError("engine-pack lock became a link or non-regular file")
+        named = _checked_lstat(lock_path, "engine-pack lock")
+        assert named is not None
+        if (named.st_dev, named.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError("engine-pack lock changed while it was opened")
+        _try_os_lock(descriptor)
+        os_locked = True
+        named_after_lock = _checked_lstat(lock_path, "engine-pack lock")
+        assert named_after_lock is not None
+        if (named_after_lock.st_dev, named_after_lock.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError("engine-pack lock changed while the lock was acquired")
+        yield
+    finally:
+        try:
+            if descriptor >= 0:
+                try:
+                    if os_locked:
+                        _unlock_os(descriptor)
+                finally:
+                    os.close(descriptor)
+        finally:
+            thread_lock.release()
+
+
+def _cleanup_terminal_recovery(recovery: Path, journal: dict[str, object] | None) -> None:
+    if journal is not None and journal["phase"] in {"committed", "rolled-back"}:
+        _retire_recovery(recovery)
+
+
+def recover_activation(root: Path) -> None:
+    """Deterministically recover an incomplete persistent transaction."""
+
+    root = _normalize_root(root)
+    with _activation_lock(root):
+        recovery, journal = _inspect_auxiliary_paths(root)
+        if journal is None:
+            return
+        if journal["phase"] in {"committed", "rolled-back"}:
+            _cleanup_terminal_recovery(recovery, journal)
+            return
+        _restore_backup(root, recovery, journal)
+
+
+def rollback_activation(root: Path) -> None:
+    """Compatibility entry point for explicitly recovering a failed activation."""
+
+    recover_activation(root)
+
+
+def _exclusive_profile_write(agents: Path, name: str, content: bytes) -> None:
+    _safe_filename(name)
+    _require_directory(agents, "active agents directory")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | int(getattr(os, "O_NOFOLLOW", 0))
+    directory_flags = os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0))
+    before_parent = _require_directory(agents, "active agents directory")
+    directory_descriptor = -1
+    descriptor = -1
+    try:
+        supports_dir_fd = os.open in getattr(os, "supports_dir_fd", set())
+        if supports_dir_fd:
+            directory_descriptor = os.open(agents, directory_flags)
+            try:
+                descriptor = os.open(name, flags, 0o644, dir_fd=directory_descriptor)
+            except FileExistsError as error:
+                raise ValueError(f"concurrent unmanaged profile collision: {name}") from error
+        else:  # Safe standard-library fallback for platforms without dir_fd.
+            target = agents / name
+            if _checked_lstat(target, "target profile", missing_ok=True) is not None:
+                raise ValueError(f"concurrent unmanaged profile collision: {name}")
+            try:
+                descriptor = os.open(target, flags, 0o644)
+            except FileExistsError as error:
+                raise ValueError(f"concurrent unmanaged profile collision: {name}") from error
+            after_parent = _require_directory(agents, "active agents directory")
+            if (before_parent.st_dev, before_parent.st_ino) != (after_parent.st_dev, after_parent.st_ino):
+                raise ValueError("active agents directory changed during exclusive destination creation")
+        opened = os.fstat(descriptor)
+        if _link_kind(opened) or not stat.S_ISREG(opened.st_mode):
+            raise ValueError(f"target profile became a link or non-regular file: {name}")
+        named_target = _checked_lstat(agents / name, "new target profile")
+        assert named_target is not None
+        if (named_target.st_dev, named_target.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError(f"target profile changed while it was opened: {name}")
+        view = memoryview(content)
+        while view:
+            written = os.write(descriptor, view)
+            view = view[written:]
+        os.fsync(descriptor)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if directory_descriptor >= 0:
+            os.close(directory_descriptor)
 
 
 def _unlink_managed(path: Path) -> None:
+    metadata = _checked_lstat(path, "managed profile")
+    assert metadata is not None
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"managed profile is not a regular file: {path.name}")
     path.unlink()
-
-
-def _create_backup(root: Path, directory: Path) -> _Backup:
-    agents = root / ".codex/agents"
-    manifest = root / ".codex/active-engine.json"
-    config = root / ".codex/studio.toml"
-    agents_existed = agents.exists() or agents.is_symlink()
-    manifest_existed = manifest.exists() or manifest.is_symlink()
-    config_existed = config.exists() or config.is_symlink()
-    if agents_existed:
-        if agents.is_symlink() or not agents.is_dir():
-            raise ValueError("active agents path cannot be backed up safely")
-        shutil.copytree(agents, directory / "agents", symlinks=True)
-    if manifest_existed:
-        (directory / "active-engine.json").write_bytes(_read_regular_file(manifest, "active-engine manifest"))
-    if config_existed:
-        (directory / "studio.toml").write_bytes(_read_regular_file(config, "studio config"))
-    return _Backup(directory, agents_existed, manifest_existed, config_existed)
-
-
-def rollback_activation(root: Path, backup: _Backup) -> None:
-    root = Path(root).resolve()
-    agents = root / ".codex/agents"
-    manifest = root / ".codex/active-engine.json"
-    config = root / ".codex/studio.toml"
-    _remove_path(agents)
-    if backup.agents_existed:
-        shutil.copytree(backup.directory / "agents", agents, symlinks=True)
-    for target, existed, stored in (
-        (manifest, backup.manifest_existed, backup.directory / "active-engine.json"),
-        (config, backup.config_existed, backup.directory / "studio.toml"),
-    ):
-        _remove_path(target)
-        if existed:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(stored.read_bytes())
 
 
 def _checkpoint(_phase: str) -> None:
@@ -355,73 +752,100 @@ def _checkpoint(_phase: str) -> None:
 
 
 def validate_activation(root: Path) -> list[str]:
-    root = Path(root).resolve()
+    """Return validation errors for the installed engine-pack state."""
+
     try:
+        root = _normalize_root(root)
+        _inspect_auxiliary_paths(root)
         config = load_studio_config(root)
         packs = _validate_packs(root)
-        manifest = _load_manifest(root, config)
+        manifest = _load_manifest(root, config, packs)
         managed = _validate_managed_profiles(root, manifest)
         if config.engine == "unconfigured":
             if manifest is not None or managed:
-                raise ValueError("unconfigured studio must not have an active engine manifest")
+                raise ValueError("unconfigured studio must not have an active manifest")
         elif manifest is None or len(managed) != 5:
-            raise ValueError("configured studio must have five managed engine profiles")
-        elif dict((source.name, digest) for source, digest in packs[config.engine]) != managed:
-            raise ValueError("active profiles do not match the immutable source pack")
+            raise ValueError("configured studio must have five managed profiles")
     except (OSError, ValueError) as error:
         return [str(error)]
     return []
 
 
-def apply_activation(root: Path, plan: ActivationPlan) -> None:
-    root = Path(root).resolve()
-    if root != plan.root:
-        raise ValueError("activation plan belongs to a different project root")
-    _control_directory(root)
+def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
     if plan.engine not in SUPPORTED_ENGINES:
         raise ValueError("invalid activation plan engine")
     packs = _validate_packs(root)
-    current_source_hashes = tuple((source.name, digest) for source, digest in packs[plan.engine])
-    if current_source_hashes != plan.source_hashes:
+    current_hashes = tuple((source.name, digest) for source, digest in packs[plan.engine])
+    if current_hashes != plan.source_hashes:
         raise ValueError("source pack changed after activation planning")
     if _state_digest(root) != plan.state_digest:
         raise ValueError("stale activation plan: project state changed after planning")
-    expected_plan = plan_activation(
+    expected = plan_activation(
         root,
         plan.engine,
         version=plan.target_config.engine_version,
         language=plan.target_config.language,
     )
-    if plan != expected_plan:
+    if expected != plan:
         raise ValueError("invalid activation plan: paths or target configuration were modified")
-    if plan.no_op:
-        return
-    # Re-run all semantic validation before creating a backup or mutating state.
-    config = load_studio_config(root)
-    manifest = _load_manifest(root, config)
-    _validate_managed_profiles(root, manifest)
-    agents = root / ".codex/agents"
-    with tempfile.TemporaryDirectory(prefix="codex-engine-pack-") as temporary:
-        backup = _create_backup(root, Path(temporary))
+
+
+def apply_activation(root: Path, plan: ActivationPlan) -> None:
+    """Apply a plan under an exclusive lock with persistent rollback state."""
+
+    root = _normalize_root(root)
+    if root != plan.root:
+        raise ValueError("activation plan belongs to a different project root")
+    with _activation_lock(root):
+        recovery, journal = _inspect_auxiliary_paths(root)
+        if journal is not None:
+            if journal["phase"] in {"committed", "rolled-back"}:
+                _cleanup_terminal_recovery(recovery, journal)
+            else:
+                _restore_backup(root, recovery, journal)
+        _assert_plan_current(root, plan)
+        if plan.no_op:
+            return
+        _checkpoint("after-revalidation")
+        recovery, journal = _create_recovery(root)
         try:
-            agents.mkdir(parents=True, exist_ok=True)
+            agents = _agents_directory(root, create=True)
             for target in plan.remove:
                 _unlink_managed(target)
+            _write_journal(recovery, journal, "remove")
             _checkpoint("remove")
+            expected_hashes = dict(plan.source_hashes)
             for source in plan.install:
-                shutil.copy2(source, agents / source.name)
+                raw = _secure_read(source, "engine pack source profile")
+                if _sha256(raw) != expected_hashes[source.name]:
+                    raise ValueError("source pack changed during activation")
+                _exclusive_profile_write(agents, source.name, raw)
+            _write_journal(recovery, journal, "copy")
             _checkpoint("copy")
-            generated = dict(plan.source_hashes)
-            _atomic_write(root / ".codex/active-engine.json", _serialize_manifest(plan.engine, generated))
+            if plan.install or plan.remove:
+                _atomic_write(root / ".codex/active-engine.json", _serialize_manifest(plan.engine, expected_hashes))
+            _write_journal(recovery, journal, "manifest-write")
             _checkpoint("manifest-write")
+            _checkpoint("second-replace")
             _atomic_write(root / ".codex/studio.toml", _serialize_config(plan.target_config))
+            _write_journal(recovery, journal, "config-write")
             _checkpoint("config-write")
             issues = validate_activation(root)
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
+            _write_journal(recovery, journal, "validated")
             _checkpoint("post-validation")
-        except BaseException:
-            rollback_activation(root, backup)
+            _write_journal(recovery, journal, "committed")
+            _retire_recovery(recovery)
+        except BaseException as original:
+            try:
+                _restore_backup(root, recovery, journal)
+            except BaseException as rollback:
+                try:
+                    _write_journal(recovery, journal, "rollback-failed")
+                except BaseException:
+                    pass
+                raise ActivationRecoveryError(original, rollback) from original
             raise
 
 
@@ -433,37 +857,56 @@ def _print_plan(root: Path, plan: ActivationPlan, stream: object = sys.stdout) -
     for target in plan.remove:
         write(f"REMOVE {target.relative_to(root).as_posix()}\n")
     config = plan.target_config
-    write(f"CONFIG engine={config.engine} version={config.engine_version} language={config.language}\n")
+    write(
+        "CONFIG "
+        f"engine={config.engine} engine_version={config.engine_version} language={config.language} "
+        f"active_engine_pack={config.active_engine_pack} review_mode={config.review_mode} "
+        f"model_policy={config.model_policy}\n"
+    )
     if plan.no_op:
         write("NO-OP active pack and configuration already match\n")
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plan or apply a transactional Codex engine-agent pack activation")
+    parser = argparse.ArgumentParser(description="Plan, apply, or recover a Codex engine-agent pack transaction")
     parser.add_argument("--root", type=Path, default=Path.cwd())
-    parser.add_argument("--engine", required=True, choices=SUPPORTED_ENGINES)
+    parser.add_argument("--engine", choices=SUPPORTED_ENGINES)
     parser.add_argument("--version", default="")
     parser.add_argument("--language", default="")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
+    mode.add_argument("--recover", action="store_true")
     return parser
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
     parser = _parser()
     options = parser.parse_args(arguments)
-    root = options.root.resolve()
+    root = options.root
+    if options.recover:
+        if options.engine or options.version or options.language:
+            parser.error("--recover does not accept --engine, --version, or --language")
+        try:
+            recover_activation(root)
+            print("Engine-pack recovery complete")
+            return 0
+        except (OSError, ValueError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    if not options.engine:
+        parser.error("--engine is required for --dry-run and --apply")
     try:
+        _validate_target_values(options.engine, options.version, options.language, require_complete=options.apply)
         plan = plan_activation(root, options.engine, version=options.version, language=options.language)
-        _print_plan(root, plan)
+        _print_plan(plan.root, plan)
         if options.apply:
-            apply_activation(root, plan)
-            issues = validate_activation(root)
+            apply_activation(plan.root, plan)
+            issues = validate_activation(plan.root)
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
             print(f"Activated {options.engine} with 5 managed profiles")
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, ActivationRecoveryError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0

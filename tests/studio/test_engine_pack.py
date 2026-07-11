@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -15,6 +18,8 @@ from tools.codex_studio.engine_pack import (
     apply_activation,
     load_studio_config,
     plan_activation,
+    recover_activation,
+    _serialize_config,
     validate_activation,
 )
 
@@ -26,6 +31,8 @@ def tree_bytes(root: Path) -> dict[str, tuple[str, bytes | str]]:
     result: dict[str, tuple[str, bytes | str]] = {}
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root).as_posix()
+        if relative == ".codex/engine-pack.lock":
+            continue
         if path.is_symlink():
             result[relative] = ("symlink", os.readlink(path))
         elif path.is_file():
@@ -123,6 +130,22 @@ class EnginePackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "control directory.*symlink"):
             plan_activation(self.project, "godot")
 
+    def test_symlinked_project_root_pack_root_and_selected_pack_are_rejected(self):
+        alias = self.project.parent / "project-alias"
+        alias.symlink_to(self.project, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "project root.*symlink"):
+            plan_activation(alias, "godot")
+        for relative in (Path(".codex/agent-packs"), Path(".codex/agent-packs/godot")):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                shutil.copytree(self.project, project)
+                path = project / relative
+                relocated = project / f"relocated-{path.name}"
+                path.rename(relocated)
+                path.symlink_to(relocated, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "symlink|junction|reparse"):
+                    plan_activation(project, "godot")
+
     def test_malformed_config_and_manifest_are_rejected(self):
         config = self.project / ".codex/studio.toml"
         config.write_text("engine = [\n", encoding="utf-8")
@@ -147,6 +170,30 @@ class EnginePackTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "hash"):
             plan_activation(self.project, "unity")
+
+    def test_forged_manifest_cannot_claim_unmanaged_profiles(self):
+        apply_activation(self.project, plan_activation(self.project, "godot"))
+        agents = self.project / ".codex/agents"
+        generated = {}
+        for index in range(5):
+            name = f"custom-{index}.toml"
+            content = f"custom {index}".encode()
+            (agents / name).write_bytes(content)
+            generated[name] = hashlib.sha256(content).hexdigest()
+        (self.project / ".codex/active-engine.json").write_text(
+            json.dumps({"engine": "godot", "generated": generated}), encoding="utf-8"
+        )
+        before = tree_bytes(self.project)
+        with self.assertRaisesRegex(ValueError, "immutable source pack"):
+            plan_activation(self.project, "unity")
+        self.assertEqual(before, tree_bytes(self.project))
+
+    def test_unsafe_source_filename_is_rejected_before_pack_count_authorization(self):
+        pack = self.project / ".codex/agent-packs/godot"
+        source = next(pack.iterdir())
+        source.rename(pack / "bad\\name.toml")
+        with self.assertRaisesRegex(ValueError, "filename"):
+            plan_activation(self.project, "godot")
 
     def test_windows_style_manifest_traversal_is_rejected(self):
         generated = {"..\\outside.toml": "0" * 64}
@@ -195,8 +242,21 @@ class EnginePackTests(unittest.TestCase):
         apply_activation(self.project, repeat)
         self.assertEqual(before, tree_bytes(self.project))
 
+    def test_same_engine_config_only_update_preserves_manifest_and_profiles(self):
+        apply_activation(self.project, plan_activation(self.project, "godot", version="4.5", language="gdscript"))
+        manifest = self.project / ".codex/active-engine.json"
+        profiles = {path.name: path.read_bytes() for path in (self.project / ".codex/agents").iterdir()}
+        manifest_bytes = manifest.read_bytes()
+        update = plan_activation(self.project, "godot", version="4.6", language="gdscript")
+        self.assertEqual((), update.install)
+        self.assertEqual((), update.remove)
+        apply_activation(self.project, update)
+        self.assertEqual(manifest_bytes, manifest.read_bytes())
+        self.assertEqual(profiles, {path.name: path.read_bytes() for path in (self.project / ".codex/agents").iterdir()})
+        self.assertEqual("4.6", load_studio_config(self.project).engine_version)
+
     def test_each_mutation_failure_rolls_back_byte_for_byte(self):
-        phases = ("remove", "copy", "manifest-write", "config-write", "post-validation")
+        phases = ("remove", "copy", "manifest-write", "second-replace", "config-write", "post-validation")
         for phase in phases:
             with self.subTest(phase=phase):
                 apply_activation(self.project, plan_activation(self.project, "godot"))
@@ -225,42 +285,16 @@ class EnginePackTests(unittest.TestCase):
         self.assertEqual(before, tree_bytes(self.project))
 
     def test_actual_copy_replace_write_and_validation_failures_rollback(self):
-        failure_cases = ("copy", "replace", "manifest-write", "config-write", "validation")
+        failure_cases = ("copy", "second-replace", "manifest-write", "config-write", "post-validation")
         for failure_case in failure_cases:
             with self.subTest(failure_case=failure_case):
                 before = tree_bytes(self.project)
                 plan = plan_activation(self.project, "godot")
-                patches = []
-                if failure_case == "copy":
-                    real_copy = shutil.copy2
-                    calls = 0
+                def fail(selected: str) -> None:
+                    if selected == failure_case:
+                        raise OSError(f"actual {failure_case} failure")
 
-                    def copy_failure(source, destination, *args, **kwargs):
-                        nonlocal calls
-                        calls += 1
-                        if calls == 3:
-                            raise OSError("actual copy failure")
-                        return real_copy(source, destination, *args, **kwargs)
-
-                    patches.append(mock.patch("tools.codex_studio.engine_pack.shutil.copy2", side_effect=copy_failure))
-                elif failure_case == "replace":
-                    patches.append(mock.patch("tools.codex_studio.engine_pack.os.replace", side_effect=OSError("actual replace failure")))
-                elif failure_case in {"manifest-write", "config-write"}:
-                    from tools.codex_studio import engine_pack
-
-                    real_write = engine_pack._atomic_write
-
-                    def write_failure(path, content, selected=failure_case):
-                        if (selected == "manifest-write" and path.name == "active-engine.json") or (
-                            selected == "config-write" and path.name == "studio.toml"
-                        ):
-                            raise OSError(f"actual {selected} failure")
-                        return real_write(path, content)
-
-                    patches.append(mock.patch("tools.codex_studio.engine_pack._atomic_write", side_effect=write_failure))
-                else:
-                    patches.append(mock.patch("tools.codex_studio.engine_pack.validate_activation", return_value=["injected invalid state"]))
-                with patches[0]:
+                with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=fail):
                     with self.assertRaises((OSError, ValueError)):
                         apply_activation(self.project, plan)
                 self.assertEqual(before, tree_bytes(self.project))
@@ -277,6 +311,213 @@ class EnginePackTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "actual remove failure"):
                 apply_activation(self.project, plan)
         self.assertEqual(before, tree_bytes(self.project))
+
+    def test_mid_copy_and_second_control_replace_failures_restore_logical_state(self):
+        for failure_case in ("mid-copy", "second-control-replace"):
+            with self.subTest(failure_case=failure_case), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                shutil.copytree(self.project, project)
+                before = tree_bytes(project)
+                plan = plan_activation(project, "godot")
+                if failure_case == "mid-copy":
+                    from tools.codex_studio import engine_pack
+
+                    real_write = engine_pack._exclusive_profile_write
+                    calls = 0
+
+                    def fail_third(agents, name, content):
+                        nonlocal calls
+                        calls += 1
+                        if calls == 3:
+                            raise OSError("mid-copy failure")
+                        return real_write(agents, name, content)
+
+                    patcher = mock.patch("tools.codex_studio.engine_pack._exclusive_profile_write", side_effect=fail_third)
+                else:
+                    from tools.codex_studio import engine_pack
+
+                    real_replace = engine_pack.os.replace
+                    control_replaces = 0
+
+                    def fail_second(source, destination):
+                        nonlocal control_replaces
+                        if Path(destination).name in {"active-engine.json", "studio.toml"}:
+                            control_replaces += 1
+                            if control_replaces == 2:
+                                raise OSError("second control replace failure")
+                        return real_replace(source, destination)
+
+                    patcher = mock.patch("tools.codex_studio.engine_pack.os.replace", side_effect=fail_second)
+                with patcher:
+                    with self.assertRaisesRegex(OSError, "mid-copy|second control replace"):
+                        apply_activation(project, plan)
+                self.assertEqual(before, tree_bytes(project))
+
+    def test_post_validation_failure_restores_logical_state(self):
+        before = tree_bytes(self.project)
+        plan = plan_activation(self.project, "godot")
+        with mock.patch("tools.codex_studio.engine_pack.validate_activation", return_value=["injected invalid state"]):
+            with self.assertRaisesRegex(ValueError, "post-apply validation failed"):
+                apply_activation(self.project, plan)
+        self.assertEqual(before, tree_bytes(self.project))
+
+    def test_target_created_after_locked_revalidation_is_preserved_and_blocks_apply(self):
+        plan = plan_activation(self.project, "godot")
+        target = self.project / ".codex/agents/godot-specialist.toml"
+
+        def inject(phase: str) -> None:
+            if phase == "after-revalidation":
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("concurrent unmanaged", encoding="utf-8")
+
+        with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=inject):
+            with self.assertRaisesRegex(ValueError, "collision|concurrent"):
+                apply_activation(self.project, plan)
+        self.assertEqual("concurrent unmanaged", target.read_text(encoding="utf-8"))
+
+    def test_exclusive_destination_fallback_without_dir_fd_is_safe(self):
+        from tools.codex_studio import engine_pack
+
+        with mock.patch.object(engine_pack.os, "supports_dir_fd", set()):
+            apply_activation(self.project, plan_activation(self.project, "godot"))
+        self.assertEqual([], validate_activation(self.project))
+
+    def test_symlink_created_after_locked_revalidation_cannot_escape(self):
+        plan = plan_activation(self.project, "godot")
+        target = self.project / ".codex/agents/godot-specialist.toml"
+        outside = self.project / "outside.txt"
+        outside.write_text("outside", encoding="utf-8")
+
+        def inject(phase: str) -> None:
+            if phase == "after-revalidation":
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(outside)
+
+        with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=inject):
+            with self.assertRaisesRegex(ValueError, "collision|symlink|concurrent"):
+                apply_activation(self.project, plan)
+        self.assertTrue(target.is_symlink())
+        self.assertEqual("outside", outside.read_text(encoding="utf-8"))
+
+    def test_second_same_project_activation_cannot_enter_transaction(self):
+        plan = plan_activation(self.project, "godot")
+        entered = threading.Event()
+        release = threading.Event()
+        failures = []
+
+        def pause(phase: str) -> None:
+            if phase == "after-revalidation":
+                entered.set()
+                release.wait(5)
+
+        def first() -> None:
+            try:
+                with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=pause):
+                    apply_activation(self.project, plan)
+            except BaseException as error:
+                failures.append(error)
+
+        thread = threading.Thread(target=first)
+        thread.start()
+        self.assertTrue(entered.wait(5))
+        try:
+            with self.assertRaisesRegex(ValueError, "activation.*locked"):
+                apply_activation(self.project, plan)
+        finally:
+            release.set()
+            thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual([], failures)
+
+    def test_rollback_failure_preserves_journal_and_can_be_recovered(self):
+        plan = plan_activation(self.project, "godot")
+        def fail_after_copy(phase: str) -> None:
+            if phase == "copy":
+                raise OSError("original failure")
+
+        with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=fail_after_copy):
+            with mock.patch("tools.codex_studio.engine_pack._restore_backup", side_effect=OSError("rollback failure")):
+                with self.assertRaisesRegex(RuntimeError, "original failure.*rollback failure"):
+                    apply_activation(self.project, plan)
+        recovery = self.project / ".codex/engine-pack-recovery"
+        self.assertTrue((recovery / "journal.json").is_file())
+        self.assertTrue((recovery / "backup-agents").is_dir() or (recovery / "agents-absent").is_file())
+        with self.assertRaisesRegex(ValueError, "--recover"):
+            plan_activation(self.project, "unity")
+        recover_activation(self.project)
+        self.assertFalse(recovery.exists())
+        self.assertEqual("unconfigured", load_studio_config(self.project).engine)
+
+    def test_corrupt_recovery_backup_is_never_consumed_or_deleted(self):
+        plan = plan_activation(self.project, "godot")
+
+        def fail_after_copy(phase: str) -> None:
+            if phase == "copy":
+                raise OSError("original failure")
+
+        with mock.patch("tools.codex_studio.engine_pack._checkpoint", side_effect=fail_after_copy):
+            with mock.patch("tools.codex_studio.engine_pack._restore_backup", side_effect=OSError("rollback failure")):
+                with self.assertRaises(RuntimeError):
+                    apply_activation(self.project, plan)
+        recovery = self.project / ".codex/engine-pack-recovery"
+        backup = recovery / "backup-config"
+        backup.write_bytes(backup.read_bytes() + b"corrupt")
+        with self.assertRaisesRegex(ValueError, "backup.*hash"):
+            recover_activation(self.project)
+        self.assertTrue(recovery.is_dir())
+        self.assertTrue(backup.is_file())
+
+    def test_reparse_and_name_surrogate_metadata_are_rejected(self):
+        from tools.codex_studio import engine_pack
+
+        real_lstat = os.lstat
+        control = self.project / ".codex"
+
+        def fake_lstat(path, *args, **kwargs):
+            result = real_lstat(path, *args, **kwargs)
+            if Path(os.fspath(path)).name == ".codex":
+                values = {name: getattr(result, name) for name in dir(result) if name.startswith("st_")}
+                values["st_file_attributes"] = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+                values["st_reparse_tag"] = 0xA0000003
+                return type("FakeStat", (), values)()
+            return result
+
+        with mock.patch("tools.codex_studio.engine_pack.os.lstat", side_effect=fake_lstat):
+            with self.assertRaisesRegex(ValueError, "reparse|name-surrogate"):
+                plan_activation(self.project, "godot")
+
+    def test_direct_agents_manifest_config_lock_and_recovery_links_are_rejected(self):
+        cases = ("agents", "active-engine.json", "studio.toml", "engine-pack.lock", "engine-pack-recovery")
+        for name in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                shutil.copytree(self.project, project)
+                path = project / ".codex" / name
+                if path.exists() or path.is_symlink():
+                    if path.is_dir() and not path.is_symlink():
+                        shutil.rmtree(path)
+                    else:
+                        path.unlink()
+                outside = project / f"outside-{name.replace('/', '-') }"
+                if name in {"agents", "engine-pack-recovery"}:
+                    outside.mkdir()
+                    path.symlink_to(outside, target_is_directory=True)
+                else:
+                    outside.write_text("outside", encoding="utf-8")
+                    path.symlink_to(outside)
+                with self.assertRaisesRegex(ValueError, "symlink|reparse|link"):
+                    plan_activation(project, "godot")
+
+    def test_config_serializer_round_trips_quotes_backslashes_and_unicode(self):
+        config = dataclasses.replace(
+            load_studio_config(self.project),
+            engine_version='4.6-"beta"\\路径',
+            language="gdscript",
+        )
+        import tomllib
+
+        parsed = tomllib.loads(_serialize_config(config).decode("utf-8"))
+        self.assertEqual(dataclasses.asdict(config), parsed)
 
 
 class EnginePackCliTests(unittest.TestCase):
@@ -303,7 +544,10 @@ class EnginePackCliTests(unittest.TestCase):
         result = self.run_cli("--engine", "godot", "--version", "4.6", "--language", "gdscript", "--dry-run")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(5, result.stdout.count("INSTALL "))
-        self.assertIn("CONFIG engine=godot version=4.6 language=gdscript", result.stdout)
+        self.assertIn("CONFIG engine=godot engine_version=4.6 language=gdscript", result.stdout)
+        self.assertIn("active_engine_pack=godot", result.stdout)
+        self.assertIn("review_mode=phase-gated", result.stdout)
+        self.assertIn("model_policy=balanced", result.stdout)
         self.assertEqual(before, tree_bytes(self.project))
 
     def test_apply_succeeds_and_safety_failure_exits_nonzero(self):
@@ -317,7 +561,7 @@ class EnginePackCliTests(unittest.TestCase):
         target.parent.mkdir(parents=True)
         target.write_text("unmanaged", encoding="utf-8")
         result = subprocess.run(
-            [sys.executable, "-m", "tools.codex_studio.engine_pack", "--root", str(collision_project), "--engine", "godot", "--apply"],
+            [sys.executable, "-m", "tools.codex_studio.engine_pack", "--root", str(collision_project), "--engine", "godot", "--version", "4.6", "--language", "gdscript", "--apply"],
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -333,3 +577,56 @@ class EnginePackCliTests(unittest.TestCase):
         self.assertEqual(2, neither.returncode)
         self.assertEqual(2, both.returncode)
         self.assertEqual(2, invalid.returncode)
+
+    def test_cli_recover_is_explicit_and_idempotent_without_pending_journal(self):
+        result = self.run_cli("--recover")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("recovery complete", result.stdout.lower())
+
+    def test_apply_requires_exact_version_and_compatible_control_free_language(self):
+        cases = (
+            ("godot", "", "gdscript"),
+            ("godot", "4.6", ""),
+            ("godot", "4.6\nmalicious", "gdscript"),
+            ("godot", "4.6", "gdscript\nmalicious"),
+            ("unity", "6000.1", "gdscript"),
+            ("unreal", "5.7", "csharp"),
+        )
+        for engine, version, language in cases:
+            with self.subTest(engine=engine, version=version, language=language):
+                result = self.run_cli(
+                    "--engine", engine, "--version", version, "--language", language, "--apply"
+                )
+                self.assertEqual(1, result.returncode)
+        for engine, version, language in (
+            ("godot", "4.6", "gdscript"),
+            ("godot", "4.6", "csharp"),
+            ("unity", "6000.1", "csharp"),
+            ("unreal", "5.7", "cpp"),
+            ("unreal", "5.7", "blueprint"),
+        ):
+            with self.subTest(valid=(engine, language)), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", project)
+                shutil.copytree(ROOT / ".codex/agent-packs", project / ".codex/agent-packs")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "tools.codex_studio.engine_pack",
+                        "--root",
+                        str(project),
+                        "--engine",
+                        engine,
+                        "--version",
+                        version,
+                        "--language",
+                        language,
+                        "--apply",
+                    ],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
