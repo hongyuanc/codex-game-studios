@@ -223,34 +223,29 @@ tracking threshold — quick spec is sufficient."]
 
 ## 4. Approval and Filing
 
-Present the draft to the user in full. Then ask one concise question and wait for the answer:
-- Prompt: "Here's the Quick Design Spec draft. How do you want to proceed?"
-- Options:
-  - `[A] Approve — write it as shown`
-  - `[B] Revise — I'll describe what to change`
-  - `[C] This grew too large — redirect to $design-system instead`
-
-If [B]: collect the requested changes, revise the draft, and re-present this prompt.
-If [C]: stop. Verdict: **REDIRECTED** — use `$design-system` for this change.
-
-If [A]: ask "May I write this Quick Design Spec to
-`design/quick-specs/[kebab-case-title]-[YYYY-MM-DD].md`?"
-
 Use today's date in the filename. The title should be a kebab-case description
 of the change (e.g., `jump-height-tuning-2026-03-10`,
 `parry-window-addition-2026-03-10`).
 
-If yes, create the `design/quick-specs/` directory if it does not exist, then
-write the file.
+### Complete changeset approval
 
-If a GDD update is required (flagged in the spec), ask separately after
-writing the quick spec:
+Present the draft and one complete proposed changeset before asking. Always list:
 
-"This spec modifies rules in [System Name]. May I update
-`design/gdd/[filename].md` — specifically the [section name] section?"
+- `design/quick-specs/[kebab-case-title]-[YYYY-MM-DD].md` — the full Quick Design Spec
+- `design/gdd/[filename].md` — only when the spec requires a GDD update; show the exact old and new section text
 
-Show the exact text that would be changed (old vs. new) before asking. Do not
-make GDD edits without explicit approval.
+Ask one concise approval question and wait for the answer:
+
+- [A] Approve and write the complete listed changeset exactly as shown
+- [B] Write only the Quick Design Spec and explicitly defer the listed GDD update (only offer when a GDD update is required)
+- [C] Revise the proposed changeset — I'll describe what to change
+- [D] This grew too large — redirect to `$design-system` instead
+
+If [A], create `design/quick-specs/` if needed and write every listed file. If
+[B], write only the Quick Design Spec and record the GDD update as pending. If
+[C], revise and re-present the complete changeset with the same single approval
+question. If [D], stop with verdict **REDIRECTED**. Do not request a second
+approval after any option.
 
 ---
 

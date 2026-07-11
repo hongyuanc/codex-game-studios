@@ -369,17 +369,11 @@ The GDD should be revised before its system enters implementation.
 If no revision flags are found, write: "No GDD revision flags — all GDD assumptions
 are consistent with verified engine behaviour."
 
-Before asking, display the proposed change inline — show the current systems-index row for each flagged GDD and the proposed updated row side by side so the user can see exactly what will change.
-
-Then ask one concise question and wait for the answer:
-- "I found [N] GDD revision flag(s). May I update the systems index?"
-  - [A] Yes — apply all [N] updates to the systems index now
-  - [B] Show me the full diff first, then ask again
-  - [C] No — leave the systems index unchanged for now
-
-If [A]: apply the updates. Status field must be exactly `Needs Revision` — no parentheticals
-(other skills match that exact string and parentheticals break the match).
-If [B]: display the complete proposed systems-index section, then re-ask with one concise question, then wait for the answer.
+Display the proposed change inline — show the current `design/gdd/systems-index.md`
+row for each flagged GDD and the proposed updated row side by side. Do not write
+it yet. Carry these rows into the complete proposed changeset in Phase 8. If that
+changeset is approved, the Status field must be exactly `Needs Revision` — no
+parentheticals, because other skills match that exact string.
 
 ---
 
@@ -456,18 +450,35 @@ FAIL: Critical gaps (Foundation/Core layer requirements uncovered),
 
 ## Phase 8: Write and Update Traceability Index
 
-Ask one concise question and wait for the answer for the write approval:
-- "Review complete. What would you like to write?"
-  - [A] Write all three files (review report + traceability index + TR registry)
-  - [B] Write review report only — `docs/architecture/architecture-review-[date].md`
-  - [C] Don't write anything yet — I need to review the findings first
+### Complete proposed changeset approval
+
+Before any write, show one complete proposed changeset containing every applicable
+file, the exact content or diff for each, and why it is included:
+
+- `design/gdd/systems-index.md` — only the `Needs Revision` row updates proposed in Phase 5b
+- `docs/architecture/architecture-review-[date].md` — the complete review report
+- `docs/architecture/architecture-traceability.md` — the updated architecture traceability index
+- `docs/architecture/tr-registry.yaml` — new, revised, or deprecated TR entries
+- `docs/architecture/requirements-traceability.md` — only in `rtm` mode
+- `docs/consistency-failures.md` — only when it already exists and Phase 4 found conflicts
+- `production/session-state/active.md` — the proposed session extract
+
+Ask one concise approval question and wait for the answer:
+
+- [A] Write the complete listed changeset exactly as shown
+- [B] Write only `docs/architecture/architecture-review-[date].md`; explicitly defer every other listed change
+- [C] Do not write anything yet
+
+Only option [A] authorizes every applicable listed file. Option [B] authorizes the
+report only and must not update the systems index, traceability files, registry,
+reflexion log, or session state. Never write a file that was absent from the shown
+changeset.
 
 ### RTM Output (rtm mode only)
 
-For `rtm` mode, ask one concise question and wait for the answer:
-- "May I write the full Requirements Traceability Matrix?"
-  - [A] Yes — write to `docs/architecture/requirements-traceability.md`
-  - [B] Not yet — show me the full RTM data first, then ask again
+For `rtm` mode, include the full matrix at
+`docs/architecture/requirements-traceability.md` in the Phase 8 complete proposed
+changeset. The single Phase 8 approval governs this file; do not ask again.
 
 RTM file format:
 
@@ -527,10 +538,8 @@ Requirements where the full chain is broken, prioritised by layer:
 
 ### TR Registry Update
 
-Also ask: "May I update `docs/architecture/tr-registry.yaml` with new requirement
-IDs from this review?"
-
-If yes:
+Include the exact proposed `docs/architecture/tr-registry.yaml` diff in the
+complete changeset. If the complete changeset is approved:
 - **Append** any new TR-IDs that weren't in the registry before this review
 - **Update** `requirement` text and `revised` date for any entries whose GDD
   wording changed (ID stays the same)
@@ -544,8 +553,8 @@ across every subsequent architecture review.
 
 ### Reflexion Log Update
 
-After writing the review report, append any 🔴 CONFLICT entries found in Phase 4
-to `docs/consistency-failures.md` (if the file exists):
+When applicable, include any proposed 🔴 CONFLICT entries for
+`docs/consistency-failures.md` in the complete changeset:
 
 ```markdown
 ### [YYYY-MM-DD] — $architecture-review — 🔴 CONFLICT
@@ -556,14 +565,13 @@ to `docs/consistency-failures.md` (if the file exists):
 **Pattern**: [generalised lesson for future ADR authors in this domain]
 ```
 
-Only append CONFLICT entries — do not log GAP entries (missing ADRs are expected
-before the architecture is complete). Do not create the file if missing — only
-append when it already exists.
+Only append approved CONFLICT entries — do not log GAP entries. Do not create the
+file if missing. If the complete changeset was not approved, defer this write.
 
 ### Session State Update
 
-After writing all approved files, silently append to
-`production/session-state/active.md`:
+Include this proposed append to `production/session-state/active.md` in the
+complete changeset:
 
     ## Session Extract — $architecture-review [date]
     - Verdict: [PASS / CONCERNS / FAIL]
@@ -573,8 +581,9 @@ After writing all approved files, silently append to
     - Top ADR gaps: [top 3 gap titles from the report, or "None"]
     - Report: docs/architecture/architecture-review-[date].md
 
-If `active.md` does not exist, create it with this block as the initial content.
-Confirm in conversation: "Session state updated."
+If `active.md` does not exist, show creation with this block as the initial
+content. Write it only under option [A], then confirm in conversation. Otherwise
+defer it without claiming the session state was updated.
 
 The traceability index format:
 

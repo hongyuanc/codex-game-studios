@@ -415,6 +415,8 @@ Context  ->  Questions  ->  Options  ->  Decision  ->  Draft  ->  Approval  ->  
    constraints from context gathered in Phase 2.
 2. **Questions**: Ask what is needed to draft this section. Ask one concise question and wait for the answer
    for constrained choices, conversational text for open-ended exploration.
+   Every bullet under "Questions to ask" is a separate decision turn: ask one,
+   wait for the answer, then decide whether the next question is still needed.
 3. **Options**: Where design choices exist, present 2-4 approaches with pros/cons.
    Explain reasoning in conversation, then ask one concise question and wait for the answer to capture the decision.
 4. **Decision**: User picks an approach or provides custom direction.
@@ -726,7 +728,8 @@ For each item, ask the user to categorize it:
 | **On Demand** | Player must actively request it (toggle, hold button) |
 | **Hidden** | Communicated through world/audio, never on-screen text |
 
-Ask one concise question and wait for the answer to step through items in groups of 3-4, not all at once.
+Ask about one information item per turn and wait for the answer before presenting
+the next item. Never batch several categorization decisions into one question.
 This is the most consequential design decision in the HUD — do not rush it.
 
 **Conflict check**: If the information philosophy (Section A) says "nearly HUD-free"
@@ -822,7 +825,7 @@ For each pattern (existing or new), document:
 **Reference**: [Screenshot path or ASCII example, if available]
 ```
 
-Work through patterns in groups. Ask one concise question and wait for the answer:
+Work through pattern decisions one at a time. Ask one concise question and wait for the answer:
 - "How do you want to work through these patterns?"
 - Options: "Draft the first batch from existing specs (faster)", "Define them one by one (more control)", "Start with the most-used pattern first"
 
@@ -830,7 +833,7 @@ Work through patterns in groups. Ask one concise question and wait for the answe
 
 #### Phase 3: Identify Gaps
 
-After cataloging known patterns, ask:
+After cataloging known patterns, ask each of these in a separate turn and wait for the answer:
 - "Are there screens or interactions planned that would need patterns not yet
   in this library?"
 - "Are there any patterns in existing specs that feel inconsistent with each

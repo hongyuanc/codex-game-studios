@@ -212,27 +212,19 @@ After all revisions are complete, show a summary table (blocker → fix applied)
 
 Never end the revision flow with plain text. Always close with this prompt.
 
-**Second prompt — tracking records (combined, for APPROVED path):**
+**Tracking decisions — one decision per turn:**
 
-When the verdict is APPROVED, ask about each tracking update separately, one per turn, waiting for each answer:
-- Prompt: "Verdict: APPROVED. I can update the tracking records now. Select any you'd like me to complete:"
-- Options:
-  - `Update systems-index.md status to 'Approved' for [system]`
-  - `Append approval entry to design/gdd/reviews/[doc-name]-review-log.md`
-
-If the review-log option is selected, append the same format as below. Execute both selected actions before showing the final closing prompt.
-
-When the verdict is NEEDS REVISION or MAJOR REVISION NEEDED, use separate prompts as before:
-
-Use a second one-question prompt:
+Ask the systems-index decision first and wait for the answer:
 - Prompt: "May I update `design/gdd/systems-index.md` to mark [system] as [In Review / Approved]?"
 - Options: `[A] Yes — update it` / `[B] No — leave it as-is`
 
-Use a third one-question prompt:
+Then ask the review-log decision and wait for the answer:
 - Prompt: "May I append this review summary to `design/gdd/reviews/[doc-name]-review-log.md`? This creates a revision history so future re-reviews can track what changed."
 - Options: `[A] Yes — append to review log` / `[B] No — skip`
 
-If yes, append an entry in this format:
+Never combine these into a multi-select or "select any" prompt. Apply each write
+only after its own answer. If the review-log update is approved, append an entry
+in this format:
 ```
 ## Review — [YYYY-MM-DD] — Verdict: [APPROVED / NEEDS REVISION / MAJOR REVISION NEEDED]
 Scope signal: [S/M/L/XL]

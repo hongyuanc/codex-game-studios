@@ -148,10 +148,9 @@ ADRs referencing this GDD: [M]
 
 ## 6b. Director Gate — Technical Impact Review
 
-**Review mode check** — apply before delegating to TD-CHANGE-IMPACT:
-- `solo` → skip. Note: "TD-CHANGE-IMPACT skipped — Solo mode." Proceed to Phase 7.
-- `lean` → skip. Note: "TD-CHANGE-IMPACT skipped — Lean mode." Proceed to Phase 7.
-- `full` → delegate normally.
+**Required architecture gate**: TD-CHANGE-IMPACT is required in full, lean, and solo modes.
+Review mode may vary optional review depth, but it never skips this
+material architecture conflict gate.
 
 Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`.codex/docs/director-gates.md`).
 

@@ -346,10 +346,9 @@ to implement it.]
    - If the specialist identifies a **blocking issue** (wrong API, deprecated approach, engine version incompatibility): revise the Decision and Engine Compatibility sections accordingly, then confirm the changes with the user before proceeding
    - If the specialist finds **minor notes** only: incorporate them into the ADR's Risks subsection
 
-**Review mode check** — apply before delegating to TD-ADR:
-- `solo` → skip. Note: "TD-ADR skipped — Solo mode." Proceed to Step 5.7 (GDD sync check).
-- `lean` → skip (not a PHASE-GATE). Note: "TD-ADR skipped — Lean mode." Proceed to Step 5.7 (GDD sync check).
-- `full` → delegate normally.
+**Required architecture gate**: TD-ADR is required in full, lean, and solo modes.
+Review mode may vary optional specialist depth, but it never skips this material
+architecture decision gate.
 
 5.6. **Technical Director Strategic Review** — After the engine specialist validation, delegate to `technical-director` through Codex custom-agent delegation using gate **TD-ADR** (`.codex/docs/director-gates.md`):
    - Pass: the ADR file path (or draft content), engine version, domain, any existing ADRs in the same domain
@@ -373,23 +372,33 @@ developers reading the GDD from implementing the wrong interface.
 
 If no inconsistencies: skip this block silently.
 
-5. **Write approval** — Ask one concise question and wait for the answer:
+5.8. **Dependent Story Scan** — Before requesting write approval, search
+`production/epics/**/*.md` for stories that both reference this ADR and have
+`Status: Blocked`. A story status change is eligible only when the resulting ADR
+status is `Accepted` and that ADR is the story's only remaining blocker. Show the
+exact current and proposed status lines for every eligible story. Otherwise list
+the story as deferred and propose no edit.
 
-If GDD sync issues were found:
-- "ADR draft is complete. How would you like to proceed?"
-  - [A] Write ADR + update GDD in the same pass
-  - [B] Write ADR only — I'll update the GDD manually
-  - [C] Not yet — I need to review further
+### Complete proposed changeset approval
 
-If no GDD sync issues:
-- "ADR draft is complete. May I write it?"
-  - [A] Write ADR to `docs/architecture/adr-[NNNN]-[slug].md`
-  - [B] Not yet — I need to review further
+Show every applicable path and exact diff before asking:
 
-If yes to any write option, write the file, creating the directory if needed.
-For option [A] with GDD update: also update the GDD file(s) to use the new names.
+- ADR: `docs/architecture/adr-[NNNN]-[slug].md`
+- GDD synchronization: each affected `design/gdd/[filename].md`, when applicable
+- Dependent story updates: each eligible `production/epics/**/[story].md`, when applicable
 
-6. **Update Architecture Registry**
+Ask one concise approval question and wait for the answer:
+
+- [A] Write the complete listed changeset exactly as shown
+- [B] Write the ADR only; explicitly defer every GDD and dependent story update
+- [C] Do not write anything yet
+
+Only update story files listed in the approved changeset. Never scan-and-edit all
+blocked stories after the approval, and never change a story whose blocker or
+resulting status was not shown. If option [B] is chosen, report all deferred GDD
+and story updates without modifying them.
+
+## 6. Update Architecture Registry
 
 Scan the written ADR for new architectural stances that should be registered:
 - State it claims ownership of
@@ -454,4 +463,5 @@ If there are no remaining priority ADRs and no undesigned GDD systems, offer onl
 > The reviewing agent must be independent of the authoring context to give an unbiased
 > assessment. Running it here would invalidate the review.
 
-Update any stories that were `Status: Blocked` pending this ADR to `Status: Ready`.
+Report any dependent story updates that were applied or deferred under the
+approved changeset; do not perform additional story edits during closing.

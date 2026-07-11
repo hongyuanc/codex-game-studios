@@ -56,3 +56,34 @@ This report is included in the single local commit `feat: port design workflows 
 - Behavioral review: output paths, verdicts, gates, traceability contracts, prerequisites, and domain outputs remain present.
 - Safety review: phase-gated design approval remains intact; source-fixing review paths require separate authorization.
 - No blocking concern remains. The automated validator deliberately checks native structural hazards; the richer workflow guarantees are additionally documented and verified by the semantic audit rather than a natural-language parser.
+
+## Important Review Remediation — 2026-07-12
+
+### TDD Evidence
+
+1. Added seven focused contract tests for review changesets, dependent story scope, single-approval authoring, sequential questions, and required Technical Director gates.
+2. RED: `python3 -m unittest tests.studio.test_design_skills -v` ran 9 tests and failed with 3 assertion failures plus 4 missing-contract errors. The failures mapped directly to all seven Important review findings.
+3. GREEN: after the minimal workflow edits, the focused command passed all 9 tests.
+4. Full GREEN: `python3 -m unittest discover -s tests/studio -v` passed all 25 studio tests in 0.129 seconds.
+
+### Behavior Changes
+
+- `$architecture-review` now defers every write until one complete proposed changeset lists the report, systems index, architecture traceability, TR registry, optional RTM, conflict log, and session state. Report-only approval explicitly defers all other files.
+- `$review-all-gdds` now presents its report, systems-index rows, and session extract as one complete proposed changeset; no silent session write remains.
+- `$architecture-decision` now scans dependent blocked stories, includes every eligible story diff in the proposed changeset, and updates only explicitly listed stories. Story readiness changes require an Accepted ADR with no other blocker.
+- `$quick-design` now asks one approval for the Quick Design Spec plus any exact GDD diff, with an explicit spec-only/defer option instead of a second approval.
+- `$design-review` now asks the systems-index and review-log decisions in separate turns and forbids multi-select tracking prompts.
+- `$ux-design` now asks one information categorization or pattern decision per turn; the former 3–4 item decision batch is removed.
+- TD-ADR and TD-CHANGE-IMPACT are mandatory in full, lean, and solo modes. Review mode may change optional depth but cannot bypass material architecture review.
+
+### Changed Files
+
+- `.agents/skills/architecture-decision/SKILL.md`
+- `.agents/skills/architecture-review/SKILL.md`
+- `.agents/skills/design-review/SKILL.md`
+- `.agents/skills/propagate-design-change/SKILL.md`
+- `.agents/skills/quick-design/SKILL.md`
+- `.agents/skills/review-all-gdds/SKILL.md`
+- `.agents/skills/ux-design/SKILL.md`
+- `tests/studio/test_design_skills.py`
+- `.superpowers/sdd/design-subsystem-report.md`
