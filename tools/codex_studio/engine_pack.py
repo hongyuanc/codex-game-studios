@@ -53,6 +53,17 @@ STUDIO_KEYS = (
 )
 RECOVERY_NAME = "engine-pack-recovery"
 LOCK_NAME = "engine-pack.lock"
+JOURNAL_PHASES = frozenset({
+    "prepared", "remove", "copy", "manifest-write", "config-write",
+    "validated", "committed", "rollback-failed", "rolled-back",
+})
+JOURNAL_FIELDS = frozenset({
+    "version", "phase", "project_root", "agents_existed", "manifest_existed",
+    "config_existed", "agents_digest", "manifest_sha256", "config_sha256",
+    "target_agents_existed", "target_manifest_existed", "target_config_existed",
+    "target_agents_digest", "target_manifest_sha256", "target_config_sha256",
+    "checksum",
+})
 _THREAD_LOCKS: dict[str, threading.Lock] = {}
 _THREAD_LOCKS_GUARD = threading.Lock()
 
@@ -230,6 +241,8 @@ def load_studio_config(root: Path) -> StudioConfig:
         raise ValueError("invalid studio config: engine and active_engine_pack differ")
     if config.engine in SUPPORTED_ENGINES:
         _validate_target_values(config.engine, config.engine_version, config.language, require_complete=False)
+    _validate_text(config.review_mode, "review mode", required=True)
+    _validate_text(config.model_policy, "model policy", required=True)
     return config
 
 
@@ -363,36 +376,129 @@ def _state_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _snapshot_live(root: Path) -> dict[str, object]:
+    """Capture logical agents/manifest/config presence and content digests."""
+
+    root = _normalize_root(root)
+    control = _control_directory(root)
+    agents = control / "agents"
+    agents_meta = _checked_lstat(agents, "active agents directory", missing_ok=True)
+    if agents_meta is not None and not stat.S_ISDIR(agents_meta.st_mode):
+        raise ValueError("live agents path is not a directory")
+    snapshot: dict[str, object] = {
+        "agents_existed": agents_meta is not None,
+        "agents_digest": _sha256(_tree_digest(agents)) if agents_meta is not None else None,
+    }
+    for noun, filename, digest_name in (
+        ("manifest", "active-engine.json", "manifest_sha256"),
+        ("config", "studio.toml", "config_sha256"),
+    ):
+        path = control / filename
+        metadata = _checked_lstat(path, f"live {noun}", missing_ok=True)
+        snapshot[f"{noun}_existed"] = metadata is not None
+        snapshot[digest_name] = _sha256(_secure_read(path, f"live {noun}")) if metadata is not None else None
+    return snapshot
+
+
+def _target_fields(snapshot: dict[str, object]) -> dict[str, object]:
+    return {f"target_{key}": value for key, value in snapshot.items()}
+
+
+def _verify_live_snapshot(root: Path, journal: dict[str, object], *, target: bool) -> None:
+    actual = _snapshot_live(root)
+    prefix = "target_" if target else ""
+    expected = {key: journal[f"{prefix}{key}"] for key in actual}
+    if actual != expected:
+        label = "target" if target else "original"
+        raise ValueError(f"live state does not match recorded {label} recovery snapshot")
+
+
 def _journal_path(recovery: Path) -> Path:
     return recovery / "journal.json"
 
 
-def _read_journal(recovery: Path) -> dict[str, object]:
+def _journal_checksum(journal: dict[str, object]) -> str:
+    """Return the canonical checksum of all journal fields except checksum."""
+
+    payload = {key: value for key, value in journal.items() if key != "checksum"}
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return _sha256(canonical)
+
+
+def _validate_backup_pair(
+    recovery: Path,
+    journal: dict[str, object],
+    existed_key: str,
+    digest_key: str,
+    backup_name: str,
+    absent_name: str,
+    *,
+    directory: bool,
+) -> None:
+    existed = bool(journal[existed_key])
+    backup = recovery / backup_name
+    absent = recovery / absent_name
+    backup_meta = _checked_lstat(backup, f"recovery {backup_name}", missing_ok=True)
+    absent_meta = _checked_lstat(absent, f"recovery {absent_name}", missing_ok=True)
+    if existed:
+        if backup_meta is None or absent_meta is not None:
+            raise ValueError(f"corrupt recovery artifact/flag disagreement for {backup_name}")
+        if directory and not stat.S_ISDIR(backup_meta.st_mode):
+            raise ValueError(f"corrupt recovery directory artifact for {backup_name}")
+        if not directory and not stat.S_ISREG(backup_meta.st_mode):
+            raise ValueError(f"corrupt recovery file artifact for {backup_name}")
+        actual = _sha256(_tree_digest(backup)) if directory else _sha256(_secure_read(backup, f"recovery {backup_name}"))
+        if actual != journal[digest_key]:
+            raise ValueError(f"corrupt recovery {backup_name} digest")
+    else:
+        if backup_meta is not None or absent_meta is None or not stat.S_ISREG(absent_meta.st_mode):
+            raise ValueError(f"corrupt recovery absence artifact/flag disagreement for {backup_name}")
+        if _secure_read(absent, f"recovery {absent_name}") != b"":
+            raise ValueError(f"corrupt recovery absence marker for {backup_name}")
+
+
+def _read_journal(recovery: Path, root: Path) -> dict[str, object]:
     _require_directory(recovery, "engine-pack recovery directory")
     try:
         data = json.loads(_secure_read(_journal_path(recovery), "engine-pack recovery journal").decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise ValueError(f"invalid engine-pack recovery journal: {error}") from error
-    required = {
-        "version",
-        "phase",
-        "agents_existed",
-        "manifest_existed",
-        "config_existed",
-        "agents_digest",
-        "manifest_sha256",
-        "config_sha256",
+    if not isinstance(data, dict) or set(data) != JOURNAL_FIELDS:
+        raise ValueError("corrupt engine-pack recovery journal schema")
+    if data.get("version") != 1 or data.get("project_root") != str(_normalize_root(root)):
+        raise ValueError("corrupt engine-pack recovery journal version or project-root binding")
+    checksum = data.get("checksum")
+    if not isinstance(checksum, str) or re.fullmatch(r"[0-9a-f]{64}", checksum) is None or checksum != _journal_checksum(data):
+        raise ValueError("corrupt engine-pack recovery journal checksum")
+    if data.get("phase") not in JOURNAL_PHASES:
+        raise ValueError("corrupt engine-pack recovery journal phase")
+    boolean_keys = {
+        "agents_existed", "manifest_existed", "config_existed",
+        "target_agents_existed", "target_manifest_existed", "target_config_existed",
     }
-    if not isinstance(data, dict) or set(data) != required or data.get("version") != 1:
-        raise ValueError("invalid engine-pack recovery journal schema")
-    boolean_keys = {"agents_existed", "manifest_existed", "config_existed"}
-    digest_keys = {"agents_digest", "manifest_sha256", "config_sha256"}
+    digest_keys = {
+        "agents_digest", "manifest_sha256", "config_sha256",
+        "target_agents_digest", "target_manifest_sha256", "target_config_sha256",
+    }
     if (
         not isinstance(data["phase"], str)
         or any(not isinstance(data[key], bool) for key in boolean_keys)
-        or any(data[key] is not None and not isinstance(data[key], str) for key in digest_keys)
+        or any(data[key] is not None and (not isinstance(data[key], str) or re.fullmatch(r"[0-9a-f]{64}", data[key]) is None) for key in digest_keys)
     ):
-        raise ValueError("invalid engine-pack recovery journal values")
+        raise ValueError("corrupt engine-pack recovery journal values or digest syntax")
+    for prefix in ("", "target_"):
+        for noun, digest in (("agents", "agents_digest"), ("manifest", "manifest_sha256"), ("config", "config_sha256")):
+            existed_key = f"{prefix}{noun}_existed"
+            digest_key = f"{prefix}{digest}"
+            if bool(data[existed_key]) != (data[digest_key] is not None):
+                raise ValueError(f"corrupt recovery flag/digest disagreement for {existed_key}")
+    if data["phase"] in {"validated", "committed"} and not all(
+        bool(data[key]) for key in ("target_agents_existed", "target_manifest_existed", "target_config_existed")
+    ):
+        raise ValueError("corrupt committed recovery target metadata")
+    _validate_backup_pair(recovery, data, "agents_existed", "agents_digest", "backup-agents", "agents-absent", directory=True)
+    _validate_backup_pair(recovery, data, "manifest_existed", "manifest_sha256", "backup-manifest", "backup-manifest-absent", directory=False)
+    _validate_backup_pair(recovery, data, "config_existed", "config_sha256", "backup-config", "backup-config-absent", directory=False)
     return data
 
 
@@ -406,7 +512,7 @@ def _inspect_auxiliary_paths(root: Path) -> tuple[Path, dict[str, object] | None
     recovery_metadata = _checked_lstat(recovery, "engine-pack recovery directory", missing_ok=True)
     if recovery_metadata is None:
         return recovery, None
-    return recovery, _read_journal(recovery)
+    return recovery, _read_journal(recovery, root)
 
 
 def plan_activation(root: Path, engine: str, *, version: str = "", language: str = "") -> ActivationPlan:
@@ -485,6 +591,7 @@ def _atomic_write(path: Path, content: bytes) -> None:
 
 def _write_journal(recovery: Path, journal: dict[str, object], phase: str) -> None:
     journal["phase"] = phase
+    journal["checksum"] = _journal_checksum(journal)
     _atomic_write(_journal_path(recovery), (json.dumps(journal, sort_keys=True, indent=2) + "\n").encode())
 
 
@@ -502,12 +609,20 @@ def _create_recovery(root: Path) -> tuple[Path, dict[str, object]]:
     journal: dict[str, object] = {
         "version": 1,
         "phase": "prepared",
+        "project_root": str(root),
         "agents_existed": False,
         "manifest_existed": False,
         "config_existed": False,
         "agents_digest": None,
         "manifest_sha256": None,
         "config_sha256": None,
+        "target_agents_existed": False,
+        "target_manifest_existed": False,
+        "target_config_existed": False,
+        "target_agents_digest": None,
+        "target_manifest_sha256": None,
+        "target_config_sha256": None,
+        "checksum": "",
     }
     try:
         agents = _agents_directory(root)
@@ -531,6 +646,7 @@ def _create_recovery(root: Path) -> tuple[Path, dict[str, object]]:
                 journal["manifest_sha256" if key == "manifest_existed" else "config_sha256"] = _sha256(original)
             else:
                 (stage / f"{backup_name}-absent").write_bytes(b"")
+        journal["checksum"] = _journal_checksum(journal)
         (stage / "journal.json").write_bytes((json.dumps(journal, sort_keys=True, indent=2) + "\n").encode())
         os.replace(stage, recovery)
     except BaseException:
@@ -584,6 +700,7 @@ def _restore_backup(root: Path, recovery: Path, journal: dict[str, object]) -> N
         os.replace(agents, _failed_name(recovery, "agents"))
     _restore_file(control, recovery, "active-engine.json", "backup-manifest", bool(journal["manifest_existed"]))
     _restore_file(control, recovery, "studio.toml", "backup-config", bool(journal["config_existed"]))
+    _verify_live_snapshot(root, journal, target=False)
     _write_journal(recovery, journal, "rolled-back")
     _retire_recovery(recovery)
 
@@ -668,8 +785,9 @@ def _activation_lock(root: Path) -> Iterator[None]:
             thread_lock.release()
 
 
-def _cleanup_terminal_recovery(recovery: Path, journal: dict[str, object] | None) -> None:
+def _cleanup_terminal_recovery(root: Path, recovery: Path, journal: dict[str, object] | None) -> None:
     if journal is not None and journal["phase"] in {"committed", "rolled-back"}:
+        _verify_live_snapshot(root, journal, target=journal["phase"] == "committed")
         _retire_recovery(recovery)
 
 
@@ -682,7 +800,7 @@ def recover_activation(root: Path) -> None:
         if journal is None:
             return
         if journal["phase"] in {"committed", "rolled-back"}:
-            _cleanup_terminal_recovery(recovery, journal)
+            _cleanup_terminal_recovery(root, recovery, journal)
             return
         _restore_backup(root, recovery, journal)
 
@@ -751,12 +869,17 @@ def _checkpoint(_phase: str) -> None:
     return None
 
 
-def validate_activation(root: Path) -> list[str]:
+def validate_activation(root: Path, *, _allow_current_transaction: bool = False) -> list[str]:
     """Return validation errors for the installed engine-pack state."""
 
     try:
         root = _normalize_root(root)
-        _inspect_auxiliary_paths(root)
+        recovery, journal = _inspect_auxiliary_paths(root)
+        if journal is not None:
+            if journal["phase"] in {"committed", "rolled-back"}:
+                _verify_live_snapshot(root, journal, target=journal["phase"] == "committed")
+            elif not _allow_current_transaction:
+                raise ValueError("incomplete engine-pack recovery transaction is pending")
         config = load_studio_config(root)
         packs = _validate_packs(root)
         manifest = _load_manifest(root, config, packs)
@@ -796,11 +919,21 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
     root = _normalize_root(root)
     if root != plan.root:
         raise ValueError("activation plan belongs to a different project root")
+    if plan.engine not in SUPPORTED_ENGINES:
+        raise ValueError("invalid activation plan engine")
+    _validate_target_values(
+        plan.engine,
+        plan.target_config.engine_version,
+        plan.target_config.language,
+        require_complete=True,
+    )
+    _validate_text(plan.target_config.review_mode, "review mode", required=True)
+    _validate_text(plan.target_config.model_policy, "model policy", required=True)
     with _activation_lock(root):
         recovery, journal = _inspect_auxiliary_paths(root)
         if journal is not None:
             if journal["phase"] in {"committed", "rolled-back"}:
-                _cleanup_terminal_recovery(recovery, journal)
+                _cleanup_terminal_recovery(root, recovery, journal)
             else:
                 _restore_backup(root, recovery, journal)
         _assert_plan_current(root, plan)
@@ -830,13 +963,14 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _atomic_write(root / ".codex/studio.toml", _serialize_config(plan.target_config))
             _write_journal(recovery, journal, "config-write")
             _checkpoint("config-write")
-            issues = validate_activation(root)
+            issues = validate_activation(root, _allow_current_transaction=True)
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
+            journal.update(_target_fields(_snapshot_live(root)))
             _write_journal(recovery, journal, "validated")
             _checkpoint("post-validation")
             _write_journal(recovery, journal, "committed")
-            _retire_recovery(recovery)
+            _cleanup_terminal_recovery(root, recovery, journal)
         except BaseException as original:
             try:
                 _restore_backup(root, recovery, journal)

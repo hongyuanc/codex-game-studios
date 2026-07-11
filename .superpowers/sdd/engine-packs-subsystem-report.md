@@ -221,3 +221,55 @@ power loss can still defeat guarantees provided by the OS/filesystem cache or
 directory durability semantics. Recovery artifacts are therefore retained on
 any ambiguous or failed restore instead of claiming success or deleting the
 only known-good backup.
+
+## Recovery Integrity Follow-up
+
+A second review correctly identified that durable location alone was not enough:
+the journal also needed authenticated internal consistency and terminal-state
+verification. Focused RED tests first demonstrated that the prior reader accepted
+unbound roots/phases and that a silently corrupted restore could be retired.
+
+The recovery journal now has a closed schema with:
+
+- format version and an explicit allowed phase enum;
+- canonical project-root binding;
+- strict lowercase SHA-256 syntax;
+- original and committed-target presence/digest metadata for agents, manifest,
+  and config;
+- a canonical SHA-256 checksum over every journal field except the checksum.
+
+Unknown, missing, extra, malformed, mismatched, or incorrectly checksummed fields
+are corrupt. Original presence flags must agree with both digest presence and
+exact backup/absence artifacts, so a forged false flag cannot authorize moving
+or deleting live state. `committed` and `rolled-back` journals verify live state
+against the recorded target or original snapshot before retirement. Restore
+also recomputes all six live presence/digest values before writing `rolled-back`;
+silent copy/write corruption preserves the journal and only known-good backup.
+
+`validate_activation` rejects incomplete recovery by default. The only bypass is
+the private `_allow_current_transaction` path used while apply owns the project
+lock and performs its own post-write validation. Direct API apply now enforces
+the same exact version/language and control-free review/model policy contract as
+the CLI. A POSIX subprocess test proves the OS lock rejects a second process;
+non-POSIX platforms skip that specific test with an explicit reason while the
+portable in-process contention test remains active.
+
+Final follow-up verification:
+
+```text
+python3 -m unittest tests.studio.test_engine_pack tests.studio.test_setup_engine_skill -q
+Ran 50 tests
+OK
+
+python3 -m unittest discover -s tests/studio -q
+Ran 186 tests in 3.506s
+OK
+
+python3 -m py_compile tools/codex_studio/engine_pack.py
+exit 0
+```
+
+The earlier fixture caveat remains unchanged: the minimal fixture stores studio
+state only, and tests copy the authoritative immutable packs into an isolated
+temporary project before CLI apply/recovery checks. Repository-root dry-run and
+subprocess apply/lock tests provide the corresponding executable CLI evidence.
