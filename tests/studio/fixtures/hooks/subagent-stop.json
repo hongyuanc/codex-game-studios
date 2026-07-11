@@ -2,10 +2,12 @@
   "session_id": "session-test-001",
   "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
   "cwd": "/repo",
-  "hook_event_name": "SubagentStart",
-  "model": "gpt-5.6",
+  "hook_event_name": "SubagentStop",
+  "model": "gpt-5.6-terra",
   "permission_mode": "default",
   "agent_id": "agent-test-001",
   "agent_type": "gameplay-programmer",
-  "agent_transcript_path": "/repo/.codex/transcripts/agent-test-001.jsonl"
+  "agent_transcript_path": "/repo/.codex/transcripts/agent-test-001.jsonl",
+  "last_assistant_message": "Implemented gameplay task.",
+  "stop_hook_active": true
 }

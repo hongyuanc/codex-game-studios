@@ -2,27 +2,35 @@
 
 ## Result
 
-Implemented the complete Rules and Hooks subsystem as a single reviewed unit.
-The runtime now uses nested Codex instructions plus one portable Python hook
-runner and native project-local hook configuration. No legacy shell hook remains
-below `.codex/hooks/`.
+The runtime uses 11 path-scoped Codex instruction boundaries, a native
+project-local hook configuration, and one portable standard-library Python hook
+runner. The tracked legacy `.claude/hooks/*.sh` inventory and
+`.claude/settings.json` are removed. Unrelated `.claude` migration sources remain
+outside this subsystem by design.
 
 ## Test-First Evidence
 
-- Instruction RED: `python3 -m unittest tests.studio.test_instruction_coverage -v`
-  failed because all 11 nested instruction boundaries were absent.
-- Instruction GREEN: the same command passed 2 tests after the rule-intent
-  migration.
-- Parser RED: `python3 -m unittest tests.studio.test_hooks -v` failed because
-  `.codex/hooks/hook_runner.py` did not exist.
-- Parser GREEN: the initial command/path/destructive-operation contract passed
-  3 tests.
-- Behavior RED: the expanded 17-test suite failed on the intentionally absent
-  lifecycle handlers, safe-path filter, portable config, supported output
-  encoding, staged checks, and hook validator.
-- Behavior GREEN: the expanded suite passed after implementing those contracts.
-- Final focused suite: 19 tests passed.
-- Final studio suite: 93 tests passed.
+Initial implementation:
+
+- Instruction RED failed on all 11 absent boundaries, then passed 2 tests.
+- Native runner RED failed on the absent Python runner, then the initial parser
+  contract passed 3 tests.
+- Initial behavior/configuration expansion went from 17 expected failures to
+  19 focused tests passing and 93 studio tests passing.
+
+Critical/Important review remediation:
+
+- Added regressions before runtime changes for structured shell parsing, Git
+  global options and refspecs, inert/dry-run commands, commit inspection
+  failures, symlink escape and disclosure, actual legacy inventory removal,
+  shader path scope, patch move destinations, validator parity/shape, native
+  fixture completeness, and source-aware gap detection.
+- RED: the 32-test focused run produced 41 expected assertion failures and five
+  expected missing-output errors across those categories.
+- GREEN: the hardened focused suite passed 34 tests, and the complete studio
+  suite passed 108 tests. Additional red-green cases cover brace/conditional
+  command boundaries, quoted text that resembles a heredoc marker, symlinked
+  directory enumeration, and traversal that normalizes back inside the root.
 
 ## Nested Instruction Coverage
 
@@ -33,56 +41,82 @@ below `.codex/hooks/`.
 | AI code | `src/ai/AGENTS.md` |
 | Network code | `src/networking/AGENTS.md` |
 | UI code | `src/ui/AGENTS.md` |
-| Shader code | `src/shaders/AGENTS.md` |
+| Shader code | `assets/shaders/AGENTS.md` |
 | Data files | `assets/data/AGENTS.md` |
 | Design documents | `design/gdd/AGENTS.md` |
 | Narrative | `design/narrative/AGENTS.md` |
 | Tests | `tests/AGENTS.md` |
 | Prototypes | `prototypes/AGENTS.md` |
 
-Every boundary defines Applies To, Required Practices, Forbidden Practices, and
-Verification sections and preserves the material requirements from its matching
-legacy rule.
+The shader boundary now matches the source rule's actual `assets/shaders/`
+scope; the incorrect `src/shaders/AGENTS.md` boundary is removed. Every boundary
+retains Applies To, Required Practices, Forbidden Practices, and Verification.
 
-## Event and Action Matrix
+## Event, Action, and Fixture Matrix
 
-| Native event | Matcher | Runner action(s) |
-| --- | --- | --- |
-| `SessionStart` | `startup|resume|clear|compact` | `session-start`, `detect-gaps` |
-| `PreToolUse` | `Bash` | `validate-command` |
-| `PostToolUse` | `Edit|Write|apply_patch` | `validate-assets`, `validate-skill-change` |
-| `PreCompact` | `auto|manual` | `pre-compact` |
-| `PostCompact` | `auto|manual` | `post-compact` |
-| `SubagentStart` | all | `subagent-start` |
-| `SubagentStop` | all | `subagent-stop` |
-| `Stop` | all | `session-stop` |
+| Native event | Matcher | Runner action(s) | Fixture |
+| --- | --- | --- | --- |
+| `SessionStart` | `startup|resume|clear|compact` | `session-start`, `detect-gaps` | `session-start.json` |
+| `PreToolUse` | `Bash` | `validate-command` | `pre-tool-bash.json` |
+| `PostToolUse` | `Edit|Write|apply_patch` | `validate-assets`, `validate-skill-change` | `post-tool-patch.json` |
+| `PreCompact` | `auto|manual` | `pre-compact` | `pre-compact.json` |
+| `PostCompact` | `auto|manual` | `post-compact` | `post-compact.json` |
+| `SubagentStart` | all | `subagent-start` | `subagent-start.json` |
+| `SubagentStop` | all | `subagent-stop` | `subagent-stop.json` |
+| `Stop` | all | `session-stop` | `stop.json` |
 
-The configuration has exact 10-action parity with the runner dispatch table.
-Each handler has a repository-root POSIX command, a Windows PowerShell override,
-and no user-specific path.
+The validator enforces exact action inventory and event mapping, ACTIONS ↔
+HANDLERS ↔ configuration parity, duplicate/missing/unknown actions, exact
+repository-root runner invocation, matching POSIX/Windows actions, handler and
+group shape, matcher type/regex/semantics, positive integer timeouts, supported
+events/types, portable paths, and Windows overrides. Fixtures now include common
+native transcript, model, permission, and event fields plus event-specific tool
+response, agent transcript/result, compaction, and stop fields.
 
-## Blocking and Advisory Cases
+## Command Safety
 
-Exit 2 blocks deterministic destructive Git commands (`reset --hard`, force
-push forms, and forced `clean`) and invalid staged JSON data during a commit.
-Commit quality findings, protected-branch pushes, post-edit asset findings,
-skill-change reminders, gap detection, and lifecycle context remain advisory and
-exit 0. Malformed payloads fail open; unknown actions emit supported
-`systemMessage` JSON and fail open.
+The Bash guard uses `shlex` tokenization plus explicit command boundaries,
+quote/comment handling, heredoc-body exclusion, shell control prefixes, line
+continuation normalization, and structured Git global-option parsing. It:
 
-Session orientation is plain text. Other model-visible context is encoded as
-JSON with `systemMessage`. File paths extracted from `Edit`, `Write`, and
-`apply_patch` are normalized and constrained to the repository before reads or
-writes. Session and audit artifacts are limited to
-`production/session-state/` and `production/session-logs/`.
+- Blocks `reset --hard`, forced `clean`, force-push flags, and leading-`+`
+  refspecs with exit 2.
+- Recognizes real Git invocations after `-C`, `-c`, `--git-dir`, `--work-tree`,
+  other supported global options, quoted tokens, and shell boundaries.
+- Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
+- Runs staged validation for every real `git commit` form.
+- Blocks a real commit when Git/index/subprocess/decode inspection cannot
+  complete; invalid staged JSON also blocks.
+- Warns for protected destinations including simple branches,
+  `HEAD:main`, and `refs/heads/*` destination refspecs.
 
-## Removed Legacy Scripts
+Commit quality findings and protected-branch pushes remain advisory. Asset and
+skill findings, gap detection, and lifecycle context remain fail-open.
 
-Replaced and removed: `detect-gaps.sh`, `log-agent-stop.sh`, `log-agent.sh`,
-`notify.sh`, `post-compact.sh`, `pre-compact.sh`, `session-start.sh`,
-`session-stop.sh`, `validate-assets.sh`, `validate-commit.sh`,
-`validate-push.sh`, and `validate-skill-change.sh`. Native Codex notifications
-supersede the platform-specific notification script.
+## Repository I/O Safety
+
+All runner-controlled reads and writes use lexical containment plus component
+`lstat` checks. Traversal and symlinked file or directory components are
+rejected before access. Unsafe advisory I/O is skipped with a safe warning and
+never blocks; tests prove external state files, log directories, asset files,
+and enumerated directories are neither disclosed nor modified. Session/audit
+writes remain limited to `production/session-state/` and
+`production/session-logs/`.
+
+`changed_paths()` recognizes Add, Update, Delete, and `*** Move to:` paths so
+post-edit asset and skill checks inspect both sides of moves. Gap detection
+counts only actual configured source suffixes, ignores instruction-only
+directories, and treats both `src/core/` and `src/engine/` as engine-system
+alternatives.
+
+## Removed Legacy Runtime
+
+Removed the 12 tracked scripts formerly under `.claude/hooks/`:
+`detect-gaps.sh`, `log-agent-stop.sh`, `log-agent.sh`, `notify.sh`,
+`post-compact.sh`, `pre-compact.sh`, `session-start.sh`, `session-stop.sh`,
+`validate-assets.sh`, `validate-commit.sh`, `validate-push.sh`, and
+`validate-skill-change.sh`. Removed `.claude/settings.json`, which registered
+those handlers and legacy permissions/status-line behavior.
 
 ## Verification Commands
 
@@ -92,15 +126,19 @@ python3 -m unittest discover -s tests/studio -v
 python3 -m json.tool .codex/hooks.json
 python3 -m py_compile .codex/hooks/hook_runner.py tools/codex_studio/validate.py
 git diff --check
-rg -n '/Users/|/home/|Claude Code|\.claude/' .codex/hooks.json .codex/hooks src assets/data design tests/AGENTS.md prototypes/AGENTS.md
-find .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
+git diff --cached --check
+rg -n '/Users/|/home/|Claude Code|\.claude/' .codex/hooks.json .codex/hooks assets/shaders src tests/AGENTS.md prototypes/AGENTS.md
+find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
+git ls-files .claude/hooks .claude/settings.json
 ```
 
-Results: all tests and syntax checks passed; `git diff --check` was clean; both
-forbidden scans and the legacy-shell listing returned no matches/files.
+Expected final evidence: all focused and studio tests pass; JSON/Python and
+whitespace checks pass; runtime forbidden scans return no matches; neither hook
+tree contains shell scripts; the tracked legacy hook/settings inventory is
+empty.
 
 ## Concerns
 
 None blocking. Public hook/setup documentation still describes the legacy shell
-inventory and is intentionally outside this subsystem commit; the approved
-documentation/cleanup subsystem owns that update.
+inventory and remains intentionally assigned to the approved documentation and
+cleanup subsystem.

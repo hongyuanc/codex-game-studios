@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,16 @@ EXPECTED_EVENTS = {
     "SubagentStop",
     "Stop",
 }
+FIXTURE_EVENTS = {
+    "session-start": "SessionStart",
+    "pre-tool-bash": "PreToolUse",
+    "post-tool-patch": "PostToolUse",
+    "pre-compact": "PreCompact",
+    "post-compact": "PostCompact",
+    "subagent-start": "SubagentStart",
+    "subagent-stop": "SubagentStop",
+    "stop": "Stop",
+}
 
 
 class HookParserTests(unittest.TestCase):
@@ -59,6 +70,24 @@ class HookParserTests(unittest.TestCase):
         self.assertEqual(
             {"assets/data/items.json"},
             HOOKS.changed_paths(self.fixture("post-tool-patch")),
+        )
+
+    def test_apply_patch_move_destination_is_extracted(self):
+        event = {
+            "tool_name": "apply_patch",
+            "tool_input": {
+                "command": (
+                    "*** Begin Patch\n"
+                    "*** Update File: assets/data/old_items.json\n"
+                    "*** Move to: assets/data/new_items.json\n"
+                    "@@\n{}\n"
+                    "*** End Patch"
+                )
+            },
+        }
+        self.assertEqual(
+            {"assets/data/old_items.json", "assets/data/new_items.json"},
+            HOOKS.changed_paths(event),
         )
 
     def test_edit_and_write_file_paths_are_extracted(self):
@@ -92,12 +121,98 @@ class HookParserTests(unittest.TestCase):
                 )
                 self.assertEqual(2, result.exit_code)
 
+    def test_structured_shell_parser_blocks_only_executed_destructive_git(self):
+        destructive = (
+            "git -C . reset --hard",
+            "git -c core.filemode=false clean --force -d",
+            "git --git-dir=.git clean -df",
+            "git --work-tree . push origin +feature:main",
+            "git --no-pager push --force-if-includes origin feature",
+            '"git" "reset" "--hard"',
+            "echo ready && git " "\\\n" "              -C . reset --hard",
+            "{ git reset --hard; }",
+            "if true; then git push -f origin feature; fi",
+            "echo '<<EOF'\ngit reset --hard",
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(2, result.exit_code)
+
+    def test_structured_shell_parser_does_not_block_inert_or_dry_run_text(self):
+        inert = (
+            "echo git reset --hard",
+            "printf '%s' 'git clean -fd'",
+            "# git push --force origin main",
+            "cat <<'EOF'\ngit reset --hard\nEOF",
+            'echo "git push -f origin main"',
+            "git clean -fdn",
+            "git clean --force --dry-run -d",
+            "git push --dry-run --force origin main",
+            "git push -n origin +feature:main",
+        )
+        for command in inert:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_all_real_commit_forms_invoke_staged_validation(self):
+        commands = (
+            "git commit -m test",
+            "git -C . commit -m test",
+            "git -c user.name=Codex commit -m test",
+            "git --git-dir=.git --work-tree=. commit -m test",
+            "git --no-pager " "\\\n" "              commit -m test",
+        )
+        blocked = HOOKS.HookResult(2, stderr="sentinel\n")
+        for command in commands:
+            with self.subTest(command=command):
+                with mock.patch.object(HOOKS, "_validate_commit", return_value=blocked) as validator:
+                    result = HOOKS.handle(
+                        "validate-command",
+                        {"tool_input": {"command": command}},
+                        ROOT,
+                    )
+                self.assertEqual(2, result.exit_code)
+                validator.assert_called_once_with(ROOT)
+
+    def test_protected_push_refspec_destinations_are_recognized(self):
+        for command in (
+            "git push origin HEAD:main",
+            "git push origin HEAD:refs/heads/main",
+            "git push origin feature:refs/heads/master",
+            "git -C . push origin refs/heads/feature:refs/heads/develop",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(0, result.exit_code)
+                self.assertIn("protected branch", json.loads(result.stdout)["systemMessage"])
+
     def test_paths_outside_repository_are_ignored(self):
         event = {
             "tool_name": "apply_patch",
             "tool_input": {
                 "command": "*** Begin Patch\n*** Update File: ../../etc/passwd\n*** End Patch"
             },
+        }
+        self.assertEqual(set(), HOOKS.repository_paths(event, ROOT))
+
+    def test_repository_paths_reject_traversal_even_when_it_normalizes_inside(self):
+        event = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "assets/staging/../data/items.json"},
         }
         self.assertEqual(set(), HOOKS.repository_paths(event, ROOT))
 
@@ -143,6 +258,28 @@ class HookBehaviorTests(unittest.TestCase):
         )
         self.assertEqual(2, result.exit_code)
         self.assertIn("not valid JSON", result.stderr)
+
+    def test_staged_inspection_failures_block_real_commits(self):
+        failures = (
+            subprocess.CompletedProcess(["git"], 128, "", "index unavailable"),
+            UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid byte"),
+            OSError("cannot inspect index"),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__):
+                patcher = (
+                    mock.patch.object(HOOKS, "_git", return_value=failure)
+                    if isinstance(failure, subprocess.CompletedProcess)
+                    else mock.patch.object(HOOKS, "_git", side_effect=failure)
+                )
+                with patcher:
+                    result = HOOKS.handle(
+                        "validate-command",
+                        {"tool_input": {"command": "git -C . commit -m test"}},
+                        ROOT,
+                    )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("staged", result.stderr.lower())
 
     def test_commit_quality_findings_warn_without_blocking(self):
         temporary, root = self.make_root()
@@ -233,6 +370,95 @@ class HookBehaviorTests(unittest.TestCase):
         session_log = (root / "production/session-logs/session-log.md").read_text(encoding="utf-8")
         self.assertIn("Archived Session State", session_log)
 
+    def test_session_state_symlinks_are_not_read_or_disclosed(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        secret = Path(external.name) / "secret.md"
+        secret.write_text("EXTERNAL-SECRET-CONTEXT", encoding="utf-8")
+        state = root / "production/session-state/active.md"
+        state.parent.mkdir(parents=True)
+        state.symlink_to(secret)
+
+        for action, event in (
+            ("session-start", self.fixture("session-start")),
+            ("pre-compact", self.fixture("pre-compact")),
+            ("post-compact", self.fixture("post-compact")),
+            ("session-stop", self.fixture("stop")),
+        ):
+            with self.subTest(action=action):
+                result = HOOKS.handle(action, event, root)
+                self.assertEqual(0, result.exit_code)
+                self.assertNotIn("EXTERNAL-SECRET-CONTEXT", result.stdout)
+                self.assertIn("unsafe", result.stdout.lower())
+
+    def test_session_log_symlink_is_not_written_outside_repository(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        production = root / "production"
+        production.mkdir()
+        (production / "session-logs").symlink_to(Path(external.name), target_is_directory=True)
+
+        result = HOOKS.handle("subagent-start", self.fixture("subagent-start"), root)
+        self.assertEqual(0, result.exit_code)
+        self.assertIn("unsafe", result.stdout.lower())
+        self.assertFalse((Path(external.name) / "agent-audit.log").exists())
+
+    def test_asset_symlink_is_not_read_outside_repository(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        outside = Path(external.name) / "outside.json"
+        outside.write_text("{broken", encoding="utf-8")
+        asset = root / "assets/data/items.json"
+        asset.parent.mkdir(parents=True)
+        asset.symlink_to(outside)
+        event = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(asset)},
+        }
+
+        result = HOOKS.handle("validate-assets", event, root)
+        self.assertEqual(0, result.exit_code)
+        message = json.loads(result.stdout)["systemMessage"]
+        self.assertIn("unsafe", message.lower())
+        self.assertNotIn("not valid JSON", message)
+
+    def test_gap_detection_requires_actual_source_files_and_supports_engine_path(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        core = root / "src/core"
+        core.mkdir(parents=True)
+        (core / "AGENTS.md").write_text("instructions", encoding="utf-8")
+
+        instructions_only = HOOKS.handle("detect-gaps", self.fixture("session-start"), root)
+        self.assertIn("NEW PROJECT", instructions_only.stdout)
+        self.assertNotIn("core systems exist", instructions_only.stdout)
+
+        engine = root / "src/engine"
+        engine.mkdir()
+        (engine / "runtime.py").write_text("pass\n", encoding="utf-8")
+        actual_engine = HOOKS.handle("detect-gaps", self.fixture("session-start"), root)
+        self.assertNotIn("NEW PROJECT", actual_engine.stdout)
+        self.assertIn("core systems exist", actual_engine.stdout)
+
+    def test_gap_detection_does_not_enumerate_symlinked_external_directories(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        (Path(external.name) / "EXTERNAL-SECRET-PROTOTYPE").mkdir()
+        (root / "prototypes").symlink_to(Path(external.name), target_is_directory=True)
+
+        result = HOOKS.handle("detect-gaps", self.fixture("session-start"), root)
+        self.assertEqual(0, result.exit_code)
+        self.assertNotIn("EXTERNAL-SECRET-PROTOTYPE", result.stdout)
+        self.assertIn("unsafe", result.stdout.lower())
+
     def test_unknown_action_and_malformed_input_fail_open_with_supported_output(self):
         runner = ROOT / ".codex/hooks/hook_runner.py"
         malformed = subprocess.run(
@@ -278,10 +504,8 @@ class HookConfigurationTests(unittest.TestCase):
         self.assertEqual(EXPECTED_ACTIONS, set(HOOKS.HANDLERS))
         self.assertEqual(10, sum(1 for _ in self.handlers()))
         fixture_names = {path.stem for path in (ROOT / "tests/studio/fixtures/hooks").glob("*.json")}
-        self.assertEqual(
-            {"session-start", "pre-tool-bash", "post-tool-patch", "subagent-start", "pre-compact", "stop"},
-            fixture_names,
-        )
+        self.assertEqual(set(FIXTURE_EVENTS), fixture_names)
+        fixture_events = set()
         for name in fixture_names:
             fixture = json.loads(
                 (ROOT / f"tests/studio/fixtures/hooks/{name}.json").read_text(
@@ -290,9 +514,20 @@ class HookConfigurationTests(unittest.TestCase):
             )
             with self.subTest(fixture=name):
                 self.assertTrue(
-                    {"session_id", "cwd", "hook_event_name", "model"}
+                    {"session_id", "transcript_path", "cwd", "hook_event_name", "model", "permission_mode"}
                     <= set(fixture)
                 )
+                self.assertEqual(FIXTURE_EVENTS[name], fixture["hook_event_name"])
+                fixture_events.add(fixture["hook_event_name"])
+                if fixture["hook_event_name"] == "PostToolUse":
+                    self.assertIn("tool_response", fixture)
+                if fixture["hook_event_name"] == "Stop":
+                    self.assertIn("last_assistant_message", fixture)
+                    self.assertIn("stop_hook_active", fixture)
+                if fixture["hook_event_name"] == "SubagentStop":
+                    self.assertIn("agent_transcript_path", fixture)
+                    self.assertIn("last_assistant_message", fixture)
+        self.assertEqual(EXPECTED_EVENTS, fixture_events)
 
     def test_tool_matchers_include_all_codex_aliases(self):
         self.assertEqual("Bash", self.config["hooks"]["PreToolUse"][0]["matcher"])
@@ -341,6 +576,67 @@ class HookConfigurationTests(unittest.TestCase):
             self.assertIn("absolute user path", messages)
             self.assertIn("missing Windows command override", messages)
             self.assertIn("hook_runner.py", messages)
+
+    def test_validator_rejects_action_parity_matcher_timeout_and_shape_errors(self):
+        cases = {}
+
+        missing_action = json.loads(json.dumps(self.config))
+        missing_action["hooks"]["SessionStart"][0]["hooks"].pop()
+        cases["missing required hook actions"] = missing_action
+
+        duplicate_action = json.loads(json.dumps(self.config))
+        duplicate_action["hooks"]["SessionStart"][0]["hooks"].append(
+            json.loads(json.dumps(duplicate_action["hooks"]["SessionStart"][0]["hooks"][0]))
+        )
+        cases["duplicate hook action"] = duplicate_action
+
+        wrong_event = json.loads(json.dumps(self.config))
+        wrong_event["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = wrong_event["hooks"]["PreToolUse"][0]["hooks"][0]["command"].replace("validate-command", "session-stop")
+        wrong_event["hooks"]["PreToolUse"][0]["hooks"][0]["commandWindows"] = wrong_event["hooks"]["PreToolUse"][0]["hooks"][0]["commandWindows"].replace("validate-command", "session-stop")
+        cases["event action mapping"] = wrong_event
+
+        mismatched_platform = json.loads(json.dumps(self.config))
+        mismatched_platform["hooks"]["Stop"][0]["hooks"][0]["commandWindows"] = mismatched_platform["hooks"]["Stop"][0]["hooks"][0]["commandWindows"].replace("session-stop", "pre-compact")
+        cases["POSIX and Windows actions differ"] = mismatched_platform
+
+        bad_matcher = json.loads(json.dumps(self.config))
+        bad_matcher["hooks"]["PostToolUse"][0]["matcher"] = "["
+        cases["invalid matcher regex"] = bad_matcher
+
+        wrong_matcher = json.loads(json.dumps(self.config))
+        wrong_matcher["hooks"]["PreToolUse"][0]["matcher"] = "exec_command"
+        cases["expected matcher"] = wrong_matcher
+
+        bad_timeout = json.loads(json.dumps(self.config))
+        bad_timeout["hooks"]["Stop"][0]["hooks"][0]["timeout"] = "10"
+        cases["timeout must be a positive integer"] = bad_timeout
+
+        bad_shape = json.loads(json.dumps(self.config))
+        bad_shape["hooks"]["Stop"][0]["hooks"][0]["extra"] = True
+        cases["unsupported handler fields"] = bad_shape
+
+        bad_invocation = json.loads(json.dumps(self.config))
+        bad_invocation["hooks"]["Stop"][0]["hooks"][0]["command"] += " extra"
+        cases["invalid runner invocation"] = bad_invocation
+
+        nonportable_invocation = json.loads(json.dumps(self.config))
+        nonportable_invocation["hooks"]["Stop"][0]["hooks"][0]["command"] = (
+            "python3 /tmp/.codex/hooks/hook_runner.py session-stop"
+        )
+        cases["repository-root runner invocation"] = nonportable_invocation
+
+        with tempfile.TemporaryDirectory() as directory:
+            for expected, config in cases.items():
+                with self.subTest(expected=expected):
+                    path = Path(directory) / f"{len(expected)}.json"
+                    path.write_text(json.dumps(config), encoding="utf-8")
+                    messages = "\n".join(issue.message for issue in VALIDATE.validate_hooks(path))
+                    self.assertIn(expected, messages)
+
+    def test_tracked_legacy_hook_and_settings_inventory_is_removed(self):
+        self.assertFalse((ROOT / ".claude/settings.json").exists())
+        legacy_hooks = sorted((ROOT / ".claude/hooks").glob("*.sh"))
+        self.assertEqual([], legacy_hooks)
 
 
 if __name__ == "__main__":

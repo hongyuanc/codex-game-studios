@@ -1,9 +1,11 @@
 {
   "session_id": "session-test-001",
+  "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
   "turn_id": "turn-test-001",
   "cwd": "/repo",
   "hook_event_name": "PreToolUse",
   "model": "gpt-5.6-terra",
+  "permission_mode": "default",
   "tool_name": "Bash",
   "tool_use_id": "tool-test-001",
   "tool_input": {

@@ -9,7 +9,7 @@ EXPECTED = {
     "src/ai/AGENTS.md",
     "src/networking/AGENTS.md",
     "src/ui/AGENTS.md",
-    "src/shaders/AGENTS.md",
+    "assets/shaders/AGENTS.md",
     "assets/data/AGENTS.md",
     "design/gdd/AGENTS.md",
     "design/narrative/AGENTS.md",
@@ -30,7 +30,7 @@ class InstructionCoverageTests(unittest.TestCase):
             "src/ai/AGENTS.md": ("2ms", "visualization", "telegraph", "network"),
             "src/networking/AGENTS.md": ("authoritative", "versioned", "rollback", "packet sizes"),
             "src/ui/AGENTS.md": ("localization", "gamepad", "colorblind", "game thread"),
-            "src/shaders/AGENTS.md": ("texture samples", "dynamic branching", "fallback", "variant"),
+            "assets/shaders/AGENTS.md": ("texture samples", "dynamic branching", "fallback", "variant"),
             "assets/data/AGENTS.md": ("valid JSON", "lowercase", "camelCase", "defaults"),
             "design/gdd/AGENTS.md": ("Player Fantasy", "Edge Cases", "Tuning Knobs", "user approval"),
             "design/narrative/AGENTS.md": ("canon level", "voice profile", "localization-ready", "120 characters"),
@@ -51,6 +51,12 @@ class InstructionCoverageTests(unittest.TestCase):
                 self.assertIn("## Verification", text)
                 for phrase in phrases:
                     self.assertIn(phrase, text)
+
+    def test_shader_instructions_use_the_actual_asset_boundary(self):
+        self.assertTrue((ROOT / "assets/shaders/AGENTS.md").is_file())
+        self.assertFalse((ROOT / "src/shaders/AGENTS.md").exists())
+        text = (ROOT / "assets/shaders/AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("assets/shaders/", text)
 
 
 if __name__ == "__main__":

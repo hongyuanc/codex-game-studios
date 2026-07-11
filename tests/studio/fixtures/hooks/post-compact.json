@@ -2,9 +2,8 @@
   "session_id": "session-test-001",
   "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
   "cwd": "/repo",
-  "hook_event_name": "Stop",
+  "hook_event_name": "PostCompact",
   "model": "gpt-5.6-terra",
   "permission_mode": "default",
-  "stop_hook_active": true,
-  "last_assistant_message": "Completed the requested work."
+  "trigger": "auto"
 }

@@ -2,7 +2,7 @@
 
 ## Applies To
 
-All shader files below `src/shaders/`.
+All shader files below `assets/shaders/`.
 
 ## Required Practices
 

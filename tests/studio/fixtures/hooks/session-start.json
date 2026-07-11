@@ -1,7 +1,9 @@
 {
   "session_id": "session-test-001",
+  "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
   "cwd": "/repo",
   "hook_event_name": "SessionStart",
   "model": "gpt-5.6-terra",
+  "permission_mode": "default",
   "source": "startup"
 }
