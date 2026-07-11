@@ -549,6 +549,8 @@ class HookParserTests(unittest.TestCase):
             "git commit --unified --help",
             "git commit --unif -h",
             "git commit -S-h",
+            "git commit -qS-h",
+            "git commit -mS-h",
             "git commit --untracked-files=--help",
             "git commit --inter-hunk-context -h",
             "git commit --inter-h --help",
@@ -574,6 +576,7 @@ class HookParserTests(unittest.TestCase):
             "git commit --help",
             "git commit -qh",
             "git commit -S -h",
+            "git commit -qS -h",
             "git commit --un -h",
             "git commit --untracked-files -h",
         ):

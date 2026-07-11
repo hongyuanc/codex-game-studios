@@ -90,6 +90,7 @@ COMMIT_VALUE_OPTIONS = {
 }
 COMMIT_OPTIONAL_ATTACHED_SHORT_OPTIONS = {"-S"}
 COMMIT_OPTIONAL_ATTACHED_LONG_OPTIONS = {"--untracked-files"}
+COMMIT_CLUSTER_NO_VALUE_FLAGS = frozenset("qvapsneio")
 GIT_OPTION_NAMES = {
     "reset": {
         "--hard", "--help", "--keep", "--merge", "--mixed", "--no-refresh",
@@ -953,6 +954,21 @@ def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
     while index < len(args):
         raw_argument = args[index]
         argument = _canonical_option(invocation.subcommand, raw_argument)
+        if invocation.subcommand.lower() == "commit" and re.fullmatch(
+            r"-[A-Za-z]+(?:-.+)?", argument
+        ):
+            cluster = argument[1:]
+            signing_index = cluster.find("S")
+            if (
+                signing_index >= 0
+                and cluster[signing_index + 1 :]
+                and all(
+                    flag in COMMIT_CLUSTER_NO_VALUE_FLAGS
+                    for flag in cluster[:signing_index]
+                )
+            ):
+                index += 1
+                continue
         if invocation.subcommand.lower() == "commit" and any(
             argument.startswith(option) and argument != option
             for option in COMMIT_OPTIONAL_ATTACHED_SHORT_OPTIONS

@@ -98,6 +98,13 @@ Optional commit-operand completion:
   attached `-S<keyid>` remains one value, and `--un` stays ambiguous between
   unified and untracked-files while a unique unified abbreviation still works.
 
+Clustered signing-option completion:
+
+- RED: the focused commit matrix reproduced the `-qS-h` help/value collision.
+- GREEN: all 59 hook tests pass. Valid no-value short flags may precede `S` in
+  one cluster, while any preceding value-taking option retains ownership of its
+  attached suffix.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -202,6 +209,8 @@ global-option parsing. It:
 - Optional commit operands are modeled separately: `-S[<keyid>]` only consumes
   an attached suffix, and `--untracked-files[=<mode>]` participates in the long
   abbreviation namespace without consuming a separate help token.
+- Clustered signing syntax recognizes `S` after valid no-value flags: `-qS-h`
+  treats `-h` as the key ID, whereas terminal `-qS -h` leaves help visible.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain
