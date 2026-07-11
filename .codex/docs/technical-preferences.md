@@ -6,6 +6,7 @@
 ## Engine & Language
 
 - **Engine**: [TO BE CONFIGURED — run $setup-engine]
+- **Active Engine Pack**: [none — managed by `$setup-engine`]
 - **Language**: [TO BE CONFIGURED]
 - **Rendering**: [TO BE CONFIGURED]
 - **Physics**: [TO BE CONFIGURED]
