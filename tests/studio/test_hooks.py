@@ -548,6 +548,8 @@ class HookParserTests(unittest.TestCase):
             "git commit -U-h",
             "git commit --unified --help",
             "git commit --unif -h",
+            "git commit -S-h",
+            "git commit --untracked-files=--help",
             "git commit --inter-hunk-context -h",
             "git commit --inter-h --help",
             "git commit --mess --help",
@@ -567,7 +569,14 @@ class HookParserTests(unittest.TestCase):
                 self.assertEqual(2, result.exit_code)
                 validator.assert_called_once_with(ROOT)
 
-        for command in ("git commit -h", "git commit --help", "git commit -qh"):
+        for command in (
+            "git commit -h",
+            "git commit --help",
+            "git commit -qh",
+            "git commit -S -h",
+            "git commit --un -h",
+            "git commit --untracked-files -h",
+        ):
             with self.subTest(terminal=command):
                 with mock.patch.object(HOOKS, "_validate_commit") as validator:
                     result = HOOKS.handle(

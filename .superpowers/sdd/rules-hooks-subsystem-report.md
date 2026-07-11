@@ -90,6 +90,14 @@ Commit option-table completion:
 - GREEN: all 59 hook tests pass with separate, compact-short, equals, and unique
   abbreviated commit value forms distinguished from actual terminal help.
 
+Optional commit-operand completion:
+
+- RED: the focused matrix reproduced one attached-value failure and one
+  ambiguous-abbreviation help error for `-S` and `--un`.
+- GREEN: all 59 hook tests pass. Exact `-S` consumes no following token,
+  attached `-S<keyid>` remains one value, and `--un` stays ambiguous between
+  unified and untracked-files while a unique unified abbreviation still works.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -191,6 +199,9 @@ global-option parsing. It:
   cleanup, unified, and inter-hunk-context operands. Separate, compact, equals,
   and unique abbreviated forms are canonicalized so option-looking values still
   trigger staged validation rather than being mistaken for terminal help.
+- Optional commit operands are modeled separately: `-S[<keyid>]` only consumes
+  an attached suffix, and `--untracked-files[=<mode>]` participates in the long
+  abbreviation namespace without consuming a separate help token.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain

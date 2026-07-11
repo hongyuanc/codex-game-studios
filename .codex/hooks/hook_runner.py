@@ -88,6 +88,8 @@ COMMIT_VALUE_OPTIONS = {
     "--date", "-t", "--template", "--cleanup", "-U", "--unified",
     "--inter-hunk-context", "--trailer", "--pathspec-from-file",
 }
+COMMIT_OPTIONAL_ATTACHED_SHORT_OPTIONS = {"-S"}
+COMMIT_OPTIONAL_ATTACHED_LONG_OPTIONS = {"--untracked-files"}
 GIT_OPTION_NAMES = {
     "reset": {
         "--hard", "--help", "--keep", "--merge", "--mixed", "--no-refresh",
@@ -115,6 +117,7 @@ GIT_OPTION_NAMES = {
         "--pathspec-from-file", "--porcelain", "--quiet", "--reedit-message",
         "--reset-author", "--reuse-message", "--short", "--signoff", "--squash",
         "--status", "--template", "--trailer", "--unified", "--verbose",
+        "--untracked-files",
     },
 }
 # Security boundary: only documented built-ins are analyzed as direct Git commands.
@@ -950,6 +953,18 @@ def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
     while index < len(args):
         raw_argument = args[index]
         argument = _canonical_option(invocation.subcommand, raw_argument)
+        if invocation.subcommand.lower() == "commit" and any(
+            argument.startswith(option) and argument != option
+            for option in COMMIT_OPTIONAL_ATTACHED_SHORT_OPTIONS
+        ):
+            index += 1
+            continue
+        if invocation.subcommand.lower() == "commit" and any(
+            argument.startswith(option + "=")
+            for option in COMMIT_OPTIONAL_ATTACHED_LONG_OPTIONS
+        ):
+            index += 1
+            continue
         if argument in value_options:
             index += 2
             continue
