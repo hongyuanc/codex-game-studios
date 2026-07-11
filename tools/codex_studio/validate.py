@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import pathlib
 import re
 import tomllib
@@ -17,6 +18,16 @@ FORBIDDEN_SKILL_PATTERNS = {
     r"\.Codex/|\.claude/": "non-native path",
     r"^model:\s*(opus|sonnet|haiku)\s*$": "Claude model metadata",
     r"^allowed-tools:": "Claude tool metadata",
+}
+SUPPORTED_HOOK_EVENTS = {
+    "SessionStart",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
 }
 
 
@@ -54,4 +65,65 @@ def validate_skill(path: pathlib.Path) -> list[ValidationIssue]:
     for pattern, label in FORBIDDEN_SKILL_PATTERNS.items():
         if re.search(pattern, text, flags=re.MULTILINE):
             issues.append(ValidationIssue("error", str(path), f"contains {label}"))
+    return issues
+
+
+def validate_hooks(path: pathlib.Path) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        return [ValidationIssue("error", str(path), f"invalid JSON: {error}")]
+
+    hooks = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(hooks, dict):
+        return [ValidationIssue("error", str(path), "missing hooks object")]
+
+    for event, groups in hooks.items():
+        if event not in SUPPORTED_HOOK_EVENTS:
+            issues.append(ValidationIssue("error", str(path), f"unsupported hook event: {event}"))
+        if not isinstance(groups, list):
+            issues.append(ValidationIssue("error", str(path), f"hook event {event} must contain a list"))
+            continue
+        for group_index, group in enumerate(groups):
+            handlers = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(handlers, list) or not handlers:
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        str(path),
+                        f"hook event {event} group {group_index} has no handlers",
+                    )
+                )
+                continue
+            for handler_index, handler in enumerate(handlers):
+                location = f"{event} group {group_index} handler {handler_index}"
+                if not isinstance(handler, dict):
+                    issues.append(ValidationIssue("error", str(path), f"{location} must be an object"))
+                    continue
+                if handler.get("type") != "command":
+                    issues.append(
+                        ValidationIssue(
+                            "error",
+                            str(path),
+                            f"{location} has unsupported handler type: {handler.get('type')}",
+                        )
+                    )
+                command = handler.get("command")
+                windows = handler.get("commandWindows")
+                if not isinstance(command, str) or not command.strip():
+                    issues.append(ValidationIssue("error", str(path), f"{location} missing command"))
+                    command = ""
+                if not isinstance(windows, str) or not windows.strip():
+                    issues.append(
+                        ValidationIssue("error", str(path), f"{location} missing Windows command override")
+                    )
+                    windows = ""
+                combined = f"{command}\n{windows}"
+                if re.search(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])", combined):
+                    issues.append(ValidationIssue("error", str(path), f"{location} contains absolute user path"))
+                if ".codex/hooks/hook_runner.py" not in command:
+                    issues.append(ValidationIssue("error", str(path), f"{location} command must reference .codex/hooks/hook_runner.py"))
+                if windows and ".codex/hooks/hook_runner.py" not in windows:
+                    issues.append(ValidationIssue("error", str(path), f"{location} Windows command must reference .codex/hooks/hook_runner.py"))
     return issues

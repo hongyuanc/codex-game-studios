@@ -1,0 +1,7 @@
+{
+  "session_id": "session-test-001",
+  "cwd": "/repo",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-5.6-terra",
+  "source": "startup"
+}

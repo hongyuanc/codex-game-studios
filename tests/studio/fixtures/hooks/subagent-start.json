@@ -1,0 +1,8 @@
+{
+  "session_id": "session-test-001",
+  "cwd": "/repo",
+  "hook_event_name": "SubagentStart",
+  "model": "gpt-5.6",
+  "agent_id": "agent-test-001",
+  "agent_type": "gameplay-programmer"
+}
