@@ -230,7 +230,6 @@ class HookParserTests(unittest.TestCase):
             "cat <<'EOF'\ngit reset --hard\nEOF\necho done",
             'cat <<E"OF"\ngit clean -fd\nEOF\necho done',
             '"${tool}" status',
-            '"${tool}" push --dry-run --force origin feature',
             'g=$(unknown); "$g" --version',
         )
         for command in inert:
@@ -255,6 +254,7 @@ class HookParserTests(unittest.TestCase):
         for command in (
             'g=$(unknown); "$g" reset --hard',
             '"${tool}" push --force origin feature',
+            '"${tool}" push --dry-run --force origin feature',
             "git $(unknown) --hard",
             'g=gi; "${g}t" reset --har',
             '"${tool}.exe" reset --har',
@@ -333,6 +333,92 @@ class HookParserTests(unittest.TestCase):
         )
         self.assertEqual(2, after_separator.exit_code)
 
+    def test_global_options_preserve_analysis_and_unknown_options_fail_closed(self):
+        for command in (
+            "git -P reset --hard",
+            "git --no-lazy-fetch clean -fd",
+            "git -P push -f origin feature",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+        for command in (
+            "git --mystery reset --hard",
+            "git -Z clean -fd",
+            "git --mystery commit -m test",
+            "git --mystery push origin main",
+        ):
+            with self.subTest(unknown=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("explicit direct Git", result.stderr)
+
+        for command in ("git -P status", "git --no-lazy-fetch status"):
+            with self.subTest(safe=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+        blocked = HOOKS.HookResult(2, stderr="global commit sentinel\n")
+        with mock.patch.object(HOOKS, "_validate_commit", return_value=blocked) as validator:
+            commit = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git -P commit -m test"}},
+                ROOT,
+            )
+        self.assertEqual(2, commit.exit_code)
+        validator.assert_called_once_with(ROOT)
+
+    def test_dynamic_commit_push_and_git_extensions_are_ambiguous(self):
+        ambiguous = (
+            '"${tool}" commit -m test',
+            '"${tool}" push origin main',
+            'git "${mode}" commit -m test',
+            'git "${mode}" push origin main',
+            "git-reset --hard",
+            "/usr/local/bin/git-clean -fd",
+            r"C:\Git\bin\git-push.exe -f origin feature",
+            "git-status",
+        )
+        for command in ambiguous:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("explicit direct Git", result.stderr)
+
+        for command in (
+            '"${tool}" status',
+            "echo git-reset --hard",
+            "printf '%s' 'git-clean -fd'",
+            'echo "& .\\git.exe reset --hard"',
+            r'echo "\\server\share\git.exe clean -fd"',
+        ):
+            with self.subTest(inert=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_powershell_relative_and_unc_git_paths_are_analyzed(self):
+        for command in (
+            r"& .\git.exe reset --hard",
+            r"& \\server\share\git.exe clean -fd",
+            r"& .\git.exe push -f origin feature",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
     def test_wrapper_option_values_and_command_inspection_are_parsed(self):
         destructive = (
             "sudo -u user git reset --hard",
@@ -388,6 +474,13 @@ class HookParserTests(unittest.TestCase):
             "git clean --help --force",
             "git reset --pathspec-from-file --hard",
             "git reset --pathspec-from-file=--hard",
+            "git reset -hf --hard",
+            "git reset -qh --hard",
+            "git clean -hf -d",
+            "git clean -qfh -d",
+            "git push -hf origin main",
+            "git push -qfh origin main",
+            "git push --help origin main",
         ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
@@ -401,6 +494,36 @@ class HookParserTests(unittest.TestCase):
             ROOT,
         )
         self.assertEqual(2, destructive.exit_code)
+
+        after_separator = HOOKS.handle(
+            "validate-command",
+            {"tool_input": {"command": "git clean -f -- -h"}},
+            ROOT,
+        )
+        self.assertEqual(2, after_separator.exit_code)
+
+        with mock.patch.object(HOOKS, "_validate_commit") as validator:
+            commit_help = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git commit -qh"}},
+                ROOT,
+            )
+        self.assertEqual(0, commit_help.exit_code)
+        validator.assert_not_called()
+
+    def test_known_builtin_allowlist_includes_reviewed_plumbing_commands(self):
+        for command in (
+            "git pack-refs --all",
+            "git multi-pack-index write",
+            "git checkout-index --all",
+            "git send-pack origin refs/heads/feature",
+            "git scalar list",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
 
     def test_variable_expansion_respects_shell_word_splitting_and_quotes(self):
         destructive = (
@@ -434,6 +557,10 @@ class HookParserTests(unittest.TestCase):
             "git reset --help --har": 0,
             "git mystery": 2,
             'git "${mode}" --har': 2,
+            "git commit -qh": 0,
+            "git --mystery push origin main": 2,
+            "git-reset --hard": 2,
+            '"${tool}" commit -m test': 2,
         }
         for inner, expected in commands.items():
             nested = inner
@@ -489,6 +616,25 @@ class HookParserTests(unittest.TestCase):
                         "validate-command", {"tool_input": {"command": command}}, ROOT
                     )
                     self.assertEqual(0, result.exit_code)
+
+    def test_raw_fallback_honors_help_and_blocks_extensions_and_dynamic_tails(self):
+        expected = {
+            "git commit -qh": "safe",
+            "git reset -hf --hard": "safe",
+            "git clean --dry-run --force": "safe",
+            "git --mystery push origin main": "ambiguous",
+            "git-reset --hard": "ambiguous",
+            '"${tool}" commit -m test': "ambiguous",
+            '"${tool}" push origin main': "ambiguous",
+            "echo 'git-reset --hard'": "none",
+            "# git --mystery push origin main": "none",
+        }
+        for command, classification in expected.items():
+            with self.subTest(command=command):
+                self.assertEqual(
+                    classification,
+                    HOOKS._raw_git_classification(command),
+                )
 
     def test_all_real_commit_forms_invoke_staged_validation(self):
         commands = (
@@ -688,6 +834,22 @@ class HookBehaviorTests(unittest.TestCase):
                 )
                 self.assertEqual(2, result.exit_code)
 
+        deferred = (
+            "git -c 'alias.x=!$SHELL -c git reset --hard' x",
+            "git -c 'alias.x=!$(echo git) reset --hard' x",
+            "git -c 'alias.x=!`echo git` clean -fd' x",
+            "git -c 'alias.x=!%COMSPEC% /c git reset --hard' x",
+            "git -c 'alias.x=!$env:COMSPEC /c git reset --hard' x",
+            "git -c 'alias.x=reset $MODE' x --hard",
+        )
+        for command in deferred:
+            with self.subTest(deferred=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("explicit direct Git", result.stderr)
+
         for command in (
             "git -c alias.st=status st",
             "git -c 'alias.preview=clean -fdn' preview",
@@ -873,7 +1035,7 @@ class HookBehaviorTests(unittest.TestCase):
                 ROOT,
             )
         self.assertEqual(2, dynamic.exit_code)
-        self.assertIn("parser", dynamic.stderr.lower())
+        self.assertIn("explicit direct Git", dynamic.stderr)
 
     def test_commit_quality_findings_warn_without_blocking(self):
         temporary, root = self.make_root()

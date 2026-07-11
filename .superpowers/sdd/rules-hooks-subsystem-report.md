@@ -64,6 +64,16 @@ Final ambiguous-execution policy review:
   recursion contexts; explicit inline `-c alias.name=value` aliases remain
   expandable when their complete value can be inspected.
 
+Finite ambiguous-policy completion review:
+
+- RED: seven focused methods reproduced 39 policy assertion failures and one
+  help-path error across Git global options, dynamic commit/push tails,
+  deferred inline aliases, dashed executables, PowerShell relative/UNC paths,
+  clustered help flags, the built-in allowlist, and raw fallback behavior.
+- GREEN: all 58 hook tests pass. The static allowlist includes the reviewed
+  plumbing commands, while dashed git-* extensions and every deferred execution
+  path remain intentionally ambiguous.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -125,6 +135,8 @@ global-option parsing. It:
   precisely; every unknown subcommand, possible configured alias, git-* extension,
   `--config-env=alias.*` execution, or unresolved destructive dynamic form blocks
   with instructions to rerun an explicit direct Git built-in command.
+- Supports Git's `-P`/`--no-pager` and `--no-lazy-fetch` global flags. Unknown
+  global options fail closed when they prevent precise direct analysis.
 - Applies Git-compatible unique long-option abbreviation matching. Ambiguous
   prefixes remain unrecognized; abbreviations such as `--har`, `--for`,
   `--mir`, `--force-with-l`, `--force-if-i`, and `--dry-r` are classified.
@@ -132,6 +144,8 @@ global-option parsing. It:
   their complete ordinary or `!` shell value can be inspected. It never reads
   repository or user alias configuration; configured aliases, loops, depth
   failures, and context-dependent execution fail closed as ambiguous.
+- Rejects inline alias values containing deferred POSIX, command-substitution,
+  backtick, PowerShell, or percent-environment expansion before interpretation.
 - Recursively inspects literal backticks, `$()` substitutions, `bash -c`,
   `sh -c`, `zsh -c`, and `eval`. Unquoted literal variables undergo shell word
   splitting while quoted expansions remain one executable token. Embedded
@@ -142,15 +156,19 @@ global-option parsing. It:
   `exec -a` display-name operand; `command -v`, `-V`, and `--version` are
   inspection-only.
 - Parses `time`, `nice`, and `timeout` wrapper operands, recognizes Windows
-  basenames with either slash style and PowerShell's call operator, and removes
-  PowerShell `--%` before native Git argument analysis. `builtin git ...` is
-  correctly treated as non-executing.
+  basenames with either slash style—including relative and UNC `git.exe`
+  paths—and PowerShell's call operator, and removes PowerShell `--%` before
+  native Git argument analysis. `builtin git ...` is correctly treated as
+  non-executing.
 - Recognizes `git` and `git.exe` case-insensitively. Ambiguous dynamic execution
-  with destructive Git intent fails closed.
+  with destructive, commit, or push intent fails closed. Executable basenames
+  matching `git-*` or `git-*.exe` are deliberately ambiguous extensions.
 - Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
 - Treats dry-run/force flags as options only before `--`, skipping option values.
 - Treats reset/clean `-h` and `--help` as terminal, and consumes reset
   `--pathspec-from-file` operands so option-looking values do not false-block.
+  Short option clusters containing `h` are terminal before `--` for direct
+  known subcommands, including commit and push.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain
@@ -210,7 +228,7 @@ find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
 git ls-files .claude/hooks .claude/settings.json
 ```
 
-Final evidence: 56 focused and 130 studio tests pass; JSON/Python and whitespace
+Final evidence: 61 focused and 135 studio tests pass; JSON/Python and whitespace
 checks pass; runtime forbidden scans return no matches; neither hook tree
 contains shell scripts; the tracked legacy hook/settings inventory is empty.
 

@@ -52,6 +52,7 @@ GIT_GLOBAL_VALUE_OPTIONS = {
 }
 GIT_GLOBAL_FLAG_OPTIONS = {
     "-p",
+    "-P",
     "--paginate",
     "--no-pager",
     "--bare",
@@ -61,6 +62,7 @@ GIT_GLOBAL_FLAG_OPTIONS = {
     "--noglob-pathspecs",
     "--icase-pathspecs",
     "--no-optional-locks",
+    "--no-lazy-fetch",
     "--no-advice",
 }
 GIT_GLOBAL_TERMINAL_OPTIONS = {"--version", "--help", "-h", "--html-path", "--man-path", "--info-path"}
@@ -104,18 +106,18 @@ GIT_OPTION_NAMES = {
 KNOWN_GIT_SUBCOMMANDS = {
     "add", "am", "annotate", "apply", "archive", "bisect", "blame", "branch",
     "bugreport", "bundle", "cat-file", "check-attr", "check-ignore", "check-mailmap",
-    "check-ref-format", "checkout", "cherry", "cherry-pick", "clean", "clone", "column",
+    "check-ref-format", "checkout", "checkout-index", "cherry", "cherry-pick", "clean", "clone", "column",
     "commit", "commit-graph", "commit-tree", "config", "count-objects", "credential",
     "describe", "diagnose", "diff", "diff-files", "diff-index", "diff-tree", "difftool",
     "fast-export", "fast-import", "fetch", "fetch-pack", "filter-branch", "fmt-merge-msg",
     "for-each-ref", "for-each-repo", "format-patch", "fsck", "gc", "grep", "hash-object",
     "help", "index-pack", "init", "interpret-trailers", "log", "ls-files", "ls-remote",
     "ls-tree", "mailinfo", "mailsplit", "maintenance", "merge", "merge-base", "merge-file",
-    "merge-index", "merge-one-file", "merge-tree", "mergetool", "mktag", "mktree", "mv",
-    "name-rev", "notes", "pack-objects", "pack-redundant", "patch-id", "prune",
+    "merge-index", "merge-one-file", "merge-tree", "mergetool", "mktag", "mktree", "multi-pack-index", "mv",
+    "name-rev", "notes", "pack-objects", "pack-redundant", "pack-refs", "patch-id", "prune",
     "prune-packed", "pull", "push", "range-diff", "read-tree", "rebase", "reflog", "refs",
     "remote", "repack", "replace", "request-pull", "rerere", "reset", "restore", "rev-list",
-    "rev-parse", "revert", "rm", "shortlog", "show", "show-branch", "show-index", "show-ref",
+    "rev-parse", "revert", "rm", "scalar", "send-pack", "shortlog", "show", "show-branch", "show-index", "show-ref",
     "sparse-checkout", "stage", "stash", "status", "stripspace", "submodule", "switch",
     "symbolic-ref", "tag", "unpack-file", "unpack-objects", "update-index", "update-ref", "var",
     "verify-commit", "verify-pack", "verify-tag", "version", "whatchanged", "worktree", "write-tree",
@@ -281,7 +283,9 @@ def _normalize_continuations(script: str) -> str:
 
 def _normalize_windows_git_paths(script: str) -> str:
     pattern = re.compile(
-        r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z]:\\(?:[^\\\s;&|]+\\)*git(?:\.exe)?)(?=\s|$)"
+        r"(?i)(?<![A-Za-z0-9_])"
+        r"(?:[A-Za-z]:|\.{1,2}|\\\\[^\\\s;&|]+\\[^\\\s;&|]+)"
+        r"(?:\\[^\\\s;&|]+)*\\git(?:-[^\\\s;&|]+)?\.exe(?=\s|$)"
     )
     return pattern.sub(lambda match: match.group(0).replace("\\", "/"), script)
 
@@ -673,7 +677,7 @@ def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> 
             index += 1
             continue
         if token.startswith("-"):
-            return None
+            return GitInvocation("unknown-global-option", tuple(tokens[index:]), True)
         break
     if index >= len(tokens):
         return None
@@ -702,9 +706,14 @@ def _git_invocation(
     executable = _executable_basename(tokens[0])
     if executable in {"git", "git.exe"}:
         return _git_from_tokens(tokens)
+    if re.fullmatch(r"git-.+(?:\.exe)?", executable, re.IGNORECASE):
+        return GitInvocation("git-extension", tuple(tokens[1:]), True)
     if dynamic_executable:
         candidate = _git_from_tokens(["git", *tokens[1:]])
-        if candidate and _destructive(candidate):
+        if candidate and (
+            _destructive(candidate)
+            or candidate.subcommand in {"commit", "push"}
+        ):
             return dataclasses.replace(candidate, ambiguous_execution=True)
     return None
 
@@ -772,6 +781,17 @@ def _alias_value(invocation: GitInvocation, root: pathlib.Path) -> str | None:
     return inline.get(key)
 
 
+def _alias_has_deferred_expansion(value: str) -> bool:
+    return bool(
+        "$" in value
+        or "`" in value
+        or DYNAMIC_TOKEN_PREFIX in value
+        or QUOTED_VARIABLE_PREFIX in value
+        or LITERAL_DOLLAR_MARKER in value
+        or re.search(r"%[A-Za-z_][A-Za-z0-9_]*%", value)
+    )
+
+
 def _expand_alias_invocation(
     invocation: GitInvocation,
     root: pathlib.Path,
@@ -793,6 +813,10 @@ def _expand_alias_invocation(
     value = _alias_value(invocation, root)
     if value is None:
         return [dataclasses.replace(invocation, ambiguous_execution=True)]
+    if _alias_has_deferred_expansion(value):
+        raise AliasResolutionError(
+            f"inline alias.{subcommand} contains deferred expansion"
+        )
     next_seen = seen | {subcommand}
     if value.startswith("!"):
         nested_script = value[1:]
@@ -930,11 +954,11 @@ def _dry_run(invocation: GitInvocation) -> bool:
 
 def _help_requested(invocation: GitInvocation) -> bool:
     options = _option_tokens(invocation)
-    return "--help" in options or "-h" in options
+    return "--help" in options or _short_flag(options, "h")
 
 
 def _dynamic_destructive_intent(args: tuple[str, ...]) -> bool:
-    return any(
+    return any(argument in {"commit", "push"} for argument in args) or any(
         _destructive(GitInvocation(subcommand, args))
         for subcommand in ("reset", "clean", "push")
     )
@@ -943,7 +967,7 @@ def _dynamic_destructive_intent(args: tuple[str, ...]) -> bool:
 def _destructive(invocation: GitInvocation) -> bool:
     if invocation.ambiguous_execution:
         return True
-    if invocation.subcommand in {"reset", "clean"} and _help_requested(invocation):
+    if _help_requested(invocation):
         return False
     options = _option_tokens(invocation)
     if invocation.subcommand == "reset":
@@ -1294,9 +1318,10 @@ def _classify_invocations(
         return "ambiguous"
     if any(invocation.ambiguous_execution for invocation in expanded):
         return "ambiguous"
-    if any(_destructive(invocation) for invocation in expanded):
+    active = [invocation for invocation in expanded if not _help_requested(invocation)]
+    if any(_destructive(invocation) for invocation in active):
         return "destructive"
-    if any(invocation.subcommand.lower() == "commit" for invocation in expanded):
+    if any(invocation.subcommand == "commit" for invocation in active):
         return "commit"
     return "safe" if expanded else "none"
 
@@ -1344,24 +1369,46 @@ def _strip_inert_raw_text(script: str) -> str:
 
 def _raw_git_classification(script: str) -> str:
     sanitized = _strip_inert_raw_text(script)
-    if _recognized_destructive_intent(sanitized):
-        return "destructive"
-    if _recognized_commit_intent(sanitized):
-        return "commit"
+    extension = re.search(
+        r"(?is)(?:^|[;&|()\n])\s*(?:[^\s;&|()]*[\\/])?git-[^\s;&|()]+",
+        sanitized,
+    )
+    if extension:
+        return "ambiguous"
+    dynamic = re.search(
+        r'''(?is)(?:^|[;&|()\n])\s*["']?\$(?:\{?[A-Za-z_][A-Za-z0-9_]*\}?)[^\s]*["']?\s+([^;&|()\n]*)''',
+        sanitized,
+    )
+    if dynamic:
+        try:
+            dynamic_args = tuple(shlex.split(dynamic.group(1), posix=True))
+        except ValueError:
+            dynamic_args = tuple(dynamic.group(1).split())
+        if _dynamic_destructive_intent(dynamic_args):
+            return "ambiguous"
     literal = re.search(
         r"(?is)(?:^|[;&|()\n])\s*(?:git(?:\.exe)?|[^\s]*[\\/]git(?:\.exe)?)\s+"
-        r"(?:-[Cc]\s+\S+\s+|--(?:git-dir|work-tree)(?:=\S+|\s+\S+)\s+)*"
-        r"([^\s;&|()]+)",
+        r"([^;&|()\n]*)",
         sanitized,
     )
     if literal:
-        subcommand = literal.group(1)
-        return "safe" if subcommand in KNOWN_GIT_SUBCOMMANDS else "ambiguous"
-    dynamic = re.search(
-        r'''(?is)(?:^|[;&|()\n])\s*["']?\$(?:\{?[A-Za-z_][A-Za-z0-9_]*\}?)[^\s]*["']?\s+''',
-        sanitized,
-    )
-    return "ambiguous" if dynamic and re.search(r"--har|--for|--mir|--force|-[A-Za-z]*f", sanitized) else "none"
+        try:
+            tokens = shlex.split(literal.group(1), posix=True)
+        except ValueError:
+            tokens = literal.group(1).split()
+        invocation = _git_from_tokens(["git", *tokens]) if tokens else None
+        if invocation is None:
+            return "none"
+        if invocation.ambiguous_execution:
+            return "ambiguous"
+        if _help_requested(invocation):
+            return "safe"
+        if _destructive(invocation):
+            return "destructive"
+        if invocation.subcommand == "commit":
+            return "commit"
+        return "safe" if invocation.subcommand in KNOWN_GIT_SUBCOMMANDS else "ambiguous"
+    return "none"
 
 
 def _conservative_git_classification(
@@ -1439,7 +1486,10 @@ def _validate_command(event: dict, root: pathlib.Path) -> HookResult:
             invocations = _expand_aliases(
                 invocations, root, limit=MAX_ALIAS_RECURSION * 8
             )
-            if any(invocation.subcommand.lower() == "commit" for invocation in invocations):
+            if any(
+                invocation.subcommand == "commit" and not _help_requested(invocation)
+                for invocation in invocations
+            ):
                 return HookResult(
                     2,
                     stderr=(
@@ -1461,21 +1511,24 @@ def _validate_command(event: dict, root: pathlib.Path) -> HookResult:
             )
     if any(invocation.ambiguous_execution for invocation in invocations):
         return HookResult(2, stderr=AMBIGUOUS_GIT_MESSAGE)
-    if any(_destructive(invocation) for invocation in invocations):
+    active_invocations = [
+        invocation for invocation in invocations if not _help_requested(invocation)
+    ]
+    if any(_destructive(invocation) for invocation in active_invocations):
         return HookResult(
             2,
             stderr="Destructive Git command blocked by Codex Game Studios policy.\n",
         )
     messages: list[str] = []
-    if any(invocation.subcommand.lower() == "commit" for invocation in invocations):
+    if any(invocation.subcommand == "commit" for invocation in active_invocations):
         commit_result = _validate_commit(root)
         if commit_result.exit_code == 2:
             return commit_result
         commit_message = _result_message(commit_result)
         if commit_message:
             messages.append(commit_message)
-    for invocation in invocations:
-        if invocation.subcommand.lower() == "push":
+    for invocation in active_invocations:
+        if invocation.subcommand == "push":
             result = _protected_push(invocation, root)
             message = _result_message(result)
             if message:
