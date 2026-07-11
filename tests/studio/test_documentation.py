@@ -1,0 +1,165 @@
+from pathlib import Path
+import re
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE_DOCS = ROOT / ".claude/docs"
+CODEX_DOCS = ROOT / ".codex/docs"
+REQUIRED = {
+    "agent-coordination-map.md",
+    "agent-roster.md",
+    "coding-standards.md",
+    "context-management.md",
+    "coordination-rules.md",
+    "director-gates.md",
+    "directory-structure.md",
+    "hooks-reference.md",
+    "quick-start.md",
+    "review-workflow.md",
+    "rules-reference.md",
+    "setup-requirements.md",
+    "skills-reference.md",
+    "technical-preferences.md",
+    "workflow-catalog.yaml",
+}
+FORBIDDEN_RUNTIME_TEXT = (
+    ".claude/",
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "Claude",
+    "Claude Code",
+    "claude-",
+    "CLAUDE_CODE",
+    "@anthropic-ai",
+    "AskUserQuestion",
+    "Task tool",
+    "Task calls",
+    "Task subagent",
+    "`Task`",
+    "Read tool",
+    "Write tool",
+    "Edit tool",
+    "Glob tool",
+    "Grep tool",
+    "Opus",
+    "Sonnet",
+    "Haiku",
+    "PreToolUse (Bash)",
+    "Write/apply_patch",
+)
+
+
+def markdown_headings(path: Path) -> list[str]:
+    return [
+        line.rstrip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if re.match(r"^#{1,6} ", line)
+    ]
+
+
+class DocumentationTests(unittest.TestCase):
+    def test_required_codex_docs_exist(self):
+        missing = sorted(name for name in REQUIRED if not (CODEX_DOCS / name).is_file())
+        self.assertEqual([], missing)
+
+    def test_template_tree_has_source_parity(self):
+        source = {
+            path.relative_to(SOURCE_DOCS / "templates").as_posix()
+            for path in (SOURCE_DOCS / "templates").rglob("*")
+            if path.is_file()
+        }
+        destination = {
+            path.relative_to(CODEX_DOCS / "templates").as_posix()
+            for path in (CODEX_DOCS / "templates").rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(source, destination)
+
+    def test_template_headings_are_preserved(self):
+        for source in sorted((SOURCE_DOCS / "templates").rglob("*.md")):
+            destination = CODEX_DOCS / "templates" / source.relative_to(
+                SOURCE_DOCS / "templates"
+            )
+            with self.subTest(path=source.relative_to(ROOT)):
+                self.assertTrue(destination.is_file())
+                self.assertEqual(markdown_headings(source), markdown_headings(destination))
+                self.assertGreaterEqual(
+                    len(destination.read_text(encoding="utf-8")),
+                    int(len(source.read_text(encoding="utf-8")) * 0.9),
+                )
+
+    def test_required_docs_preserve_substantive_source_content(self):
+        for name in sorted(REQUIRED):
+            source = SOURCE_DOCS / name
+            destination = CODEX_DOCS / name
+            with self.subTest(path=name):
+                self.assertGreaterEqual(
+                    len(destination.read_text(encoding="utf-8")),
+                    int(len(source.read_text(encoding="utf-8")) * 0.75),
+                )
+
+    def test_runtime_docs_have_no_claude_dependencies(self):
+        for path in CODEX_DOCS.rglob("*"):
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            with self.subTest(path=path.relative_to(ROOT)):
+                for forbidden in FORBIDDEN_RUNTIME_TEXT:
+                    self.assertNotIn(forbidden, text)
+
+    def test_runtime_paths_are_lowercase(self):
+        for path in CODEX_DOCS.rglob("*"):
+            if path.is_file():
+                relative = path.relative_to(CODEX_DOCS).as_posix()
+                with self.subTest(path=relative):
+                    self.assertEqual(relative, relative.lower())
+
+    def test_codex_operating_contract_is_documented(self):
+        combined = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore")
+            for path in CODEX_DOCS.rglob("*")
+            if path.is_file()
+        )
+        self.assertIn("phase-gated", combined)
+        self.assertIn("Sol", combined)
+        self.assertIn("Terra", combined)
+        self.assertIn("Luna", combined)
+        self.assertIn("gpt-5.6-terra", combined)
+        self.assertIn("gpt-5.6-luna", combined)
+        self.assertIn("$setup-engine", combined)
+        self.assertIn("apply_patch", combined)
+        self.assertIn("exec_command", combined)
+        self.assertIn("activates exactly one", combined)
+        self.assertIn("without asking before every file edit", combined)
+
+    def test_skill_references_use_codex_invocation_syntax(self):
+        names = {
+            path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md")
+        }
+        slash_skill = re.compile(
+            r"(?<![A-Za-z0-9_.-])/("
+            + "|".join(map(re.escape, sorted(names)))
+            + r")\b"
+        )
+        issues = []
+        for path in CODEX_DOCS.rglob("*"):
+            if path.is_file():
+                for match in slash_skill.finditer(path.read_text(encoding="utf-8")):
+                    issues.append(f"{path.relative_to(ROOT)}: /{match.group(1)}")
+        self.assertEqual([], issues)
+
+    def test_codex_doc_references_resolve(self):
+        reference = re.compile(r"`(\.codex/docs/[a-z0-9_./-]+)`")
+        missing = []
+        for path in CODEX_DOCS.rglob("*"):
+            if not path.is_file():
+                continue
+            for relative in reference.findall(path.read_text(encoding="utf-8")):
+                if not (ROOT / relative).exists():
+                    missing.append(f"{path.relative_to(ROOT)} -> {relative}")
+        self.assertEqual([], missing)
+
+
+if __name__ == "__main__":
+    unittest.main()
