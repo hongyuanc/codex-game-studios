@@ -377,6 +377,48 @@ class TestingFrameworkTests(unittest.TestCase):
             self.assertIn(runtime_token, runtime, name)
             self.assertIn(spec_token, spec, name)
 
+    def test_authoring_specs_match_exact_gate_roles_modes_paths_and_finalization(self):
+        architecture = (NEW / "skills/authoring/create-architecture.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "TD-ARCHITECTURE is mandatory in `full`, `phase-gated`, and `solo`",
+            architecture,
+        )
+        self.assertIn(
+            "LP-FEASIBILITY is optional: run it only in `full`",
+            architecture,
+        )
+        self.assertIn("read back and finalize the already assembled document", architecture)
+        self.assertIn("No second whole-document write approval", architecture)
+
+        design = (NEW / "skills/authoring/design-system.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "CD-GDD-ALIGN is optional: run it only in `full`; skip it in `phase-gated` and `solo`",
+            design,
+        )
+        self.assertNotIn("explicitly part of a phase transition", design)
+        self.assertNotIn("limited to an explicit phase transition", design)
+
+        art = (NEW / "skills/authoring/art-bible.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "AD-ART-BIBLE delegates to `art-director` and is optional: run it only in `full`",
+            art,
+        )
+        self.assertNotIn("design/art-bible.md", art)
+        self.assertIn("design/art/art-bible.md", art)
+        asset_spec = (NEW / "skills/utility/asset-spec.md").read_text(encoding="utf-8")
+        self.assertNotIn("design/art-bible.md", asset_spec)
+        self.assertIn("design/art/art-bible.md", asset_spec)
+
+    def test_skill_test_spec_and_rubric_accept_both_approval_workflow_shapes(self):
+        runtime = (ROOT / ".agents/skills/skill-test/SKILL.md").read_text(encoding="utf-8")
+        spec = (NEW / "skills/utility/skill-test.md").read_text(encoding="utf-8")
+        rubric = (NEW / "quality-rubric.md").read_text(encoding="utf-8")
+        for text in (runtime, spec, rubric):
+            self.assertIn("complete approved changeset", text)
+            self.assertIn("sequential bounded section", text)
+            self.assertIn("write only that approved section", text)
+            self.assertIn("per-file or per-line reapproval", text)
+
     def test_framework_core_documents_define_codex_native_protocol(self):
         combined = "\n".join(
             (NEW / name).read_text(encoding="utf-8")

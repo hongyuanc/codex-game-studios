@@ -8,8 +8,8 @@ description: "Use when Codex skill files need structural, behavioral, category, 
 - Ask one decision question per turn and wait for the answer before asking another.
 - Use `request_user_input` for structured choices when it is available; otherwise ask the same concise question directly.
 - Use Codex custom agents by role and profile when delegation is useful.
-- Treat any approved write as one complete proposed changeset. Before writing, present every target path and material edit together; do not add unlisted files or behavior.
-- A new path, expanded scope, or material change requires a revised complete proposed changeset and fresh approval.
+- A writing workflow may use either one complete approved changeset or sequential bounded section approval. In the section pattern, show the draft, obtain explicit section approval, then write only that approved section without per-file or per-line reapproval.
+- A new path, expanded scope, or material change requires fresh approval under the appropriate complete-changeset or bounded-section contract.
 
 ## Validation Boundary
 
@@ -80,11 +80,11 @@ The skill must contain at least one of: `PASS`, `FAIL`, `CONCERNS`, `APPROVED`,
 
 **FAIL** if none are present.
 
-### Check 4 — Complete Changeset Approval
-For a writing workflow, require one complete proposed changeset before edits. It must present every target path and material edit together, and require fresh approval if scope expands.
+### Check 4 — Bounded Write Approval
+For a writing workflow, accept either one complete approved changeset for a multi-file or atomic workflow, or sequential bounded section approval. The section contract must show the draft, obtain explicit section approval, then write only that approved section without per-file or per-line reapproval. A new path or expanded scope requires fresh approval under the appropriate pattern.
 
 **WARN** if absent from a read-only skill that does not explicitly declare its diagnostic boundary.
-**FAIL** if the body directs writes without this bounded approval contract.
+**FAIL** if writes occur before either appropriate approval or if the body permits unapproved scope expansion.
 ### Check 5 — Next-Step Handoff
 The skill must end with a recommended next action or follow-up path. Look for:
 - A final section mentioning another skill (e.g., `$story-done`, `$gate-check`)
@@ -112,7 +112,7 @@ For a single skill:
 Check 1 — Native Skill Contract: PASS
 Check 2 — Multiple Phases:       PASS (7 phases found)
 Check 3 — Verdict Keywords:      PASS (PASS, FAIL, CONCERNS)
-Check 4 — Complete Changeset:    PASS
+Check 4 — Bounded Approval:      PASS
 Check 5 — Next-Step Handoff:     WARN (no follow-up section found)
 Check 6 — Delegation Boundary:   PASS
 Check 7 — Invocation Contract:   PASS
@@ -174,7 +174,7 @@ Mark each assertion:
 - **FAIL** — skill instructions would NOT satisfy this assertion given the fixture
 
 For **Protocol Compliance** assertions (always present):
-- Check whether the skill presents one complete proposed changeset before file writes
+- Check whether the skill uses a complete approved changeset or sequential bounded section contract before file writes
 - Check whether the skill presents findings before requesting approval
 - Check whether the skill ends with a recommended next step
 - Check whether the skill avoids auto-creating files without approval
@@ -199,7 +199,7 @@ Case 2: [Edge Case — name]
   Case Verdict: PASS
 
 Protocol Compliance:
-  [PASS] Uses one complete proposed changeset before file writes
+  [PASS] Uses an appropriate complete-changeset or bounded-section approval before file writes
   [PASS] Presents findings before asking approval
   [WARN] No explicit next-step handoff at end
 

@@ -52,7 +52,7 @@ review specs separately but this is not a gate within this skill.
 
 **Fixture:**
 - `design/gdd/enemies.md` exists with enemy variants defined
-- `design/art-bible.md` exists with color palette and style notes
+- `design/art/art-bible.md` exists with color palette and style notes
 - No existing asset spec for "goblin-enemy"
 
 **Input:** `$asset-spec goblin-enemy`
@@ -82,7 +82,7 @@ review specs separately but this is not a gate within this skill.
 
 **Fixture:**
 - `design/gdd/player.md` exists
-- `design/art-bible.md` does NOT exist
+- `design/art/art-bible.md` does NOT exist
 
 **Input:** `$asset-spec player-sprite`
 

@@ -20,7 +20,7 @@
 cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
 modes, and edge conditions.
 
-The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. Continue sequentially and update session state at the runtime handoff; new paths or scope expansion require fresh approval.
+The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. Continue sequentially, then read back and finalize the already assembled document as a completeness check. No second whole-document write approval or rewrite occurs. New paths, multi-file changes, or non-section scope expansion require a complete approved changeset.
 
 ---
 
@@ -34,21 +34,17 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Draft-before-approval and incremental section writes match the runtime protocol
 - [ ] Has a next-step handoff at the end (`$architecture-review` or `$create-control-manifest`)
 - [ ] Documents skeleton-first approach
-- [ ] Documents gate behavior: TD-ARCHITECTURE + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
+- [ ] Documents gate behavior: TD-ARCHITECTURE is mandatory in every mode; LP-FEASIBILITY is optional in full only
 - [ ] Documents retrofit mode for existing architecture documents
 
 ---
 
 ## Director Gate Checks
 
-In `full` mode: TD-ARCHITECTURE (technical-director) and LP-FEASIBILITY
-(lead-programmer) spawn in parallel after the approved sections have been
-written and before final sign-off.
-
-In `phase-gated` mode: both gates are skipped. Output notes:
-"TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
-
-In `solo` mode: both gates are skipped with equivalent notes.
+TD-ARCHITECTURE is mandatory in `full`, `phase-gated`, and `solo`; it delegates
+to `technical-director` after the approved sections have been written and the
+assembled document has passed read-back. LP-FEASIBILITY is optional: run it only in `full`; skip it in `phase-gated` and `solo`. In full mode the two independent
+reviews may run in parallel.
 
 ---
 
@@ -66,10 +62,10 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Expected behavior:**
 1. Skill identifies `docs/architecture/architecture.md` and presents the first architecture section draft.
 2. Obtain approval, write that approved section immediately, and continue sequentially.
-3. After all scoped sections are written: TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel.
-4. Both gates return APPROVED
-5. The parent asks one explicit completion decision in its own turn.
-6. Session state updated
+3. Read back the assembled document for completeness without a second whole-document write or approval.
+4. TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel.
+5. Both gates return APPROVED.
+6. The later Document Status sign-off update is shown and explicitly approved before that bounded update.
 
 **Assertions:**
 - [ ] Each section is shown and approved before its write
@@ -105,7 +101,7 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 ---
 
-### Case 3: Phase-gated Mode — Gates skipped, incremental writes remain approved
+### Case 3: Phase-gated Mode — Mandatory TD review runs; optional LP review skips
 
 **Fixture:**
 - No existing architecture doc
@@ -116,14 +112,16 @@ In `solo` mode: both gates are skipped with equivalent notes.
 **Expected behavior:**
 1. The current section is drafted and shown inline.
 2. Each section is approved and written immediately before moving to the next.
-3. After completion: TD-ARCHITECTURE and LP-FEASIBILITY are skipped
-4. Output notes: "TD-ARCHITECTURE skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode"
-5. No final atomic rewrite occurs; final sign-off and session-state update follow the completed section cycle.
+3. Read back the assembled document; do not rewrite it or request a second whole-document write approval.
+4. TD-ARCHITECTURE runs because it is mandatory in every review mode.
+5. LP-FEASIBILITY is skipped with: "LP-FEASIBILITY skipped — phase-gated mode".
+6. The later sign-off status update remains separately displayed and approved.
 
 **Assertions:**
-- [ ] Both gate skip notes appear in output
+- [ ] TD-ARCHITECTURE delegates to technical-director
+- [ ] Only the LP-FEASIBILITY skip note appears
 - [ ] No section write occurs before that section's approval
-- [ ] Skill does NOT block completion because gates were skipped
+- [ ] No final whole-document rewrite or duplicate write approval occurs
 - [ ] Next-step handoff is still present
 
 ---
@@ -178,8 +176,9 @@ In `solo` mode: both gates are skipped with equivalent notes.
 
 - [ ] Sections are drafted, approved, and written sequentially
 - [ ] Session state is updated at handoff without redundant approval for the already approved section write
-- [ ] TD-ARCHITECTURE and LP-FEASIBILITY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in phase-gated/solo output
+- [ ] TD-ARCHITECTURE is mandatory in full, phase-gated, and solo modes
+- [ ] LP-FEASIBILITY runs only in full and is skipped by name in phase-gated/solo output
+- [ ] Phase 7 reads back the assembled document without a second whole-document write approval
 - [ ] Proposed ADR references flagged as risks in the document
 - [ ] Ends with next-step handoff: `$architecture-review` or `$create-control-manifest`
 

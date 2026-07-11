@@ -372,6 +372,13 @@ class OperationsSkillTests(unittest.TestCase):
         self.assertIn("does not require a literal `Use when` prefix", skill_test)
         self.assertNotIn("beginning with `Use when`", skill_test)
         self.assertIn("does not judge whether the prose is trigger-oriented", skill_test)
+        self.assertIn(
+            "either one complete approved changeset or sequential bounded section approval",
+            skill_test,
+        )
+        self.assertIn("write only that approved section", skill_test)
+        self.assertIn("without per-file or per-line reapproval", skill_test)
+        self.assertIn("writes occur before either appropriate approval", skill_test)
 
         improve = self.skill_text("skill-improve")
         for phrase in (

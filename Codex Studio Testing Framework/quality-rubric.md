@@ -77,14 +77,14 @@ a single-draft pattern appropriate to their smaller scope.
 
 | Metric | PASS criteria |
 |---|---|
-| **A1 — Section-by-section drafting** | Full authoring skills (design-system, ux-design, art-bible) discuss and approve one section at a time in memory. Lightweight skills may draft the complete document at once. Neither pattern writes during drafting. |
-| **A2 — Complete changeset approval** | Before any edit, the skill presents one complete changeset with every target path and material edit; scope expansion requires a revised proposal and fresh approval |
+| **A1 — Section-by-section drafting** | Full authoring skills discuss and display one section at a time, obtain explicit approval, then write only that approved section. Lightweight skills may draft the complete document at once. |
+| **A2 — Bounded write approval** | A writing workflow uses either a complete approved changeset for multi-file/atomic work or sequential bounded section approval: show the draft, obtain explicit section approval, then write only that approved section without per-file or per-line reapproval. Scope expansion requires fresh approval. |
 | **A3 — Retrofit mode** | Skill detects if the target file already exists and offers to update specific sections rather than overwriting the whole document. Lightweight skills (quick-design) that always create new files are exempt. |
-| **A4 — Director gate at correct tier** | If a director gate is defined for this skill (e.g., CD-GDD-ALIGN, TD-ADR), it runs at the correct mode threshold (full/phase-gated) — NOT in solo |
-| **A5 — In-memory skeleton first** | Full authoring skills draft all section headers in memory before content, then include skeleton and content in the same approved changeset. Lightweight skills are exempt. |
+| **A4 — Director gate at correct tier** | Mandatory gates run in every mode; optional authoring gates run only at their specified threshold. CD-GDD-ALIGN, AD-ART-BIBLE, and LP-FEASIBILITY are full-only; TD-ARCHITECTURE is mandatory in all modes. |
+| **A5 — Skeleton and finalization** | A skeleton write has its own bounded approval. Incremental authoring then writes approved sections without a final atomic rewrite; multi-file or non-section mutations use a complete approved changeset. |
 
-> **Full authoring skills** (must pass all 5 metrics): `design-system`, `ux-design`, `art-bible`
-> **Lightweight authoring skills** (A1, A2, A5 use single-draft pattern; A3 exempt for new-file-only skills): `quick-design`, `architecture-decision`, `create-architecture`
+> **Full authoring skills** (must pass all 5 metrics): `design-system`, `ux-design`, `art-bible`, `create-architecture`
+> **Lightweight authoring skills** (A1, A2, A5 use single-draft pattern; A3 exempt for new-file-only skills): `quick-design`, `architecture-decision`
 > **Review-mode skill** (evaluated against review metrics): `ux-review`
 
 ---

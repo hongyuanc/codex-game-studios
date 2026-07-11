@@ -7,6 +7,7 @@
 - Runtime trigger description: `"Use when Codex skill files need structural, behavioral, category, or coverage validation."`
 - Native invocation: `$skill-test`
 - Discovery contract: YAML frontmatter contains exactly `name` and `description`; `name` equals the skill directory; `description is nonblank`. Static validation does not require a literal `Use when` prefix and does not evaluate whether prose is trigger-oriented.
+- Check 4 accepts either a complete approved changeset or a sequential bounded section contract: show the draft, obtain explicit section approval, then write only that approved section without per-file or per-line reapproval.
 - Structured decisions: when `request_user_input` is appropriate, each call contains 1–3 questions and each question contains 2–3 options. Ask one decision per turn; sequence unrelated decisions across turns.
 - Custom-agent delegation: delegate only to a direct child custom agent. The maximum delegation depth is 1. Each child returns scoped findings and evidence, and the parent agent synthesizes the final result and owns user interaction.
 - Methodology: retain five cases covering the happy path, a blocked/failure path, a mode or boundary variant, an edge case, and delegation/gate behavior.
@@ -62,8 +63,8 @@ must be one complete approved changeset.
 
 **Fixture:**
 - `.agents/skills/example/SKILL.md` has a blank description and a `name` that
-  differs from the `example` directory, and it directs writes without a
-  complete proposed changeset.
+  differs from the `example` directory, and it directs writes without either a
+  complete approved changeset or sequential bounded section approval.
 - The validator reports both issues.
 
 **Input:** `$skill-test static example`
@@ -144,6 +145,7 @@ must be one complete approved changeset.
 - [ ] Maximum delegation depth is 1.
 - [ ] The parent agent synthesizes and presents the result.
 - [ ] Catalog writes remain optional and separately approved.
+- [ ] Check 4 rejects writes before the appropriate complete-changeset or bounded-section approval.
 
 ## Protocol Compliance
 

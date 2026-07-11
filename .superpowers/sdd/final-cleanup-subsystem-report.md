@@ -429,9 +429,10 @@ same filenames.
   against the runtime validator.
 - Every framework agent spec records and is tested against both the exact
   `model` and exact `model_reasoning_effort` in its TOML profile. Framework
-  paths now resolve to real native locations, authoring specs gate one complete
-  changeset before writes, and the framework `$start` cases mirror the runtime
-  project-state and artifact sequence.
+  paths now resolve to real native locations. Authoring specs require either a
+  complete approved changeset for multi-file/atomic work or sequential bounded
+  section approval before a section write; the framework `$start` cases mirror
+  the runtime project-state and artifact sequence.
 - Runtime traversal now covers `assets/`, `src/`, and `prototypes/` in addition
   to the prior roots, rejects file and directory symlinks, and reports
   `os.walk` read failures as validation errors. Tests and the validator itself
@@ -459,6 +460,13 @@ same filenames.
   specs preserve their runtime incremental workflow: present one section,
   obtain section approval, write only that bounded section, then update session
   progress without requesting duplicate per-file approval.
+- Create-architecture reads back and finalizes the already assembled document
+  without a second whole-document write. TD-ARCHITECTURE remains mandatory in
+  every review mode, while LP-FEASIBILITY, CD-GDD-ALIGN, and AD-ART-BIBLE run
+  only in full mode. AD-ART-BIBLE delegates to `art-director`, and the canonical
+  art bible path is `design/art/art-bible.md`.
+- `$skill-test` Check 4 accepts both approved workflow shapes and rejects any
+  write before its appropriate complete-changeset or bounded-section approval.
 - Cross-runtime/framework tests pin these start routing, gate-mode, incremental
   authoring, and structural skill-validation semantics.
 
@@ -473,7 +481,7 @@ reparse-point cases.
 ## Final automated gate
 
 - `python3 -m unittest discover -s tests -v`:
-  **247 tests, OK; zero skips**.
+  **251 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,

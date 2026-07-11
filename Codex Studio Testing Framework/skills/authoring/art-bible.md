@@ -22,6 +22,8 @@ modes, and edge conditions.
 
 The runtime uses bounded incremental authoring. Draft and present one section, obtain approval, then write that approved section to the already identified artifact path. No write occurs before that section approval, and no per-file reapproval is required inside the approved section. Continue sequentially; a new section decision, path, or scope expansion requires fresh approval.
 
+AD-ART-BIBLE delegates to `art-director` and is optional: run it only in `full`; skip it in `phase-gated` and `solo`.
+
 ---
 
 ## Static Assertions (Structural)
@@ -50,14 +52,14 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ### Case 1: Happy Path — Full mode, art bible drafted, AD-ART-BIBLE approves
 
 **Fixture:**
-- No existing `design/art-bible.md`
+- No existing `design/art/art-bible.md`
 - `.codex/studio.toml` contains `full`
 - `design/gdd/game-concept.md` exists with visual tone described
 
 **Input:** `$art-bible`
 
 **Expected behavior:**
-1. Skill identifies `design/art-bible.md`, then discusses and drafts the first section.
+1. Skill identifies `design/art/art-bible.md`, then discusses and drafts the first section.
 2. Present that section, obtain approval, and write it immediately; repeat sequentially for the scoped sections.
 3. After all scoped sections are written, AD-ART-BIBLE is invoked for art-director review.
 4. AD-ART-BIBLE returns APPROVED
@@ -125,7 +127,7 @@ Verified automatically by `$skill-test static` — no fixture needed.
 ### Case 4: Existing Art Bible — Retrofit Mode
 
 **Fixture:**
-- `design/art-bible.md` already exists with all sections populated
+- `design/art/art-bible.md` already exists with all sections populated
 - User wants to update the Character Design Rules section
 
 **Input:** `$art-bible`

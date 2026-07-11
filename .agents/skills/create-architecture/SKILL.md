@@ -5,7 +5,7 @@ description: Author the master technical architecture from approved design requi
 
 ## Codex-native operating rules
 
-Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Before writing, show the complete approved artifact changeset and paths once; then write that approved changeset without per-line prompts.
+Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Each displayed and approved section is its bounded changeset and may be written immediately to the already identified architecture path without per-file or per-line reapproval. Multi-file or non-section changes still require one complete proposed changeset listing every path and material edit before approval.
 
 # Create Architecture
 
@@ -287,16 +287,20 @@ but don't yet. Group by priority:
 
 ---
 
-## Phase 7: Write the Master Architecture Document
+## Phase 7: Finalize the Assembled Architecture Document
 
-Once all sections are approved, write the complete document to
-`docs/architecture/architecture.md`.
+After all scoped sections have been displayed, approved, and written through the
+incremental cycle, read back the already assembled document at
+`docs/architecture/architecture.md`. Verify that the approved content is present,
+the section order matches the structure below, cross-references resolve, and no
+required section is missing or duplicated.
 
-Display a one-paragraph summary of what the document will contain (layers, modules, data flows, ADR gaps). Then ask one concise question and wait for the answer:
-- "All sections approved. May I write the master architecture document?"
-  - [A] Yes — write to `docs/architecture/architecture.md` now
-  - [B] Show me the full draft inline first, then ask again
-  - [C] Not yet — I have more changes to discuss
+Do not rewrite all sections and do not request a second whole-document write
+approval. If the read-back exposes a missing, inconsistent, or incomplete
+section, return only that section to its draft → display → explicit approval →
+bounded write cycle. Once the read-back is complete, report the document as
+assembled and ready for review; finalization is a completeness check, not another
+write.
 
 The document structure:
 
@@ -343,13 +347,17 @@ derived from the game concept, GDDs, and technical preferences]
 
 ## Phase 7b: Technical Director Sign-Off + Lead Programmer Feasibility Review
 
-After writing the master architecture document, perform an explicit sign-off before handoff.
+After finalizing the assembled master architecture document, perform an explicit sign-off before handoff.
 
 **Step 1 — Technical Director strategic review:**
+
+TD-ARCHITECTURE is mandatory in full, lean, and solo modes. Delegate it after
+Phase 7 regardless of optional-review depth.
 
 Delegate the completed architecture to the `technical-director` Sol Codex custom-agent role using gate **TD-ARCHITECTURE** (`.codex/docs/director-gates.md`). Require an evidence-backed verdict against all four gate criteria before proceeding.
 
 **Review mode check** — apply before delegating to LP-FEASIBILITY:
+LP-FEASIBILITY is optional and runs only in full mode.
 - `solo` → skip. Note: "LP-FEASIBILITY skipped — Solo mode." Proceed to Phase 8 handoff.
 - `lean` → skip (not a PHASE-GATE). Note: "LP-FEASIBILITY skipped — Lean mode." Proceed to Phase 8 handoff.
 - `full` → delegate normally.
@@ -358,11 +366,12 @@ Delegate the completed architecture to the `technical-director` Sol Codex custom
 
 Pass: architecture document path, technical requirements baseline summary, ADR list.
 
-**Step 3 — Present both assessments to the user:**
+**Step 3 — Present the available assessments to the user:**
 
-Show the Technical Director assessment and Lead Programmer verdict side by side.
+Always show the Technical Director assessment. In full mode, show the Lead
+Programmer verdict beside it; otherwise show the recorded LP-FEASIBILITY skip.
 
-Ask one concise question and wait for the answer — "Technical Director and Lead Programmer have reviewed the architecture. How would you like to proceed?"
+Ask one concise question and wait for the answer — "The mandatory Technical Director review is complete, and the Lead Programmer review is [complete / skipped for this mode]. How would you like to proceed?"
 Options: `Accept — proceed to handoff` / `Revise flagged items first` / `Discuss specific concerns`
 
 **Step 4 — Record sign-off in the architecture document:**
@@ -370,7 +379,7 @@ Options: `Accept — proceed to handoff` / `Revise flagged items first` / `Discu
 Update the Document Status section:
 ```
 - Technical Director Sign-Off: [date] — APPROVED / APPROVED WITH CONDITIONS
-- Lead Programmer Feasibility: FEASIBLE / CONCERNS ACCEPTED / REVISED
+- Lead Programmer Feasibility: FEASIBLE / CONCERNS ACCEPTED / REVISED / SKIPPED (mode)
 ```
 
 Show the proposed Document Status block inline, then ask one concise question and wait for the answer:
@@ -447,10 +456,11 @@ This skill follows the collaborative design principle at every phase:
 3. **Ask before deciding** — present options for each architectural choice
 4. **Draft before approval** — show the content inline before asking to write it.
    Never ask approval for a section the user has not yet seen.
-5. **Ask one concise question and wait for the answer for write approvals** — plain text "May I?" is not
-   sufficient. Use the structured tool with labeled options [A]/[B]/[C] (write now /
-   show full draft first / not yet). For multi-file changesets, list every file
-   and what changes, then ask once grouped — not separate plain-text asks per file.
+5. **Ask one concise question and wait for the answer for write approvals** — a
+   displayed section and its explicit approval form one bounded section
+   changeset. Write only that section without per-file or per-line reapproval.
+   For multi-file or non-section changesets, list every file and material edit,
+   then ask once for the complete changeset.
 6. **Incremental writing** — write each approved section immediately; do not
    accumulate everything and write at the end. This survives session crashes.
 

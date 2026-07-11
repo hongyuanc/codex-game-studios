@@ -34,18 +34,14 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Each section follows Context → Questions → Options → Decision → Draft → Approval → Write
 - [ ] Has a next-step handoff at the end
 - [ ] Skeleton creation has its own explicit approval; later approved sections are written incrementally
-- [ ] Under `review_mode = "phase-gated"`, per-skill CD-GDD-ALIGN is skipped outside a phase gate
+- [ ] CD-GDD-ALIGN runs only in full mode and is skipped in phase-gated and solo modes
 - [ ] Documents retrofit mode for existing GDD files
 
 ---
 
 ## Director Gate Checks
 
-`.codex/studio.toml` is authoritative. With
-`review_mode = "phase-gated"`, `$design-system` does not run a per-section
-director gate outside a phase transition. This mode choice does not alter the
-runtime section cycle: present one section draft, obtain its approval, write the
-approved section, and update session state before continuing.
+`.codex/studio.toml` is authoritative. CD-GDD-ALIGN is optional: run it only in `full`; skip it in `phase-gated` and `solo`. Phase-gated maps to the runtime's lean optional-review depth, so this non-PHASE gate always skips. The mode choice does not alter the runtime section cycle: present one section draft, obtain its approval, write the approved section, and update session state before continuing.
 
 ---
 
@@ -62,14 +58,14 @@ approved section, and update session state before continuing.
 **Expected behavior:**
 1. Skill presents the skeleton proposal and creates `design/gdd/[system-name].md` only after that proposal is approved.
 2. For each section, discuss with the user and present the complete section draft.
-3. Because this is outside a phase gate, no CD-GDD-ALIGN child is invoked.
+3. CD-GDD-ALIGN is skipped because phase-gated maps to lean optional-review depth.
 4. Obtain explicit approval for that section.
 5. Write the approved section to the identified GDD without a second per-file prompt.
 6. Update the runtime-directed session record, then continue to the next section.
 
 **Assertions:**
 - [ ] Skeleton creation is approved before its write
-- [ ] CD-GDD-ALIGN does not run outside a phase gate
+- [ ] CD-GDD-ALIGN does not run in phase-gated mode
 - [ ] No section is written before that section's approval
 - [ ] No duplicate per-file approval is requested inside the approved section
 - [ ] All 8 sections are present in the final GDD file
@@ -80,6 +76,7 @@ approved section, and update session state before continuing.
 
 **Fixture:**
 - `design/gdd/[system-name].md` already exists with all 8 sections populated
+- `.codex/studio.toml` contains `review_mode = "full"`
 
 **Input:** `$design-system [system-name]`
 
@@ -99,12 +96,12 @@ approved section, and update session state before continuing.
 
 ---
 
-### Case 3: Phase-Gate Boundary — Director feedback blocks the final changeset
+### Case 3: Full Mode — Director feedback blocks the affected section
 
 **Fixture:**
 - New GDD being authored
-- `.codex/studio.toml` contains `review_mode = "phase-gated"`
-- The workflow is explicitly part of a phase transition and CD-GDD-ALIGN returns MAJOR REVISION on the Player Fantasy section
+- `.codex/studio.toml` contains `review_mode = "full"`
+- CD-GDD-ALIGN returns MAJOR REVISION on the Player Fantasy section
 
 **Input:** `$design-system [system-name]`
 
@@ -112,20 +109,20 @@ approved section, and update session state before continuing.
 1. Player Fantasy section is drafted
 2. CD-GDD-ALIGN gate runs and returns MAJOR REVISION with specific feedback
 3. Skill surfaces the feedback to the user
-4. No part of the GDD is written while MAJOR REVISION is unresolved
+4. The affected section is not written while MAJOR REVISION is unresolved
 5. User rewrites the section in collaboration with the skill
 6. CD-GDD-ALIGN runs again on the revised section
 7. After feedback is resolved, present the revised section, obtain approval, write that section, and update session state.
 
 **Assertions:**
-- [ ] No GDD write occurs when CD-GDD-ALIGN returns MAJOR REVISION
+- [ ] No affected-section write occurs while CD-GDD-ALIGN reports MAJOR REVISION
 - [ ] Gate feedback is shown to the user before requesting revision
 - [ ] CD-GDD-ALIGN runs again after the section is revised
 - [ ] Skill does NOT auto-proceed to the next section while MAJOR REVISION is unresolved
 
 ---
 
-### Case 4: Non-Phase Workflow — Director gate skipped; section cycle remains incremental
+### Case 4: Phase-gated Mode — Optional director gate skips; section cycle remains incremental
 
 **Fixture:**
 - New GDD being authored
@@ -135,14 +132,14 @@ approved section, and update session state before continuing.
 
 **Expected behavior:**
 1. The approved skeleton exists and the current section draft is shown to the user.
-2. CD-GDD-ALIGN is not invoked because this is outside a phase gate.
+2. CD-GDD-ALIGN is not invoked because phase-gated maps to lean and the gate is optional.
 3. The current section is approved and written to the GDD.
 4. Session state is updated and the next section begins; no gate review occurs.
 
 **Assertions:**
-- [ ] The phase-gated policy is stated without producing repetitive per-section skip messages
+- [ ] The phase-gated policy records the optional gate skip without repetitive per-section messages
 - [ ] Section approval authorizes exactly that section's write to the identified GDD path
-- [ ] Skill does NOT spawn any CD-GDD-ALIGN gate in a non-phase workflow
+- [ ] Skill does NOT spawn CD-GDD-ALIGN in phase-gated mode
 - [ ] No unrelated section or file is changed
 
 ---
@@ -174,8 +171,8 @@ approved section, and update session state before continuing.
 ## Protocol Compliance
 
 - [ ] Skeleton creation and each section write have their own bounded approval
-- [ ] CD-GDD-ALIGN is limited to an explicit phase transition
-- [ ] Outside a phase gate, no director child is spawned
+- [ ] CD-GDD-ALIGN runs only in full mode
+- [ ] Phase-gated and solo skip this optional non-PHASE gate
 - [ ] Each approved section is written incrementally without redundant per-file approval
 - [ ] MAJOR REVISION from CD-GDD-ALIGN blocks the affected section write until resolved
 - [ ] Only approved, non-empty sections are written to the file

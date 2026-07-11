@@ -189,11 +189,12 @@ Write the approved section to file.
 ## Phase 5: Art Director Sign-Off
 
 **Review mode check** — apply before delegating to AD-ART-BIBLE:
+AD-ART-BIBLE is optional and runs only in full mode.
 - `solo` → skip. Note: "AD-ART-BIBLE skipped — Solo mode." Proceed to Phase 6.
 - `lean` → skip (not a PHASE-GATE). Note: "AD-ART-BIBLE skipped — Lean mode." Proceed to Phase 6.
 - `full` → delegate normally.
 
-After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `creative-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`.codex/docs/director-gates.md`).
+After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`.codex/docs/director-gates.md`).
 
 Pass: art bible file path, game pillars, visual identity anchor.
 

@@ -89,6 +89,38 @@ class DesignSkillTests(unittest.TestCase):
         self.assertNotIn("ask separately after", approval)
         self.assertNotIn("If [A]: ask", approval)
 
+    def test_create_architecture_finalizes_incremental_document_and_runs_required_gate(self):
+        text = self.skill_text("create-architecture")
+        phase_7 = self.skill_section(
+            "create-architecture",
+            "## Phase 7: Finalize the Assembled Architecture Document",
+            "## Phase 7b:",
+        )
+        self.assertIn("Each displayed and approved section is its bounded changeset", text)
+        self.assertIn("read back the already assembled document", phase_7)
+        self.assertIn("Do not rewrite all sections", phase_7)
+        self.assertNotIn("May I write the master architecture document?", phase_7)
+        self.assertIn("TD-ARCHITECTURE is mandatory in full, lean, and solo modes", text)
+        self.assertIn("LP-FEASIBILITY is optional and runs only in full mode", text)
+        self.assertIn(
+            "May I update the Document Status section with the sign-off results?",
+            text,
+        )
+
+    def test_design_and_art_authoring_gates_use_exact_optional_modes_roles_and_path(self):
+        design = self.skill_text("design-system")
+        self.assertIn("CD-GDD-ALIGN is optional and runs only in full mode", design)
+        self.assertIn("`lean` → skip (not a PHASE-GATE)", design)
+
+        art = self.skill_text("art-bible")
+        self.assertIn("AD-ART-BIBLE is optional and runs only in full mode", art)
+        self.assertIn(
+            "delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE**",
+            art,
+        )
+        self.assertNotIn("design/art-bible.md", art)
+        self.assertIn("design/art/art-bible.md", art)
+
     def test_design_review_tracking_decisions_are_sequential(self):
         text = self.skill_text("design-review")
         self.assertIn("Ask the systems-index decision first and wait for the answer", text)

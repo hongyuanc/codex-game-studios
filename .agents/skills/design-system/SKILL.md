@@ -686,6 +686,7 @@ the source of truth). Verify:
 ### 5a-bis: Creative Director Pillar Review
 
 **Review mode check** — apply before delegating to CD-GDD-ALIGN:
+CD-GDD-ALIGN is optional and runs only in full mode.
 - `solo` → skip. Note: "CD-GDD-ALIGN skipped — Solo mode." Proceed to Step 5b.
 - `lean` → skip (not a PHASE-GATE). Note: "CD-GDD-ALIGN skipped — Lean mode." Proceed to Step 5b.
 - `full` → delegate normally.
