@@ -44,13 +44,25 @@ Second hardening review:
 
 Final destructive-Git parser review:
 
-- RED: eight focused regression methods reproduced 23 failures and one error across unique
+- RED: eight focused regression methods reproduced 23 failures and one error
+  across unique
   long-option abbreviations, Git aliases, wrapper option operands, quote-aware
   variable expansion, recursion fallback, broad protected pushes, and push
   option values.
 - GREEN: all 51 hook tests pass. The cases use temporary Git repositories for
   ordinary, shell, commit, dry-run, chained, looping, inline `-c`, and compact
   `-c` aliases, plus forced parser-failure and deep-recursion paths.
+
+Final ambiguous-execution policy review:
+
+- RED: eight focused methods reproduced 57 assertion failures and one
+  missing-advisory error across embedded variable quoting, abbreviated dynamic
+  subcommands, wrappers, Windows command forms, help/value parsing, unknown
+  aliases, matching refspecs, and the raw/depth fallback.
+- GREEN: all 53 hook tests pass. Unknown aliases and git-* extensions now block
+  consistently across HOME, `cd`, `env`, `sudo`, `-C`, Git-dir/work-tree, and
+  recursion contexts; explicit inline `-c alias.name=value` aliases remain
+  expandable when their complete value can be inspected.
 
 ## Nested Instruction Coverage
 
@@ -98,7 +110,8 @@ agent stop and stop carry their current result/stop fields.
 
 ## Command Safety
 
-The Bash guard uses recursive `shlex` tokenization plus explicit command
+The Bash guard deliberately does not emulate arbitrary shell, HOME, user, cwd,
+or Git-config environments. It uses recursive `shlex` tokenization plus explicit command
 boundaries, quote/comment handling, normalized quoted/escaped heredoc
 delimiters, shell control prefixes, POSIX and PowerShell continuation
 normalization, simple literal assignment expansion, and structured Git
@@ -108,24 +121,36 @@ global-option parsing. It:
   refspecs with exit 2.
 - Recognizes real Git invocations after `-C`, `-c`, `--git-dir`, `--work-tree`,
   other supported global options, quoted tokens, and shell boundaries.
+- Maintains an explicit built-in allowlist. Direct known built-ins are analyzed
+  precisely; every unknown subcommand, possible configured alias, git-* extension,
+  `--config-env=alias.*` execution, or unresolved destructive dynamic form blocks
+  with instructions to rerun an explicit direct Git built-in command.
 - Applies Git-compatible unique long-option abbreviation matching. Ambiguous
   prefixes remain unrecognized; abbreviations such as `--har`, `--for`,
   `--mir`, `--force-with-l`, `--force-if-i`, and `--dry-r` are classified.
-- Resolves selected aliases from inline `git -c alias.name=value` overrides and
-  repository Git config, recursively handling ordinary and `!` shell aliases,
-  commit aliases, loops, depth limits, and config read failures. Alias lookup
-  preserves `-C`, `--git-dir`, and `--work-tree` repository context.
+- Expands only self-contained inline `git -c alias.name=value` overrides when
+  their complete ordinary or `!` shell value can be inspected. It never reads
+  repository or user alias configuration; configured aliases, loops, depth
+  failures, and context-dependent execution fail closed as ambiguous.
 - Recursively inspects literal backticks, `$()` substitutions, `bash -c`,
   `sh -c`, `zsh -c`, and `eval`. Unquoted literal variables undergo shell word
-  splitting while quoted expansions remain one executable token.
+  splitting while quoted expansions remain one executable token. Embedded
+  double-quoted expansions are resolved or marked dynamic; single-quoted and
+  escaped dollar literals remain inert.
 - Parses `env`, `sudo`, `command`, `builtin`, and `exec` wrappers with explicit
   option-value tables, including split execution through `env -S` and the
   `exec -a` display-name operand; `command -v`, `-V`, and `--version` are
   inspection-only.
+- Parses `time`, `nice`, and `timeout` wrapper operands, recognizes Windows
+  basenames with either slash style and PowerShell's call operator, and removes
+  PowerShell `--%` before native Git argument analysis. `builtin git ...` is
+  correctly treated as non-executing.
 - Recognizes `git` and `git.exe` case-insensitively. Ambiguous dynamic execution
   with destructive Git intent fails closed.
 - Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
 - Treats dry-run/force flags as options only before `--`, skipping option values.
+- Treats reset/clean `-h` and `--help` as terminal, and consumes reset
+  `--pathspec-from-file` operands so option-looking values do not false-block.
 - On parser recursion/failure, performs a separately bounded structured
   classification before falling back to conservative blocking, so reset,
   clean, force/mirror push, and aliases fail closed while valid dry-runs remain
@@ -135,7 +160,7 @@ global-option parsing. It:
   complete, including parser recursion and deterministic type/value failures;
   invalid staged JSON also blocks.
 - Warns for protected destinations including simple branches,
-  `HEAD:main`, wildcard/matching destinations, and `--all`, `--branches`, or
+  `HEAD:main`, `:`, `+:`, wildcard/matching destinations, and `--all`, `--branches`, or
   dry-run `--mirror`; a tags-only push does not imply the current branch.
 - Skips operands for `--recurse-submodules`, `--receive-pack`, `--push-option`,
   and `-o` when determining modes, remotes, and refspec destinations.
@@ -185,7 +210,7 @@ find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
 git ls-files .claude/hooks .claude/settings.json
 ```
 
-Final evidence: 54 focused and 128 studio tests pass; JSON/Python and whitespace
+Final evidence: 56 focused and 130 studio tests pass; JSON/Python and whitespace
 checks pass; runtime forbidden scans return no matches; neither hook tree
 contains shell scripts; the tracked legacy hook/settings inventory is empty.
 
@@ -195,6 +220,4 @@ None blocking. The cross-platform component checks materially reduce path escape
 risk, but they are pre-open checks rather than an atomic no-follow open. A
 filesystem entry could theoretically change between `lstat` and read/open
 (TOCTOU); Python's portable standard-library APIs do not provide one atomic
-no-follow primitive across POSIX and Windows. Public hook/setup documentation
-still describes the legacy shell inventory and remains intentionally assigned
-to the approved documentation and cleanup subsystem.
+no-follow primitive across POSIX and Windows.

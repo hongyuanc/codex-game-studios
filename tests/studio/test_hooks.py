@@ -256,6 +256,11 @@ class HookParserTests(unittest.TestCase):
             'g=$(unknown); "$g" reset --hard',
             '"${tool}" push --force origin feature',
             "git $(unknown) --hard",
+            'g=gi; "${g}t" reset --har',
+            '"${tool}.exe" reset --har',
+            'git "${mode}" --har',
+            'git "${mode}" --for -d',
+            'git "${mode}" --mir origin',
         ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
@@ -264,6 +269,19 @@ class HookParserTests(unittest.TestCase):
                     ROOT,
                 )
                 self.assertEqual(2, result.exit_code)
+
+        for command in (
+            "'$tool' reset --hard",
+            r"\$tool reset --hard",
+            "echo '$tool reset --hard'",
+            r'echo "\$tool reset --hard"',
+            'git "${mode}" --help --har',
+        ):
+            with self.subTest(inert=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
 
     def test_dry_run_flags_after_double_dash_do_not_disable_blocking(self):
         for command in (
@@ -325,7 +343,20 @@ class HookParserTests(unittest.TestCase):
             "env -S'git clean -fd'",
             "env --split-string='sudo -u user git clean -fd'",
             "exec -a codex-git git push -f origin feature",
+            "time -p git reset --hard",
+            "/usr/bin/time -f format git clean -fd",
+            "nice -n 5 git push -f origin feature",
+            "timeout -k 1s 5s git reset --hard",
+            '"C:\\Program Files\\Git\\cmd\\git.exe" reset --hard',
+            r"C:\Git\bin\git.exe reset --hard",
+            '& "C:\\Program Files\\Git\\cmd\\git.exe" clean -fd',
+            "git --% reset --hard",
+            "git reset --% --hard",
             "command -- git clean -fd",
+            "command -p git reset --hard",
+            "builtin command git clean -fd",
+            "builtin exec git reset --hard",
+            "builtin eval 'git clean -fd'",
         )
         for command in destructive:
             with self.subTest(command=command):
@@ -338,12 +369,38 @@ class HookParserTests(unittest.TestCase):
             "command -v git reset --hard",
             "command -V git clean -fd",
             "command --version git push -f origin feature",
+            "command -p -v git reset --hard",
+            "command -pv git clean -fd",
+            "command -pV git push -f origin feature",
+            "builtin git reset --hard",
         ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
                     "validate-command", {"tool_input": {"command": command}}, ROOT
                 )
                 self.assertEqual(0, result.exit_code)
+
+    def test_reset_and_clean_help_and_option_values_are_terminal_or_consumed(self):
+        for command in (
+            "git reset -h --hard",
+            "git reset --help --hard",
+            "git clean -h -fd",
+            "git clean --help --force",
+            "git reset --pathspec-from-file --hard",
+            "git reset --pathspec-from-file=--hard",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+        destructive = HOOKS.handle(
+            "validate-command",
+            {"tool_input": {"command": "git reset --pathspec-from-file paths --hard"}},
+            ROOT,
+        )
+        self.assertEqual(2, destructive.exit_code)
 
     def test_variable_expansion_respects_shell_word_splitting_and_quotes(self):
         destructive = (
@@ -374,6 +431,9 @@ class HookParserTests(unittest.TestCase):
             "git clean --for -d": 2,
             "git push --mir origin": 2,
             "git clean --dry-r --for -d": 0,
+            "git reset --help --har": 0,
+            "git mystery": 2,
+            'git "${mode}" --har': 2,
         }
         for inner, expected in commands.items():
             nested = inner
@@ -395,6 +455,18 @@ class HookParserTests(unittest.TestCase):
                     )
                     self.assertEqual(expected, result.exit_code)
 
+            for command in (
+                "echo 'git reset --har'",
+                "# git mystery",
+                "cat <<'EOF'\ngit clean --for -d\nEOF",
+                'echo "git reset --hard"',
+            ):
+                with self.subTest(conservative_inert=command):
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                    self.assertEqual(0, result.exit_code)
+
         with mock.patch.object(
             HOOKS, "git_invocations", side_effect=RecursionError("primary failure")
         ), mock.patch.object(
@@ -406,6 +478,17 @@ class HookParserTests(unittest.TestCase):
                         "validate-command", {"tool_input": {"command": command}}, ROOT
                     )
                     self.assertEqual(expected, result.exit_code)
+            for command in (
+                "echo 'git reset --har'",
+                "# git mystery",
+                "cat <<'EOF'\ngit clean --for -d\nEOF",
+                'echo "git reset --hard"',
+            ):
+                with self.subTest(raw_inert=command):
+                    result = HOOKS.handle(
+                        "validate-command", {"tool_input": {"command": command}}, ROOT
+                    )
+                    self.assertEqual(0, result.exit_code)
 
     def test_all_real_commit_forms_invoke_staged_validation(self):
         commands = (
@@ -557,7 +640,7 @@ class HookBehaviorTests(unittest.TestCase):
                 self.assertEqual(2, result.exit_code)
                 self.assertIn("staged", result.stderr.lower())
 
-    def test_git_aliases_are_resolved_from_inline_and_repository_config(self):
+    def test_configured_aliases_block_while_inline_aliases_are_proven(self):
         temporary, root = self.make_root()
         self.addCleanup(temporary.cleanup)
         aliases = {
@@ -576,27 +659,22 @@ class HookBehaviorTests(unittest.TestCase):
                 check=True,
             )
 
-        for command in ("git nuke", "git scrub", "git ship", "git boom"):
+        for command in (
+            "git nuke",
+            "git scrub",
+            "git ship",
+            "git boom",
+            "git preview",
+            "git shellpreview",
+            "git st",
+            "git ci -m test",
+        ):
             with self.subTest(command=command):
                 result = HOOKS.handle(
                     "validate-command", {"tool_input": {"command": command}}, root
                 )
                 self.assertEqual(2, result.exit_code)
-
-        for command in ("git preview", "git shellpreview", "git st"):
-            with self.subTest(command=command):
-                result = HOOKS.handle(
-                    "validate-command", {"tool_input": {"command": command}}, root
-                )
-                self.assertEqual(0, result.exit_code)
-
-        blocked = HOOKS.HookResult(2, stderr="alias commit sentinel\n")
-        with mock.patch.object(HOOKS, "_validate_commit", return_value=blocked) as validator:
-            result = HOOKS.handle(
-                "validate-command", {"tool_input": {"command": "git ci -m test"}}, root
-            )
-        self.assertEqual(2, result.exit_code)
-        validator.assert_called_once_with(root)
+                self.assertIn("explicit direct Git", result.stderr)
 
         inline = (
             "git -c 'alias.nuke=reset --hard' nuke",
@@ -609,6 +687,27 @@ class HookBehaviorTests(unittest.TestCase):
                     "validate-command", {"tool_input": {"command": command}}, root
                 )
                 self.assertEqual(2, result.exit_code)
+
+        for command in (
+            "git -c alias.st=status st",
+            "git -c 'alias.preview=clean -fdn' preview",
+            "git -C . -c alias.st=status st",
+        ):
+            with self.subTest(inline_safe=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(0, result.exit_code)
+
+        blocked = HOOKS.HookResult(2, stderr="inline commit sentinel\n")
+        with mock.patch.object(HOOKS, "_validate_commit", return_value=blocked) as validator:
+            inline_commit = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git -c alias.ci=commit ci -m test"}},
+                root,
+            )
+        self.assertEqual(2, inline_commit.exit_code)
+        validator.assert_called_once_with(root)
 
         with mock.patch.object(
             HOOKS, "git_invocations", side_effect=RecursionError("forced parser failure")
@@ -627,8 +726,8 @@ class HookBehaviorTests(unittest.TestCase):
             )
         self.assertEqual(2, destructive_alias.exit_code)
         self.assertEqual(2, destructive_shell_alias.exit_code)
-        self.assertEqual(0, dry_alias.exit_code)
-        self.assertEqual(0, dry_shell_alias.exit_code)
+        self.assertEqual(2, dry_alias.exit_code)
+        self.assertEqual(2, dry_shell_alias.exit_code)
 
     def test_git_alias_loops_depth_and_config_failures_do_not_bypass_or_crash(self):
         temporary, root = self.make_root()
@@ -638,8 +737,8 @@ class HookBehaviorTests(unittest.TestCase):
         loop = HOOKS.handle(
             "validate-command", {"tool_input": {"command": "git a"}}, root
         )
-        self.assertEqual(0, loop.exit_code)
-        self.assertIn("alias", loop.stdout.lower())
+        self.assertEqual(2, loop.exit_code)
+        self.assertIn("explicit direct Git", loop.stderr)
 
         chain_length = HOOKS.MAX_ALIAS_RECURSION + 2
         for index in range(chain_length):
@@ -658,10 +757,10 @@ class HookBehaviorTests(unittest.TestCase):
             unreadable = HOOKS.handle(
                 "validate-command", {"tool_input": {"command": "git unknown"}}, root
             )
-        self.assertEqual(0, unreadable.exit_code)
-        self.assertIn("alias", unreadable.stdout.lower())
+        self.assertEqual(2, unreadable.exit_code)
+        self.assertIn("explicit direct Git", unreadable.stderr)
 
-    def test_git_alias_lookup_honors_git_repository_context_options(self):
+    def test_repository_context_aliases_are_ambiguous_and_blocked(self):
         temporary, root = self.make_root()
         self.addCleanup(temporary.cleanup)
         other = root / "other"
@@ -691,7 +790,60 @@ class HookBehaviorTests(unittest.TestCase):
             {"tool_input": {"command": "git -Cother scrub"}},
             root,
         )
-        self.assertEqual(0, invalid_compact.exit_code)
+        self.assertEqual(2, invalid_compact.exit_code)
+        self.assertIn("explicit direct Git", invalid_compact.stderr)
+
+    def test_unknown_git_execution_blocks_across_environment_and_contexts(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        other = root / "other"
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        ambiguous = (
+            "git mystery",
+            "git Status",
+            "git ReSeT --hard",
+            "HOME=/tmp git mystery",
+            "env HOME=/tmp git mystery",
+            "sudo -u user git mystery",
+            "cd other && git mystery",
+            "git -C other mystery",
+            "git --git-dir=other/.git --work-tree=other mystery",
+            "git --config-env=alias.mystery=ALIAS_VALUE mystery",
+        )
+        for command in ambiguous:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("explicit direct Git", result.stderr)
+
+        known = (
+            "git status",
+            "git rev-parse --show-toplevel",
+            "git maintenance run",
+            "git -C other status",
+            "env HOME=/tmp git status",
+            "sudo -u user git status",
+        )
+        for command in known:
+            with self.subTest(known=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, root
+                )
+                self.assertEqual(0, result.exit_code)
+
+        inline_loop = HOOKS.handle(
+            "validate-command",
+            {
+                "tool_input": {
+                    "command": "git -c alias.a=b -c alias.b=a a"
+                }
+            },
+            root,
+        )
+        self.assertEqual(2, inline_loop.exit_code)
+        self.assertIn("explicit direct Git", inline_loop.stderr)
 
     def test_recursion_and_parser_failures_block_recognized_commits(self):
         for failure in (
@@ -799,6 +951,7 @@ class HookBehaviorTests(unittest.TestCase):
             "git push --all origin",
             "git push --branches origin",
             "git push --dry-run --mirror origin",
+            "git push --dry-run origin '+:'",
             "git push origin 'refs/heads/*:refs/heads/*'",
             "git push origin ':'",
             "git push origin 'feature:refs/heads/*'",
