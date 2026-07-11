@@ -6,7 +6,6 @@ import dataclasses
 import json
 import pathlib
 import re
-import shlex
 import tomllib
 
 
@@ -110,23 +109,20 @@ def _runtime_hook_contract() -> tuple[set[str], set[str]]:
 
 
 def _posix_hook_action(command: str) -> str | None:
-    try:
-        tokens = shlex.split(command, posix=True)
-    except ValueError:
-        return None
-    if len(tokens) != 3 or pathlib.PurePosixPath(tokens[0]).name not in {"python", "python3"}:
-        return None
-    if tokens[1] != "$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py":
-        return None
-    return tokens[2] if re.fullmatch(r"[a-z][a-z-]*", tokens[2]) else None
+    match = re.fullmatch(
+        r'python3 "\$\(git rev-parse --show-toplevel\)/\.codex/hooks/hook_runner\.py" ([a-z][a-z-]*)',
+        command,
+    )
+    return match.group(1) if match else None
 
 
 def _windows_hook_action(command: str) -> str | None:
-    matches = re.findall(
-        r"\.codex/hooks/hook_runner\.py[^A-Za-z0-9-]+([a-z][a-z-]*)(?=[\s\"']|$)",
-        command,
+    prefix = (
+        "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; "
+        "py -3 ($root + '/.codex/hooks/hook_runner.py') "
     )
-    return matches[0] if len(matches) == 1 else None
+    match = re.fullmatch(re.escape(prefix) + r"([a-z][a-z-]*)" + re.escape('"'), command)
+    return match.group(1) if match else None
 
 
 def validate_hooks(path: pathlib.Path) -> list[ValidationIssue]:

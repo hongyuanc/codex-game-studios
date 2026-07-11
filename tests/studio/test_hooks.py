@@ -1,9 +1,11 @@
 from importlib.util import module_from_spec, spec_from_file_location
 import json
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -52,6 +54,37 @@ FIXTURE_EVENTS = {
     "subagent-start": "SubagentStart",
     "subagent-stop": "SubagentStop",
     "stop": "Stop",
+}
+COMMON_FIXTURE_FIELDS = {"session_id", "transcript_path", "cwd", "hook_event_name", "model"}
+FIXTURE_FIELDS = {
+    "session-start": COMMON_FIXTURE_FIELDS | {"permission_mode", "source"},
+    "pre-tool-bash": COMMON_FIXTURE_FIELDS
+    | {"turn_id", "permission_mode", "tool_name", "tool_use_id", "tool_input"},
+    "post-tool-patch": COMMON_FIXTURE_FIELDS
+    | {
+        "turn_id",
+        "permission_mode",
+        "tool_name",
+        "tool_use_id",
+        "tool_input",
+        "tool_response",
+    },
+    "pre-compact": COMMON_FIXTURE_FIELDS | {"turn_id", "trigger"},
+    "post-compact": COMMON_FIXTURE_FIELDS | {"turn_id", "trigger"},
+    "subagent-start": COMMON_FIXTURE_FIELDS
+    | {"turn_id", "permission_mode", "agent_id", "agent_type"},
+    "subagent-stop": COMMON_FIXTURE_FIELDS
+    | {
+        "turn_id",
+        "permission_mode",
+        "agent_id",
+        "agent_type",
+        "agent_transcript_path",
+        "last_assistant_message",
+        "stop_hook_active",
+    },
+    "stop": COMMON_FIXTURE_FIELDS
+    | {"turn_id", "permission_mode", "last_assistant_message", "stop_hook_active"},
 }
 
 
@@ -164,6 +197,90 @@ class HookParserTests(unittest.TestCase):
                 )
                 self.assertEqual(0, result.exit_code)
 
+    def test_recursive_literal_execution_and_variable_expansions_are_blocked(self):
+        destructive = (
+            "echo `git reset --hard`",
+            "echo $(git clean -fd)",
+            "bash -c 'git push -f origin feature'",
+            'sh -c "git reset --hard"',
+            "eval 'git clean -fd'",
+            'g=git; "$g" reset --hard',
+            "g=Git.ExE; $g push origin +feature:main",
+            "GIT.EXE reset --hard",
+            "git.exe `printf reset` --hard",
+            "git.exe `\n reset --hard",
+        )
+        for command in destructive:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(2, result.exit_code)
+
+    def test_recursive_parser_preserves_inert_quoted_and_heredoc_text(self):
+        inert = (
+            "echo '$(git reset --hard)'",
+            "printf '%s' '`git clean -fd`'",
+            "bash -c 'echo git reset --hard'",
+            "eval 'echo git clean -fd'",
+            'g=echo; "$g" git reset --hard',
+            "echo \"$(printf 'git reset --hard')\"",
+            "cat <<'EOF'\ngit reset --hard\nEOF\necho done",
+            'cat <<E"OF"\ngit clean -fd\nEOF\necho done',
+            '"${tool}" status',
+            '"${tool}" push --dry-run --force origin feature',
+            'g=$(unknown); "$g" --version',
+        )
+        for command in inert:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_escaped_heredoc_delimiter_does_not_hide_following_command(self):
+        command = "cat <<\\EOF\ngit reset --hard\nEOF\ngit clean -fd"
+        result = HOOKS.handle(
+            "validate-command",
+            {"tool_input": {"command": command}},
+            ROOT,
+        )
+        self.assertEqual(2, result.exit_code)
+
+    def test_ambiguous_dynamic_destructive_git_intent_fails_closed(self):
+        for command in (
+            'g=$(unknown); "$g" reset --hard',
+            '"${tool}" push --force origin feature',
+            "git $(unknown) --hard",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(2, result.exit_code)
+
+    def test_dry_run_flags_after_double_dash_do_not_disable_blocking(self):
+        for command in (
+            "git clean -f -- -n",
+            "git push -f -- -n",
+            "git push --force origin -- -n",
+            "git push --push-option -n --force origin feature",
+            "git clean --exclude -n -f",
+        ):
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(2, result.exit_code)
+
     def test_all_real_commit_forms_invoke_staged_validation(self):
         commands = (
             "git commit -m test",
@@ -215,6 +332,39 @@ class HookParserTests(unittest.TestCase):
             "tool_input": {"file_path": "assets/staging/../data/items.json"},
         }
         self.assertEqual(set(), HOOKS.repository_paths(event, ROOT))
+
+    def test_malformed_and_nul_paths_fail_open_without_crashing(self):
+        for value in (
+            "assets/data/bad\x00name.json",
+            "\x00",
+            "assets/\udcff.json",
+            123,
+            ["assets/data/items.json"],
+            {"path": "assets/data/items.json"},
+        ):
+            event = {"tool_name": "Write", "tool_input": {"file_path": value}}
+            with self.subTest(value=repr(value)):
+                self.assertEqual(set(), HOOKS.repository_paths(event, ROOT))
+                result = HOOKS.handle("validate-assets", event, ROOT)
+                self.assertEqual(0, result.exit_code)
+                self.assertIn("unsafe", result.stdout.lower())
+
+    def test_windows_reparse_and_name_surrogate_metadata_is_rejected(self):
+        ordinary = SimpleNamespace(st_mode=stat.S_IFREG, st_file_attributes=0, st_reparse_tag=0)
+        reparse_attribute = SimpleNamespace(
+            st_mode=stat.S_IFREG,
+            st_file_attributes=0x400,
+            st_reparse_tag=0,
+        )
+        junction_tag = SimpleNamespace(
+            st_mode=stat.S_IFDIR,
+            st_file_attributes=0,
+            st_reparse_tag=0xA0000003,
+        )
+        self.assertFalse(HOOKS._is_link_or_reparse(ordinary))
+        self.assertTrue(HOOKS._is_link_or_reparse(reparse_attribute))
+        self.assertTrue(HOOKS._is_link_or_reparse(junction_tag))
+        self.assertFalse(HOOKS._is_link_or_reparse((ROOT / "AGENTS.md").lstat()))
 
 
 class HookBehaviorTests(unittest.TestCase):
@@ -281,6 +431,36 @@ class HookBehaviorTests(unittest.TestCase):
                 self.assertEqual(2, result.exit_code)
                 self.assertIn("staged", result.stderr.lower())
 
+    def test_recursion_and_parser_failures_block_recognized_commits(self):
+        for failure in (
+            RecursionError("nested command limit"),
+            ValueError("malformed shell"),
+            TypeError("invalid parser token"),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                with mock.patch.object(HOOKS, "git_invocations", side_effect=failure):
+                    result = HOOKS.handle(
+                        "validate-command",
+                        {"tool_input": {"command": "git.exe -C . commit -m test"}},
+                        ROOT,
+                    )
+                self.assertEqual(2, result.exit_code)
+                self.assertIn("parser", result.stderr.lower())
+
+        with mock.patch.object(HOOKS, "_staged_paths", side_effect=RecursionError("loop")):
+            staged = HOOKS._validate_commit(ROOT)
+        self.assertEqual(2, staged.exit_code)
+        self.assertIn("staged", staged.stderr.lower())
+
+        with mock.patch.object(HOOKS, "git_invocations", side_effect=ValueError("malformed")):
+            dynamic = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": '"${tool}" reset --hard "unterminated'}},
+                ROOT,
+            )
+        self.assertEqual(2, dynamic.exit_code)
+        self.assertIn("parser", dynamic.stderr.lower())
+
     def test_commit_quality_findings_warn_without_blocking(self):
         temporary, root = self.make_root()
         self.addCleanup(temporary.cleanup)
@@ -315,6 +495,74 @@ class HookBehaviorTests(unittest.TestCase):
         )
         self.assertEqual(0, result.exit_code)
         self.assertIn("protected branch", json.loads(result.stdout)["systemMessage"])
+
+    def test_protected_push_parser_skips_options_values_and_remote(self):
+        safe = (
+            "git push main feature",
+            "git push --receive-pack main origin feature",
+            "git push --push-option main origin feature",
+            "git push --push-option=main origin feature",
+            "git push --push-option +not-a-refspec origin feature",
+            "git push -o main origin feature",
+            "git push --repo main feature",
+            "git push -- main feature",
+        )
+        for command in safe:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(0, result.exit_code)
+                self.assertEqual("", result.stdout)
+
+        protected = (
+            "git push --receive-pack helper origin HEAD:main",
+            "git push -- origin HEAD:refs/heads/main",
+            "git push -o ci.skip origin feature:refs/heads/master",
+        )
+        for command in protected:
+            with self.subTest(command=command):
+                result = HOOKS.handle(
+                    "validate-command",
+                    {"tool_input": {"command": command}},
+                    ROOT,
+                )
+                self.assertEqual(0, result.exit_code)
+                self.assertIn("protected branch", json.loads(result.stdout)["systemMessage"])
+
+    def test_compound_commands_combine_commit_and_all_push_advisories(self):
+        commit_warning = HOOKS._system_message("commit advisory")
+        with mock.patch.object(HOOKS, "_validate_commit", return_value=commit_warning):
+            result = HOOKS.handle(
+                "validate-command",
+                {
+                    "tool_input": {
+                        "command": (
+                            "git commit -m test; "
+                            "git push origin HEAD:main; "
+                            "git push origin HEAD:master"
+                        )
+                    }
+                },
+                ROOT,
+            )
+        self.assertEqual(0, result.exit_code)
+        message = json.loads(result.stdout)["systemMessage"]
+        self.assertIn("commit advisory", message)
+        self.assertIn("'main'", message)
+        self.assertIn("'master'", message)
+
+    def test_any_compound_block_wins_over_advisories(self):
+        with mock.patch.object(HOOKS, "_validate_commit", return_value=HOOKS._system_message("commit advisory")):
+            result = HOOKS.handle(
+                "validate-command",
+                {"tool_input": {"command": "git commit -m test; git push -f origin feature"}},
+                ROOT,
+            )
+        self.assertEqual(2, result.exit_code)
+        self.assertIn("blocked", result.stderr.lower())
 
     def test_asset_and_skill_checks_are_advisory_json(self):
         temporary, root = self.make_root()
@@ -513,20 +761,9 @@ class HookConfigurationTests(unittest.TestCase):
                 )
             )
             with self.subTest(fixture=name):
-                self.assertTrue(
-                    {"session_id", "transcript_path", "cwd", "hook_event_name", "model", "permission_mode"}
-                    <= set(fixture)
-                )
+                self.assertEqual(FIXTURE_FIELDS[name], set(fixture))
                 self.assertEqual(FIXTURE_EVENTS[name], fixture["hook_event_name"])
                 fixture_events.add(fixture["hook_event_name"])
-                if fixture["hook_event_name"] == "PostToolUse":
-                    self.assertIn("tool_response", fixture)
-                if fixture["hook_event_name"] == "Stop":
-                    self.assertIn("last_assistant_message", fixture)
-                    self.assertIn("stop_hook_active", fixture)
-                if fixture["hook_event_name"] == "SubagentStop":
-                    self.assertIn("agent_transcript_path", fixture)
-                    self.assertIn("last_assistant_message", fixture)
         self.assertEqual(EXPECTED_EVENTS, fixture_events)
 
     def test_tool_matchers_include_all_codex_aliases(self):
@@ -632,6 +869,27 @@ class HookConfigurationTests(unittest.TestCase):
                     path.write_text(json.dumps(config), encoding="utf-8")
                     messages = "\n".join(issue.message for issue in VALIDATE.validate_hooks(path))
                     self.assertIn(expected, messages)
+
+    def test_validator_requires_exact_anchored_platform_templates(self):
+        mutations = (
+            ("command", lambda value: value.replace("python3 ", "/usr/bin/python3 ", 1)),
+            ("command", lambda value: "echo " + value),
+            ("command", lambda value: value + "; echo spoof"),
+            ("commandWindows", lambda value: value.replace("powershell ", "pwsh ", 1)),
+            ("commandWindows", lambda value: "echo spoof; " + value),
+            ("commandWindows", lambda value: value[:-1] + "; Write-Host spoof\""),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (field, mutate) in enumerate(mutations):
+                with self.subTest(field=field, index=index):
+                    config = json.loads(json.dumps(self.config))
+                    handler = config["hooks"]["Stop"][0]["hooks"][0]
+                    handler[field] = mutate(handler[field])
+                    path = Path(directory) / f"template-{index}.json"
+                    path.write_text(json.dumps(config), encoding="utf-8")
+                    messages = "\n".join(issue.message for issue in VALIDATE.validate_hooks(path))
+                    self.assertIn("invalid", messages.lower())
+                    self.assertIn("runner invocation", messages)
 
     def test_tracked_legacy_hook_and_settings_inventory_is_removed(self):
         self.assertFalse((ROOT / ".claude/settings.json").exists())

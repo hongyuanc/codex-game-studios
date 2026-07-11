@@ -1,11 +1,11 @@
 {
   "session_id": "session-test-001",
   "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
+  "turn_id": "turn-test-001",
   "cwd": "/repo",
   "hook_event_name": "SubagentStart",
   "model": "gpt-5.6",
   "permission_mode": "default",
   "agent_id": "agent-test-001",
-  "agent_type": "gameplay-programmer",
-  "agent_transcript_path": "/repo/.codex/transcripts/agent-test-001.jsonl"
+  "agent_type": "gameplay-programmer"
 }

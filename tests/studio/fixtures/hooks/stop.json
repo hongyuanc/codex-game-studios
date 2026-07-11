@@ -1,6 +1,7 @@
 {
   "session_id": "session-test-001",
   "transcript_path": "/repo/.codex/transcripts/session-test-001.jsonl",
+  "turn_id": "turn-test-001",
   "cwd": "/repo",
   "hook_event_name": "Stop",
   "model": "gpt-5.6-terra",

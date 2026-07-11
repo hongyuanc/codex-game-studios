@@ -32,6 +32,16 @@ Critical/Important review remediation:
   command boundaries, quoted text that resembles a heredoc marker, symlinked
   directory enumeration, and traversal that normalizes back inside the root.
 
+Second hardening review:
+
+- RED: 43 hook tests reproduced 33 assertion failures and seven deterministic
+  errors across recursive shell execution, dynamic executable expansion,
+  continuation and heredoc normalization, `--` option handling, compound result
+  aggregation, push option/refspec parsing, parser recursion, Windows reparse
+  metadata, exact platform templates, fixture schemas, and malformed paths.
+- GREEN: all 43 hook tests pass. Together with instruction coverage, the focused
+  Rules/Hooks suite passes 46 tests; the complete studio suite passes 120 tests.
+
 ## Nested Instruction Coverage
 
 | Legacy responsibility | Codex boundary |
@@ -69,26 +79,39 @@ The validator enforces exact action inventory and event mapping, ACTIONS ↔
 HANDLERS ↔ configuration parity, duplicate/missing/unknown actions, exact
 repository-root runner invocation, matching POSIX/Windows actions, handler and
 group shape, matcher type/regex/semantics, positive integer timeouts, supported
-events/types, portable paths, and Windows overrides. Fixtures now include common
-native transcript, model, permission, and event fields plus event-specific tool
-response, agent transcript/result, compaction, and stop fields.
+events/types, portable paths, and Windows overrides. POSIX and PowerShell
+templates are anchored full-command contracts: alternate interpreters, extra
+arguments/commands, and echo-spoof prefixes are rejected. Fixtures now use exact
+event-specific field sets: compact events have `turn_id` but no
+`permission_mode`; agent start has `turn_id` without a transcript-result field;
+agent stop and stop carry their current result/stop fields.
 
 ## Command Safety
 
-The Bash guard uses `shlex` tokenization plus explicit command boundaries,
-quote/comment handling, heredoc-body exclusion, shell control prefixes, line
-continuation normalization, and structured Git global-option parsing. It:
+The Bash guard uses recursive `shlex` tokenization plus explicit command
+boundaries, quote/comment handling, normalized quoted/escaped heredoc
+delimiters, shell control prefixes, POSIX and PowerShell continuation
+normalization, simple literal assignment expansion, and structured Git
+global-option parsing. It:
 
 - Blocks `reset --hard`, forced `clean`, force-push flags, and leading-`+`
   refspecs with exit 2.
 - Recognizes real Git invocations after `-C`, `-c`, `--git-dir`, `--work-tree`,
   other supported global options, quoted tokens, and shell boundaries.
+- Recursively inspects literal backticks, `$()` substitutions, `bash -c`,
+  `sh -c`, `zsh -c`, and `eval`, and resolves simple same-command variables.
+- Recognizes `git` and `git.exe` case-insensitively. Ambiguous dynamic execution
+  with destructive Git intent fails closed.
 - Does not block inert echo/comment/quoted/heredoc text or dry-run clean/push.
+- Treats dry-run/force flags as options only before `--`, skipping option values.
 - Runs staged validation for every real `git commit` form.
 - Blocks a real commit when Git/index/subprocess/decode inspection cannot
-  complete; invalid staged JSON also blocks.
+  complete, including parser recursion and deterministic type/value failures;
+  invalid staged JSON also blocks.
 - Warns for protected destinations including simple branches,
   `HEAD:main`, and `refs/heads/*` destination refspecs.
+- Evaluates every invocation in compound commands: any block wins, while commit
+  context and every protected-push advisory are combined when non-blocking.
 
 Commit quality findings and protected-branch pushes remain advisory. Asset and
 skill findings, gap detection, and lifecycle context remain fail-open.
@@ -96,12 +119,13 @@ skill findings, gap detection, and lifecycle context remain fail-open.
 ## Repository I/O Safety
 
 All runner-controlled reads and writes use lexical containment plus component
-`lstat` checks. Traversal and symlinked file or directory components are
-rejected before access. Unsafe advisory I/O is skipped with a safe warning and
-never blocks; tests prove external state files, log directories, asset files,
-and enumerated directories are neither disclosed nor modified. Session/audit
-writes remain limited to `production/session-state/` and
-`production/session-logs/`.
+`lstat` checks. Traversal, POSIX symlinks, Windows reparse-point attributes,
+nonzero reparse tags, and junction/name-surrogate metadata are rejected before
+access. NUL, surrogate, non-text, and malformed path values fail open without
+I/O. Unsafe advisory I/O is skipped with a safe warning and never blocks; tests
+prove external state files, log directories, asset files, and enumerated
+directories are neither disclosed nor modified. Session/audit writes remain
+limited to `production/session-state/` and `production/session-logs/`.
 
 `changed_paths()` recognizes Add, Update, Delete, and `*** Move to:` paths so
 post-edit asset and skill checks inspect both sides of moves. Gap detection
@@ -127,18 +151,21 @@ python3 -m json.tool .codex/hooks.json
 python3 -m py_compile .codex/hooks/hook_runner.py tools/codex_studio/validate.py
 git diff --check
 git diff --cached --check
-rg -n '/Users/|/home/|Claude Code|\.claude/' .codex/hooks.json .codex/hooks assets/shaders src tests/AGENTS.md prototypes/AGENTS.md
+rg -n '/Users/|/home/|Claude Code|\.claude/' .codex/hooks.json .codex/hooks src/gameplay src/core src/ai src/networking src/ui assets/shaders assets/data design/gdd design/narrative tests/AGENTS.md prototypes/AGENTS.md
 find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
 git ls-files .claude/hooks .claude/settings.json
 ```
 
-Expected final evidence: all focused and studio tests pass; JSON/Python and
-whitespace checks pass; runtime forbidden scans return no matches; neither hook
-tree contains shell scripts; the tracked legacy hook/settings inventory is
-empty.
+Final evidence: 46 focused and 120 studio tests pass; JSON/Python and whitespace
+checks pass; runtime forbidden scans return no matches; neither hook tree
+contains shell scripts; the tracked legacy hook/settings inventory is empty.
 
 ## Concerns
 
-None blocking. Public hook/setup documentation still describes the legacy shell
-inventory and remains intentionally assigned to the approved documentation and
-cleanup subsystem.
+None blocking. The cross-platform component checks materially reduce path escape
+risk, but they are pre-open checks rather than an atomic no-follow open. A
+filesystem entry could theoretically change between `lstat` and read/open
+(TOCTOU); Python's portable standard-library APIs do not provide one atomic
+no-follow primitive across POSIX and Windows. Public hook/setup documentation
+still describes the legacy shell inventory and remains intentionally assigned
+to the approved documentation and cleanup subsystem.

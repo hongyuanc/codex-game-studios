@@ -64,6 +64,10 @@ GIT_GLOBAL_FLAG_OPTIONS = {
 }
 GIT_GLOBAL_TERMINAL_OPTIONS = {"--version", "--help", "-h", "--html-path", "--man-path", "--info-path"}
 PROTECTED_BRANCHES = {"develop", "main", "master"}
+DYNAMIC_TOKEN_PREFIX = "__CGS_DYNAMIC_"
+MAX_SHELL_RECURSION = 12
+PUSH_VALUE_OPTIONS = {"--exec", "--push-option", "--receive-pack", "--repo", "-o"}
+CLEAN_VALUE_OPTIONS = {"--exclude", "-e"}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -77,6 +81,7 @@ class HookResult:
 class GitInvocation:
     subcommand: str
     args: tuple[str, ...]
+    ambiguous_destructive: bool = False
 
 
 class UnsafePathError(OSError):
@@ -85,6 +90,14 @@ class UnsafePathError(OSError):
 
 class StagedInspectionError(OSError):
     pass
+
+
+def _is_link_or_reparse(info: object) -> bool:
+    mode = int(getattr(info, "st_mode", 0))
+    attributes = int(getattr(info, "st_file_attributes", 0))
+    reparse_tag = int(getattr(info, "st_reparse_tag", 0))
+    reparse_attribute = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+    return stat.S_ISLNK(mode) or bool(attributes & reparse_attribute) or bool(reparse_tag)
 
 
 def _now() -> str:
@@ -139,21 +152,34 @@ def _heredoc_specs(line: str) -> list[tuple[str, bool]]:
             cursor += 1
         while cursor < len(line) and line[cursor] in " \t":
             cursor += 1
-        delimiter_quote = line[cursor] if cursor < len(line) and line[cursor] in {"'", '"'} else None
-        if delimiter_quote:
-            cursor += 1
-            end = line.find(delimiter_quote, cursor)
-            if end == -1:
-                break
-            delimiter = line[cursor:end]
-            index = end + 1
-        else:
-            match = re.match(r"[^\s;&|<>]+", line[cursor:])
-            if not match:
-                index = cursor + 1
+        word_start = cursor
+        word_quote: str | None = None
+        while cursor < len(line):
+            current = line[cursor]
+            if word_quote:
+                if current == word_quote:
+                    word_quote = None
+                elif current == "\\" and word_quote == '"':
+                    cursor += 1
+                cursor += 1
                 continue
-            delimiter = match.group(0)
-            index = cursor + len(delimiter)
+            if current in {"'", '"'}:
+                word_quote = current
+                cursor += 1
+                continue
+            if current == "\\" and cursor + 1 < len(line):
+                cursor += 2
+                continue
+            if current.isspace() or current in ";&|<>":
+                break
+            cursor += 1
+        raw_delimiter = line[word_start:cursor]
+        try:
+            parsed_delimiter = shlex.split(raw_delimiter, posix=True)
+        except ValueError:
+            parsed_delimiter = []
+        delimiter = parsed_delimiter[0] if len(parsed_delimiter) == 1 else ""
+        index = max(cursor, word_start + 1)
         if delimiter:
             specs.append((delimiter, strip_tabs))
     return specs
@@ -178,19 +204,110 @@ def _strip_heredoc_bodies(script: str) -> str:
     return "".join(output)
 
 
+def _normalize_continuations(script: str) -> str:
+    return re.sub(r"(?:\\|`)\r?\n", " ", script)
+
+
+def _dollar_substitution_end(script: str, start: int) -> int | None:
+    depth = 1
+    quote: str | None = None
+    index = start + 2
+    while index < len(script):
+        character = script[index]
+        if quote:
+            if character == quote:
+                quote = None
+            elif character == "\\" and quote == '"':
+                index += 1
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+        elif character == "\\":
+            index += 1
+        elif character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
+
+
+def _backtick_substitution_end(script: str, start: int) -> int | None:
+    index = start + 1
+    while index < len(script):
+        if script[index] == "\\":
+            index += 2
+            continue
+        if script[index] == "`":
+            return index
+        index += 1
+    return None
+
+
+def _replace_command_substitutions(script: str) -> tuple[str, list[str]]:
+    output: list[str] = []
+    substitutions: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(script):
+        character = script[index]
+        if quote == "'":
+            output.append(character)
+            if character == "'":
+                quote = None
+            index += 1
+            continue
+        if character == "'" and quote is None:
+            quote = "'"
+            output.append(character)
+            index += 1
+            continue
+        if character == '"':
+            quote = None if quote == '"' else '"'
+            output.append(character)
+            index += 1
+            continue
+        if character == "\\" and index + 1 < len(script):
+            output.extend((character, script[index + 1]))
+            index += 2
+            continue
+        if script.startswith("$(", index):
+            end = _dollar_substitution_end(script, index)
+            if end is None:
+                raise ValueError("unterminated command substitution")
+            marker = f"{DYNAMIC_TOKEN_PREFIX}{len(substitutions)}__"
+            substitutions.append(script[index + 2 : end])
+            output.append(marker)
+            index = end + 1
+            continue
+        if character == "`":
+            end = _backtick_substitution_end(script, index)
+            if end is None:
+                raise ValueError("unterminated backtick substitution")
+            marker = f"{DYNAMIC_TOKEN_PREFIX}{len(substitutions)}__"
+            substitutions.append(script[index + 1 : end])
+            output.append(marker)
+            index = end + 1
+            continue
+        output.append(character)
+        index += 1
+    return "".join(output), substitutions
+
+
 def _shell_segments(script: str) -> list[list[str]]:
-    prepared = re.sub(r"\\\r?\n", " ", _strip_heredoc_bodies(script))
-    lexer = shlex.shlex(prepared, posix=True, punctuation_chars=";&|(){}<>\n")
+    lexer = shlex.shlex(script, posix=True, punctuation_chars=";&|()<>\n")
     lexer.whitespace_split = True
     lexer.whitespace = " \t\r"
-    try:
-        tokens = list(lexer)
-    except ValueError:
-        return []
+    tokens = list(lexer)
     segments: list[list[str]] = []
     current: list[str] = []
     for token in tokens:
-        if token in SHELL_BOUNDARIES or any(character in token for character in ";&|(){}\n"):
+        if token in SHELL_BOUNDARIES or (
+            token and all(character in ";&|()\n" for character in token)
+        ):
             if current:
                 segments.append(current)
                 current = []
@@ -201,7 +318,33 @@ def _shell_segments(script: str) -> list[list[str]]:
     return segments
 
 
-def _command_tokens(segment: list[str]) -> list[str]:
+def _resolve_variable_token(token: str, variables: dict[str, str | None]) -> str:
+    match = re.fullmatch(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))", token)
+    if not match:
+        return token
+    name = match.group(1) or match.group(2)
+    value = variables.get(name)
+    return value if value is not None else f"{DYNAMIC_TOKEN_PREFIX}VARIABLE__"
+
+
+def _record_assignments(segment: list[str], variables: dict[str, str | None]) -> None:
+    tokens = list(segment)
+    while tokens and tokens[0] in SHELL_COMMAND_PREFIXES:
+        tokens.pop(0)
+    for token in tokens:
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", token, re.DOTALL)
+        if not match:
+            break
+        value = match.group(2)
+        variables[match.group(1)] = (
+            value
+            if "$" not in value and DYNAMIC_TOKEN_PREFIX not in value and "`" not in value
+            else None
+        )
+
+
+def _command_tokens(segment: list[str], variables: dict[str, str | None] | None = None) -> list[str]:
+    variables = variables or {}
     tokens = list(segment)
     while tokens and tokens[0] in SHELL_COMMAND_PREFIXES:
         tokens.pop(0)
@@ -215,13 +358,10 @@ def _command_tokens(segment: list[str]) -> list[str]:
         tokens.pop(0)
         while tokens and tokens[0].startswith("-"):
             tokens.pop(0)
-    return tokens
+    return [_resolve_variable_token(token, variables) for token in tokens]
 
 
-def _git_invocation(segment: list[str]) -> GitInvocation | None:
-    tokens = _command_tokens(segment)
-    if not tokens or pathlib.PurePosixPath(tokens[0]).name != "git":
-        return None
+def _git_from_tokens(tokens: list[str], *, dynamic_executable: bool = False) -> GitInvocation | None:
     index = 1
     while index < len(tokens):
         token = tokens[index]
@@ -249,12 +389,85 @@ def _git_invocation(segment: list[str]) -> GitInvocation | None:
         break
     if index >= len(tokens):
         return None
-    return GitInvocation(tokens[index], tuple(tokens[index + 1 :]))
+    subcommand = tokens[index]
+    args = tuple(tokens[index + 1 :])
+    dynamic_subcommand = DYNAMIC_TOKEN_PREFIX in subcommand or "$" in subcommand
+    ambiguous = dynamic_executable or (
+        dynamic_subcommand
+        and (
+            "--hard" in args
+            or "--force" in args
+            or any(argument.startswith("--force-") or argument.startswith("+") for argument in args)
+            or _short_flag(_option_prefix(args), "f")
+        )
+    )
+    return GitInvocation(subcommand, args, ambiguous)
+
+
+def _git_invocation(
+    segment: list[str],
+    variables: dict[str, str | None] | None = None,
+) -> GitInvocation | None:
+    tokens = _command_tokens(segment, variables)
+    if not tokens:
+        return None
+    dynamic_executable = DYNAMIC_TOKEN_PREFIX in tokens[0] or "$" in tokens[0]
+    executable = pathlib.PurePosixPath(tokens[0]).name.lower()
+    if executable in {"git", "git.exe"}:
+        return _git_from_tokens(tokens)
+    if dynamic_executable:
+        candidate = _git_from_tokens(["git", *tokens[1:]])
+        if candidate and _destructive(candidate):
+            return dataclasses.replace(candidate, ambiguous_destructive=True)
+    return None
+
+
+def _recursive_invocations(
+    script: str,
+    variables: dict[str, str | None],
+    depth: int,
+) -> list[GitInvocation]:
+    if depth > MAX_SHELL_RECURSION:
+        raise RecursionError("shell command nesting exceeds safety limit")
+    normalized = _normalize_continuations(script)
+    without_heredocs = _strip_heredoc_bodies(normalized)
+    prepared, substitutions = _replace_command_substitutions(without_heredocs)
+    invocations: list[GitInvocation] = []
+    for substitution in substitutions:
+        invocations.extend(_recursive_invocations(substitution, dict(variables), depth + 1))
+    for segment in _shell_segments(prepared):
+        _record_assignments(segment, variables)
+        tokens = _command_tokens(segment, variables)
+        if not tokens:
+            continue
+        executable = pathlib.PurePosixPath(tokens[0]).name.lower()
+        if executable in {"bash", "sh", "zsh"} and "-c" in tokens[1:]:
+            command_index = tokens.index("-c", 1) + 1
+            if command_index >= len(tokens):
+                raise ValueError("shell -c is missing its command string")
+            nested = tokens[command_index]
+            if DYNAMIC_TOKEN_PREFIX in nested or "$" in nested:
+                if re.search(r"\b(?:reset|clean|push)\b", " ".join(tokens[command_index:])):
+                    invocations.append(GitInvocation("dynamic", (), True))
+            else:
+                invocations.extend(_recursive_invocations(nested, dict(variables), depth + 1))
+            continue
+        if executable == "eval":
+            nested = " ".join(tokens[1:])
+            if DYNAMIC_TOKEN_PREFIX in nested or "$" in nested:
+                if re.search(r"\b(?:reset|clean|push)\b", nested):
+                    invocations.append(GitInvocation("dynamic", (), True))
+            elif nested:
+                invocations.extend(_recursive_invocations(nested, dict(variables), depth + 1))
+            continue
+        invocation = _git_invocation(segment, variables)
+        if invocation:
+            invocations.append(invocation)
+    return invocations
 
 
 def git_invocations(script: str) -> list[GitInvocation]:
-    invocations = [invocation for segment in _shell_segments(script) if (invocation := _git_invocation(segment))]
-    return invocations
+    return _recursive_invocations(script, {}, 0)
 
 
 def _short_flag(args: tuple[str, ...], flag: str) -> bool:
@@ -266,15 +479,60 @@ def _short_flag(args: tuple[str, ...], flag: str) -> bool:
     )
 
 
+def _option_prefix(args: tuple[str, ...]) -> tuple[str, ...]:
+    try:
+        end = args.index("--")
+    except ValueError:
+        end = len(args)
+    return args[:end]
+
+
+def _option_tokens(invocation: GitInvocation) -> tuple[str, ...]:
+    args = _option_prefix(invocation.args)
+    value_options = (
+        PUSH_VALUE_OPTIONS
+        if invocation.subcommand.lower() == "push"
+        else CLEAN_VALUE_OPTIONS
+        if invocation.subcommand.lower() == "clean"
+        else set()
+    )
+    options: list[str] = []
+    index = 0
+    while index < len(args):
+        argument = args[index]
+        if argument in value_options:
+            index += 2
+            continue
+        if any(
+            argument.startswith(option + "=")
+            for option in value_options
+            if option.startswith("--")
+        ) or any(
+            argument.startswith(option) and argument != option
+            for option in value_options
+            if option.startswith("-") and not option.startswith("--")
+        ):
+            index += 1
+            continue
+        if argument.startswith("-"):
+            options.append(argument)
+        index += 1
+    return tuple(options)
+
+
 def _dry_run(invocation: GitInvocation) -> bool:
-    return "--dry-run" in invocation.args or _short_flag(invocation.args, "n")
+    options = _option_tokens(invocation)
+    return "--dry-run" in options or _short_flag(options, "n")
 
 
 def _destructive(invocation: GitInvocation) -> bool:
+    if invocation.ambiguous_destructive:
+        return True
+    options = _option_tokens(invocation)
     if invocation.subcommand == "reset":
-        return "--hard" in invocation.args
+        return "--hard" in options
     if invocation.subcommand == "clean":
-        forced = "--force" in invocation.args or _short_flag(invocation.args, "f")
+        forced = "--force" in options or _short_flag(options, "f")
         return forced and not _dry_run(invocation)
     if invocation.subcommand == "push":
         forced = any(
@@ -282,18 +540,29 @@ def _destructive(invocation: GitInvocation) -> bool:
             or argument.startswith("--force-with-lease")
             or argument == "--force-if-includes"
             or argument == "--mirror"
-            for argument in invocation.args
+            for argument in options
         )
-        forced = forced or _short_flag(invocation.args, "f")
-        forced = forced or any(argument.startswith("+") for argument in invocation.args)
+        forced = forced or _short_flag(options, "f")
+        forced = forced or any(refspec.startswith("+") for refspec in _push_refspecs(invocation.args))
         return forced and not _dry_run(invocation)
     return False
 
 
 def _safe_relative_path(root: pathlib.Path, value: str | pathlib.Path) -> pathlib.Path:
-    trusted_root = root.resolve()
-    lexical_root = pathlib.Path(os.path.abspath(root))
-    raw = pathlib.Path(value)
+    try:
+        raw_text = os.fspath(value)
+    except (TypeError, ValueError) as error:
+        raise UnsafePathError(f"unsafe malformed repository path: {value!r}") from error
+    if not isinstance(raw_text, str):
+        raise UnsafePathError(f"unsafe non-text repository path: {value!r}")
+    if "\x00" in raw_text or any(0xD800 <= ord(character) <= 0xDFFF for character in raw_text):
+        raise UnsafePathError("unsafe malformed repository path")
+    try:
+        trusted_root = root.resolve()
+        lexical_root = pathlib.Path(os.path.abspath(root))
+        raw = pathlib.Path(raw_text)
+    except (OSError, TypeError, ValueError) as error:
+        raise UnsafePathError(f"unsafe malformed repository path: {raw_text!r}") from error
     if ".." in raw.parts:
         raise UnsafePathError(f"unsafe traversal in repository path: {value}")
     candidate = pathlib.Path(os.path.abspath(raw if raw.is_absolute() else lexical_root / raw))
@@ -312,11 +581,13 @@ def _safe_relative_path(root: pathlib.Path, value: str | pathlib.Path) -> pathli
     for part in relative.parts:
         current = current / part
         try:
-            mode = current.lstat().st_mode
+            info = current.lstat()
         except FileNotFoundError:
             continue
-        if stat.S_ISLNK(mode):
-            raise UnsafePathError(f"unsafe symlinked repository path: {relative.as_posix()}")
+        except (OSError, ValueError) as error:
+            raise UnsafePathError(f"unsafe repository path metadata: {relative.as_posix()}") from error
+        if _is_link_or_reparse(info):
+            raise UnsafePathError(f"unsafe linked or reparse repository path: {relative.as_posix()}")
     return relative
 
 
@@ -349,11 +620,13 @@ def _safe_mkdir(root: pathlib.Path, relative: pathlib.Path) -> pathlib.Path:
     for part in relative.parts:
         current = current / part
         try:
-            mode = current.lstat().st_mode
+            info = current.lstat()
         except FileNotFoundError:
             current.mkdir()
-            mode = current.lstat().st_mode
-        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            info = current.lstat()
+        except (OSError, ValueError) as error:
+            raise UnsafePathError(f"unsafe session directory: {relative.as_posix()}") from error
+        if _is_link_or_reparse(info) or not stat.S_ISDIR(info.st_mode):
             raise UnsafePathError(f"unsafe session directory: {relative.as_posix()}")
     return current
 
@@ -365,11 +638,15 @@ def _relative_files(root: pathlib.Path, directory: str, suffix: str | None = Non
     files: list[pathlib.Path] = []
     for current, directories, names in os.walk(base, followlinks=False):
         current_path = pathlib.Path(current)
-        directories[:] = [
-            name
-            for name in directories
-            if not (current_path / name).is_symlink()
-        ]
+        safe_directories: list[str] = []
+        for name in directories:
+            directory_path = current_path / name
+            try:
+                if not _is_link_or_reparse(directory_path.lstat()):
+                    safe_directories.append(name)
+            except (OSError, ValueError):
+                continue
+        directories[:] = safe_directories
         for name in names:
             path = current_path / name
             relative = path.relative_to(root.resolve())
@@ -394,7 +671,7 @@ def changed_paths(event: dict) -> set[str]:
     if not isinstance(tool_input, dict):
         return set()
     direct_path = tool_input.get("file_path")
-    paths = {str(direct_path)} if direct_path else set()
+    paths = {direct_path} if isinstance(direct_path, str) and direct_path else set()
     paths.update(
         re.findall(
             r"^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$",
@@ -456,7 +733,14 @@ def _validate_commit(root: pathlib.Path) -> HookResult:
                 text,
             ):
                 warnings.append(f"STYLE: {relative} has a malformed TODO/FIXME/HACK; use TODO(name) format.")
-    except (OSError, UnicodeError, subprocess.SubprocessError) as error:
+    except (
+        OSError,
+        UnicodeError,
+        subprocess.SubprocessError,
+        RecursionError,
+        TypeError,
+        ValueError,
+    ) as error:
         return HookResult(2, stderr=f"BLOCKED: staged commit inspection failed: {error}\n")
     if warnings:
         return _system_message("Commit validation warnings:\n" + "\n".join(warnings))
@@ -470,46 +754,126 @@ def _branch_name(refspec: str) -> str:
     return destination
 
 
+def _push_refspecs(args: tuple[str, ...]) -> tuple[str, ...]:
+    positionals: list[str] = []
+    repository_from_option = False
+    options = True
+    index = 0
+    while index < len(args):
+        argument = args[index]
+        if options and argument == "--":
+            options = False
+            index += 1
+            continue
+        if options and argument in PUSH_VALUE_OPTIONS:
+            repository_from_option = repository_from_option or argument == "--repo"
+            index += 2
+            continue
+        if options and any(argument.startswith(option + "=") for option in PUSH_VALUE_OPTIONS if option.startswith("--")):
+            repository_from_option = repository_from_option or argument.startswith("--repo=")
+            index += 1
+            continue
+        if options and argument.startswith("-"):
+            index += 1
+            continue
+        positionals.append(argument)
+        index += 1
+    if repository_from_option:
+        return tuple(positionals)
+    return tuple(positionals[1:]) if positionals else ()
+
+
 def _protected_push(invocation: GitInvocation, root: pathlib.Path) -> HookResult:
-    explicit = next(
-        (
+    refspecs = _push_refspecs(invocation.args)
+    protected = sorted(
+        {
             branch
-            for argument in invocation.args
-            if not argument.startswith("-")
-            for branch in [_branch_name(argument)]
+            for refspec in refspecs
+            for branch in [_branch_name(refspec)]
             if branch in PROTECTED_BRANCHES
-        ),
-        None,
+        }
     )
-    branch_result = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
-    current = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
-    branch = explicit or (current if current in PROTECTED_BRANCHES else "")
-    if branch:
-        return _system_message(
+    if not refspecs:
+        branch_result = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+        current = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+        if current in PROTECTED_BRANCHES:
+            protected.append(current)
+    if protected:
+        return _system_message("\n".join(
             f"Push to protected branch '{branch}' detected. Verify the build and unit tests pass and no S1/S2 bugs remain."
-        )
+            for branch in protected
+        ))
     return HookResult()
 
 
+def _recognized_commit_intent(command: str) -> bool:
+    return bool(re.search(r"(?is)\bgit(?:\.exe)?\b.*\bcommit\b", command))
+
+
+def _recognized_destructive_intent(command: str) -> bool:
+    destructive_tail = (
+        r"(?:\breset\b.*--hard|"
+        r"\bclean\b.*(?:--force|-[A-Za-z]*f)|"
+        r"\bpush\b.*(?:--force|-[A-Za-z]*f|\+[A-Za-z0-9_./:-]+))"
+    )
+    literal_git = re.search(
+        rf"(?is)\bgit(?:\.exe)?\b.*{destructive_tail}",
+        command,
+    )
+    dynamic_git = re.search(
+        rf'''(?is)["']?\$(?:\{{[A-Za-z_][A-Za-z0-9_]*\}}|[A-Za-z_][A-Za-z0-9_]*)["']?\s+{destructive_tail}''',
+        command,
+    )
+    return bool(literal_git or dynamic_git)
+
+
+def _result_message(result: HookResult) -> str:
+    if not result.stdout:
+        return ""
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return result.stdout.strip()
+    return str(payload.get("systemMessage", "")).strip()
+
+
 def _validate_command(event: dict, root: pathlib.Path) -> HookResult:
-    invocations = git_invocations(tool_command(event))
+    command = tool_command(event)
+    try:
+        invocations = git_invocations(command)
+    except (OSError, RecursionError, TypeError, UnicodeError, ValueError) as error:
+        if _recognized_commit_intent(command) or _recognized_destructive_intent(command):
+            return HookResult(2, stderr=f"BLOCKED: command parser failed for recognized Git safety intent: {error}\n")
+        return _system_message(f"Command safety parser could not inspect this inert or unrecognized command: {error}")
     if any(_destructive(invocation) for invocation in invocations):
         return HookResult(
             2,
             stderr="Destructive Git command blocked by Codex Game Studios policy.\n",
         )
-    if any(invocation.subcommand == "commit" for invocation in invocations):
-        return _validate_commit(root)
+    messages: list[str] = []
+    if any(invocation.subcommand.lower() == "commit" for invocation in invocations):
+        commit_result = _validate_commit(root)
+        if commit_result.exit_code == 2:
+            return commit_result
+        commit_message = _result_message(commit_result)
+        if commit_message:
+            messages.append(commit_message)
     for invocation in invocations:
-        if invocation.subcommand == "push":
+        if invocation.subcommand.lower() == "push":
             result = _protected_push(invocation, root)
-            if result.stdout:
-                return result
-    return HookResult()
+            message = _result_message(result)
+            if message:
+                messages.append(message)
+    return _system_message("\n".join(messages)) if messages else HookResult()
 
 
 def _validate_assets(event: dict, root: pathlib.Path) -> HookResult:
     warnings: list[str] = []
+    tool_input = event.get("tool_input", {})
+    if isinstance(tool_input, dict):
+        direct_path = tool_input.get("file_path")
+        if direct_path is not None and not isinstance(direct_path, str):
+            warnings.append("SAFETY: unsafe malformed edited path ignored")
     relative_paths: set[str] = set()
     for raw_path in changed_paths(event):
         try:
