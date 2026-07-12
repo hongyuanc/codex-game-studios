@@ -36,28 +36,25 @@ Verified automatically by `$skill-test static` — no fixture needed.
 - [ ] Contains verdict keywords: ACCEPTED, PROPOSED, CONCERNS
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Has a next-step handoff at the end
-- [ ] Documents gate behavior: TD-ADR + LP-FEASIBILITY in full mode; skipped in phase-gated/solo
-- [ ] Documents that ADR status is Accepted (full, gates approve) or Proposed (otherwise)
+- [ ] Documents that TD-ADR is required in every review mode
+- [ ] Documents that new ADR status remains Proposed; acceptance is a separate lifecycle decision
 - [ ] Mentions engine version stamp from `docs/engine-reference/`
 
 ---
 
 ## Director Gate Checks
 
-In `full` mode: TD-ADR (technical-director) and LP-FEASIBILITY (lead-programmer)
-spawn after the ADR draft is complete. If both return APPROVED, ADR Status is set
-to Accepted. If either returns CONCERNS or FAIL, ADR stays Proposed.
-
-In `phase-gated` mode: both gates are skipped. ADR is written with Status: Proposed.
-Output notes: "TD-ADR skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode".
-
-In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
+TD-ADR is required in `full`, `phase-gated`, and `solo`. It delegates to the
+technical-director after the ADR draft and engine-specialist validation are
+complete. Review mode never skips this material architecture gate. This workflow
+does not invoke a lead-programmer feasibility gate. A new ADR remains
+`Status: Proposed` in every mode; acceptance is a separate lifecycle decision.
 
 ---
 
 ## Test Cases
 
-### Case 1: Happy Path — New ADR for rendering approach, full mode, gates approve
+### Case 1: Happy Path — New ADR for rendering approach, TD-ADR approves
 
 **Fixture:**
 - `docs/architecture/` exists with no existing ADR for rendering
@@ -70,17 +67,17 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 1. Skill guides user through each required section (Status, Context, Decision, Consequences, Alternatives, Related ADRs)
 2. Engine version is stamped into the ADR from `docs/engine-reference/`
 3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-4. After all sections: TD-ADR and LP-FEASIBILITY gates spawn in parallel
-5. Both gates return APPROVED
-6. ADR Status is set to Accepted
+4. After all sections and engine validation, TD-ADR runs
+5. TD-ADR returns APPROVED
+6. ADR Status remains Proposed
 7. Skill writes `docs/architecture/adr-NNN-rendering-approach.md`
 8. `docs/architecture/tr-registry.yaml` updated if new TR-IDs are defined
 
 **Assertions:**
 - [ ] All 6 required sections are authored and written
 - [ ] Engine version reference is stamped in the ADR
-- [ ] TD-ADR and LP-FEASIBILITY spawn in parallel (not sequentially)
-- [ ] ADR Status is Accepted when both gates return APPROVED in full mode
+- [ ] TD-ADR runs in full mode
+- [ ] ADR Status remains Proposed after TD-ADR approval
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] File is written to `docs/architecture/adr-NNN-[name].md`
 
@@ -110,7 +107,7 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 ---
 
-### Case 3: Phase-gated Mode — Both gates skipped; ADR written as Proposed
+### Case 3: Phase-gated Mode — Required TD-ADR runs; ADR written as Proposed
 
 **Fixture:**
 - `.codex/studio.toml` contains `phase-gated`
@@ -120,14 +117,14 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 **Expected behavior:**
 1. Skill guides user through all 6 sections
-2. After draft is complete: both TD-ADR and LP-FEASIBILITY are skipped
-3. Output notes: "TD-ADR skipped — phase-gated mode" and "LP-FEASIBILITY skipped — phase-gated mode"
-4. ADR is written with Status: Proposed (not Accepted, since gates did not approve)
+2. After draft and engine validation are complete, TD-ADR runs
+3. The technical-director returns an evidence-backed verdict
+4. ADR is written with Status: Proposed
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
-- [ ] Both gate skip notes appear in output
-- [ ] ADR Status is Proposed (not Accepted) in phase-gated mode
+- [ ] TD-ADR runs in phase-gated mode
+- [ ] ADR Status is Proposed in phase-gated mode
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
 - [ ] Skill writes the ADR after user approval
 
@@ -155,20 +152,20 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 
 ---
 
-### Case 5: Director Gate — Status set correctly based on mode and gate outcome
+### Case 5: Director Gate — TD-ADR runs in every mode; new status stays Proposed
 
 **Fixture:**
 - ADR draft is complete
-- Two scenarios: (a) full mode, both gates APPROVED; (b) full mode, one gate CONCERNS
+- Three scenarios: full, phase-gated, and solo
 
-**Full mode, both APPROVED:**
-- ADR Status is set to Accepted
+**Full mode, TD-ADR APPROVED:**
+- ADR Status remains Proposed
 
 **Assertions (both approved):**
-- [ ] ADR frontmatter/header shows `Status: Accepted`
-- [ ] Both TD-ADR and LP-FEASIBILITY appear as APPROVED in output
+- [ ] ADR frontmatter/header shows `Status: Proposed`
+- [ ] TD-ADR appears as APPROVED in output
 
-**Full mode, one gate returns CONCERNS:**
+**Any mode, TD-ADR returns CONCERNS:**
 - ADR Status stays Proposed
 
 **Assertions (CONCERNS):**
@@ -177,12 +174,12 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 - [ ] Skill does NOT set Status: Accepted when any gate returns CONCERNS
 
 **Phase-gated/solo mode:**
-- ADR Status is always Proposed regardless of content quality
+- TD-ADR still runs and ADR Status remains Proposed
 
 **Assertions (phase-gated/solo):**
 - [ ] ADR Status is Proposed in phase-gated mode
 - [ ] ADR Status is Proposed in solo mode
-- [ ] No gate output appears in phase-gated or solo mode
+- [ ] TD-ADR output appears in phase-gated and solo mode
 
 ---
 
@@ -191,9 +188,9 @@ In `solo` mode: both gates are skipped. ADR is written with Status: Proposed.
 - [ ] All 6 required sections authored before gate review
 - [ ] Engine version stamped in ADR from `docs/engine-reference/`
 - [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] TD-ADR and LP-FEASIBILITY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in phase-gated/solo output
-- [ ] ADR Status: Accepted only when full mode AND both gates APPROVED
+- [ ] TD-ADR runs in full, phase-gated, and solo modes
+- [ ] No lead-programmer feasibility gate is part of this workflow
+- [ ] New ADR Status remains Proposed regardless of review mode
 - [ ] Ends with next-step handoff: `$architecture-review` or `$create-control-manifest`
 
 ---

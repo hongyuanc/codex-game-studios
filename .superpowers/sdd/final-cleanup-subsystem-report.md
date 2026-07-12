@@ -465,6 +465,14 @@ same filenames.
   every review mode, while LP-FEASIBILITY, CD-GDD-ALIGN, and AD-ART-BIBLE run
   only in full mode. AD-ART-BIBLE delegates to `art-director`, and the canonical
   art bible path is `design/art/art-bible.md`.
+- The stage coverage matrix classifies inline gates that skip in lean/solo as
+  optional across Concept, Systems Design, Pre-Production, Production, and
+  Polish. Only TD-ARCHITECTURE, TD-ADR, and the named phase-transition
+  PHASE-GATE panels remain in Required cells. Cross-contract tests compare the
+  table with the corresponding runtime and framework skip semantics.
+- `$architecture-decision` runs mandatory TD-ADR review in full, phase-gated,
+  and solo modes, does not invoke LP-FEASIBILITY, and keeps new ADRs Proposed
+  pending their separate lifecycle acceptance decision.
 - `$skill-test` Check 4 accepts both approved workflow shapes and rejects any
   write before its appropriate complete-changeset or bounded-section approval.
 - Cross-runtime/framework tests pin these start routing, gate-mode, incremental

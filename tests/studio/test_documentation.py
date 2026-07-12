@@ -129,28 +129,49 @@ class DocumentationTests(unittest.TestCase):
                 line for line in table.splitlines()
                 if line.startswith(f"| **{stage}** |")
             )
-            cell = row.split("|")[column]
-            return {
-                re.match(r"[A-Z]+-[A-Z0-9-]+", item.strip()).group(0)
-                for item in cell.split(",")
-            }
+            cell = row.split("|")[column].strip()
+            if cell == "—":
+                return set()
+            gates = set()
+            for item in cell.split(","):
+                item = item.strip()
+                if item.lower().startswith("all four phase-gates"):
+                    gates.add("ALL-PHASE-GATES")
+                else:
+                    gates.add(re.match(r"[A-Z]+-[A-Z0-9-]+", item).group(0))
+            return gates
 
-        self.assertEqual(
-            {"TD-SYSTEM-BOUNDARY", "CD-SYSTEMS", "PR-SCOPE"},
-            gate_set("Systems Design", 2),
-        )
-        self.assertEqual(
-            {"CD-GDD-ALIGN", "ND-CONSISTENCY", "AD-VISUAL"},
-            gate_set("Systems Design", 3),
-        )
-        self.assertEqual(
-            {"TD-ARCHITECTURE", "TD-ADR"},
-            gate_set("Technical Setup", 2),
-        )
-        self.assertEqual(
-            {"LP-FEASIBILITY", "AD-ART-BIBLE", "TD-ENGINE-RISK"},
-            gate_set("Technical Setup", 3),
-        )
+        expected = {
+            "Concept": (
+                set(),
+                {"CD-PILLARS", "AD-CONCEPT-VISUAL", "TD-FEASIBILITY", "PR-SCOPE"},
+            ),
+            "Systems Design": (
+                set(),
+                {"TD-SYSTEM-BOUNDARY", "CD-SYSTEMS", "PR-SCOPE", "CD-GDD-ALIGN", "ND-CONSISTENCY", "AD-VISUAL"},
+            ),
+            "Technical Setup": (
+                {"TD-ARCHITECTURE", "TD-ADR"},
+                {"LP-FEASIBILITY", "AD-ART-BIBLE", "TD-ENGINE-RISK"},
+            ),
+            "Pre-Production": (
+                {"ALL-PHASE-GATES"},
+                {"PR-EPIC", "QL-STORY-READY", "PR-SPRINT", "CD-PLAYTEST"},
+            ),
+            "Production": (
+                set(),
+                {"LP-CODE-REVIEW", "QL-STORY-READY", "PR-SPRINT", "QL-TEST-COVERAGE", "PR-MILESTONE", "AD-VISUAL"},
+            ),
+            "Polish": (
+                set(),
+                {"QL-TEST-COVERAGE", "CD-PLAYTEST", "PR-MILESTONE", "AD-VISUAL"},
+            ),
+            "Release": ({"ALL-PHASE-GATES"}, {"QL-TEST-COVERAGE"}),
+        }
+        for stage, (required, optional) in expected.items():
+            with self.subTest(stage=stage):
+                self.assertEqual(required, gate_set(stage, 2))
+                self.assertEqual(optional, gate_set(stage, 3))
 
         runtime = {
             name: (ROOT / f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
@@ -169,6 +190,29 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("AD-ART-BIBLE is optional and runs only in full mode", runtime["art-bible"])
         self.assertIn("AD-ART-BIBLE delegates to `art-director` and is optional", framework["art-bible"])
         self.assertIn("TD-ADR is required in full, lean, and solo modes", runtime["architecture-decision"])
+
+        brainstorm = (ROOT / ".agents/skills/brainstorm/SKILL.md").read_text(encoding="utf-8")
+        brainstorm_spec = (ROOT / "Codex Studio Testing Framework/skills/utility/brainstorm.md").read_text(encoding="utf-8")
+        self.assertIn("skip both (not PHASE-GATEs)", brainstorm)
+        self.assertIn("all 4 inline gates are skipped", brainstorm_spec)
+
+        map_systems = (ROOT / ".agents/skills/map-systems/SKILL.md").read_text(encoding="utf-8")
+        map_spec = (ROOT / "Codex Studio Testing Framework/skills/pipeline/map-systems.md").read_text(encoding="utf-8")
+        for gate in ("TD-SYSTEM-BOUNDARY", "CD-SYSTEMS", "PR-SCOPE"):
+            self.assertIn(gate, map_systems)
+        self.assertIn("both gates are skipped", map_spec)
+
+        for name, gate in (
+            ("create-epics", "PR-EPIC"),
+            ("create-stories", "QL-STORY-READY"),
+            ("sprint-plan", "PR-SPRINT"),
+            ("story-done", "LP-CODE-REVIEW"),
+            ("story-done", "QL-TEST-COVERAGE"),
+            ("milestone-review", "PR-MILESTONE"),
+        ):
+            skill = (ROOT / f".agents/skills/{name}/SKILL.md").read_text(encoding="utf-8")
+            self.assertIn(gate, skill)
+            self.assertIn("`lean` → skip", skill)
 
     def test_skill_references_use_codex_invocation_syntax(self):
         names = {

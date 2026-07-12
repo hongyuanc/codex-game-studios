@@ -801,10 +801,10 @@ When a new gate is needed for a new skill or workflow:
 
 | Stage | Required Gates | Optional Gates |
 |-------|---------------|----------------|
-| **Concept** | CD-PILLARS, AD-CONCEPT-VISUAL | TD-FEASIBILITY, PR-SCOPE |
-| **Systems Design** | TD-SYSTEM-BOUNDARY, CD-SYSTEMS, PR-SCOPE | CD-GDD-ALIGN (per GDD), ND-CONSISTENCY, AD-VISUAL |
+| **Concept** | — | CD-PILLARS, AD-CONCEPT-VISUAL, TD-FEASIBILITY, PR-SCOPE |
+| **Systems Design** | — | TD-SYSTEM-BOUNDARY, CD-SYSTEMS, PR-SCOPE, CD-GDD-ALIGN (per GDD), ND-CONSISTENCY, AD-VISUAL |
 | **Technical Setup** | TD-ARCHITECTURE, TD-ADR (per ADR) | LP-FEASIBILITY, AD-ART-BIBLE, TD-ENGINE-RISK |
-| **Pre-Production** | PR-EPIC, QL-STORY-READY (per story), PR-SPRINT, all four PHASE-GATEs (via gate-check) | CD-PLAYTEST |
-| **Production** | LP-CODE-REVIEW (per story), QL-STORY-READY, PR-SPRINT (per sprint), QL-TEST-COVERAGE (per sprint close-out) | PR-MILESTONE, AD-VISUAL |
-| **Polish** | QL-TEST-COVERAGE, CD-PLAYTEST, PR-MILESTONE | AD-VISUAL |
+| **Pre-Production** | all four PHASE-GATEs (via gate-check) | PR-EPIC, QL-STORY-READY (per story), PR-SPRINT, CD-PLAYTEST |
+| **Production** | — | LP-CODE-REVIEW (per story), QL-STORY-READY, PR-SPRINT (per sprint), QL-TEST-COVERAGE (per sprint close-out), PR-MILESTONE, AD-VISUAL |
+| **Polish** | — | QL-TEST-COVERAGE, CD-PLAYTEST, PR-MILESTONE, AD-VISUAL |
 | **Release** | All four PHASE-GATEs (via gate-check) | QL-TEST-COVERAGE |

@@ -409,6 +409,16 @@ class TestingFrameworkTests(unittest.TestCase):
         self.assertNotIn("design/art-bible.md", asset_spec)
         self.assertIn("design/art/art-bible.md", asset_spec)
 
+        adr_runtime = (ROOT / ".agents/skills/architecture-decision/SKILL.md").read_text(encoding="utf-8")
+        adr_spec = (NEW / "skills/authoring/architecture-decision.md").read_text(encoding="utf-8")
+        self.assertIn("TD-ADR is required in full, lean, and solo modes", adr_runtime)
+        self.assertIn(
+            "TD-ADR is required in `full`, `phase-gated`, and `solo`",
+            adr_spec,
+        )
+        self.assertNotIn("LP-FEASIBILITY", adr_spec)
+        self.assertNotIn("TD-ADR skipped", adr_spec)
+
     def test_skill_test_spec_and_rubric_accept_both_approval_workflow_shapes(self):
         runtime = (ROOT / ".agents/skills/skill-test/SKILL.md").read_text(encoding="utf-8")
         spec = (NEW / "skills/utility/skill-test.md").read_text(encoding="utf-8")
