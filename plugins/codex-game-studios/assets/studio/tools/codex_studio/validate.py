@@ -3,14 +3,19 @@ from __future__ import annotations
 import ast
 import argparse
 import collections
+import contextlib
 import dataclasses
+from datetime import datetime
 import hashlib
 import json
 import os
 import pathlib
 import re
+import stat
 import sys
 import tomllib
+import unicodedata
+import uuid
 
 from tools.codex_studio.engine_pack import load_studio_config, validate_activation
 
@@ -1053,12 +1058,410 @@ def validate_repository(root: pathlib.Path, phase: str) -> list[ValidationIssue]
     return issues
 
 
+_INSTALLATION_STATE = ".codex/codex-game-studios/installation.json"
+_MANAGER_ALLOWED_CHILDREN = {"installation.json", "manager.lock", "recovery", "legal"}
+_INSTALLED_STATE_KEYS = {
+    "schema_version", "plugin_version", "payload_digest", "transaction_id",
+    "installed_at", "managed_paths", "decisions", "validator_version",
+    "journal_status", "checksum",
+}
+_INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
+# payload-inventory-attestation:start
+_INSTALLED_INVENTORY_ENTRY_COUNT = 513
+_INSTALLED_INVENTORY_SHA256 = "7ebea9badfde87285389237b6d20e1dfd84b029424a9c295d1e71f92afbde20b"
+# payload-inventory-attestation:end
+_INSTALLED_VERSION = "1.0.0"
+_HASH = re.compile(r"[0-9a-f]{64}\Z")
+
+
+class _SecureInstalledRoot:
+    """Pinned, component-wise no-follow read boundary for installed validation."""
+
+    def __init__(self, root: pathlib.Path):
+        self.root = pathlib.Path(root).absolute()
+        self.fd: int | None = None
+        self.identity: tuple[int, int] | None = None
+
+    @staticmethod
+    def _unsafe(metadata: os.stat_result) -> bool:
+        attributes = int(getattr(metadata, "st_file_attributes", 0) or 0)
+        reparse = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+        return stat.S_ISLNK(metadata.st_mode) or bool(attributes & reparse) or bool(getattr(metadata, "st_reparse_tag", 0))
+
+    def __enter__(self) -> "_SecureInstalledRoot":
+        current = pathlib.Path(self.root.anchor)
+        for part in self.root.parts[1:]:
+            current = current / part
+            metadata = os.lstat(current)
+            if self._unsafe(metadata) or not stat.S_ISDIR(metadata.st_mode):
+                raise OSError(f"unsafe root ancestor: {current}")
+        flags = os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)) | int(getattr(os, "O_CLOEXEC", 0))
+        self.fd = os.open(self.root, flags)
+        opened = os.fstat(self.fd)
+        current_metadata = os.lstat(self.root)
+        if self._unsafe(opened) or not stat.S_ISDIR(opened.st_mode) or (opened.st_dev, opened.st_ino) != (current_metadata.st_dev, current_metadata.st_ino):
+            raise OSError("repository root changed while pinning")
+        self.identity = (opened.st_dev, opened.st_ino)
+        return self
+
+    def verify(self) -> None:
+        assert self.fd is not None and self.identity is not None
+        opened = os.fstat(self.fd)
+        current = os.lstat(self.root)
+        if self._unsafe(current) or (opened.st_dev, opened.st_ino) != self.identity or (current.st_dev, current.st_ino) != self.identity:
+            raise OSError("repository root changed during validation")
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        try:
+            if exc_type is None:
+                self.verify()
+        finally:
+            if self.fd is not None:
+                os.close(self.fd)
+
+    @contextlib.contextmanager
+    def _open(self, relative: str, *, directory: bool | None = None):
+        assert self.fd is not None
+        parts = pathlib.PurePosixPath(relative).parts
+        descriptor = os.dup(self.fd)
+        try:
+            for index, part in enumerate(parts):
+                final = index == len(parts) - 1
+                flags = os.O_RDONLY | int(getattr(os, "O_NOFOLLOW", 0)) | int(getattr(os, "O_CLOEXEC", 0)) | int(getattr(os, "O_NONBLOCK", 0))
+                if not final or directory is True:
+                    flags |= int(getattr(os, "O_DIRECTORY", 0))
+                child = os.open(part, flags, dir_fd=descriptor)
+                metadata = os.fstat(child)
+                if self._unsafe(metadata) or (not final and not stat.S_ISDIR(metadata.st_mode)):
+                    os.close(child)
+                    raise OSError(f"unsafe path component: {relative}")
+                os.close(descriptor)
+                descriptor = child
+            metadata = os.fstat(descriptor)
+            if directory is True and not stat.S_ISDIR(metadata.st_mode):
+                raise OSError(f"expected directory: {relative}")
+            if directory is False and not stat.S_ISREG(metadata.st_mode):
+                raise OSError(f"expected regular file: {relative}")
+            yield descriptor, metadata
+        finally:
+            os.close(descriptor)
+
+    def read(self, relative: str) -> bytes:
+        with self._open(relative, directory=False) as (descriptor, before):
+            chunks: list[bytes] = []
+            while chunk := os.read(descriptor, 1024 * 1024):
+                chunks.append(chunk)
+            after = os.fstat(descriptor)
+            if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+                raise OSError(f"file changed during secure read: {relative}")
+            self.verify()
+            return b"".join(chunks)
+
+    def kind(self, relative: str) -> str:
+        with self._open(relative) as (_, metadata):
+            if stat.S_ISREG(metadata.st_mode):
+                return "file"
+            if stat.S_ISDIR(metadata.st_mode):
+                return "directory"
+            raise OSError(f"special file is forbidden: {relative}")
+
+    def walk_files(self, relative: str) -> set[str]:
+        result: set[str] = set()
+        with self._open(relative, directory=True) as (descriptor, _):
+            self._walk_descriptor(descriptor, pathlib.PurePosixPath(relative), result)
+        self.verify()
+        return result
+
+    def _walk_descriptor(self, descriptor: int, prefix: pathlib.PurePosixPath, result: set[str]) -> None:
+        for name in sorted(os.listdir(descriptor)):
+            flags = os.O_RDONLY | int(getattr(os, "O_NOFOLLOW", 0)) | int(getattr(os, "O_CLOEXEC", 0)) | int(getattr(os, "O_NONBLOCK", 0))
+            relative = (prefix / name).as_posix()
+            try:
+                child = os.open(name, flags, dir_fd=descriptor)
+            except OSError as error:
+                raise OSError(f"unsafe path cannot be opened without following links: {relative}: {error}") from error
+            try:
+                metadata = os.fstat(child)
+                if self._unsafe(metadata):
+                    raise OSError(f"unsafe link or reparse point: {relative}")
+                if stat.S_ISDIR(metadata.st_mode):
+                    self._walk_descriptor(child, prefix / name, result)
+                elif stat.S_ISREG(metadata.st_mode):
+                    result.add(relative)
+                else:
+                    raise OSError(f"special file is forbidden: {relative}")
+            finally:
+                os.close(child)
+
+
+def _installed_issue(path: str, message: str) -> ValidationIssue:
+    return ValidationIssue("error", path, message)
+
+
+def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[ValidationIssue]]:
+    try:
+        document = json.loads(raw.decode("utf-8"))
+        if not isinstance(document, dict):
+            raise ValueError("installation state must be a JSON object")
+        if set(document) != _INSTALLED_STATE_KEYS:
+            raise ValueError("installation state schema has missing or unknown fields")
+        checksum = document.get("checksum")
+        body = dict(document)
+        body.pop("checksum", None)
+        canonical = (json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+        if not isinstance(checksum, str) or hashlib.sha256(canonical).hexdigest() != checksum:
+            raise ValueError("installation state checksum mismatch")
+        complete = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+        if raw != complete:
+            raise ValueError("installation state is not canonical JSON")
+        if document.get("schema_version") != 1:
+            raise ValueError("unsupported installation state schema")
+        if document.get("plugin_version") != _INSTALLED_VERSION:
+            raise ValueError("unsupported installed plugin version")
+        if not _HASH.fullmatch(str(document.get("payload_digest", ""))):
+            raise ValueError("invalid payload provenance digest")
+        for key in ("transaction_id", "installed_at", "validator_version"):
+            if not isinstance(document.get(key), str) or not document[key]:
+                raise ValueError(f"malformed {key}")
+        parsed_uuid = uuid.UUID(document["transaction_id"])
+        if str(parsed_uuid) != document["transaction_id"]:
+            raise ValueError("malformed transaction_id")
+        timestamp = datetime.fromisoformat(document["installed_at"].replace("Z", "+00:00"))
+        if timestamp.tzinfo is None:
+            raise ValueError("malformed installed_at")
+        if document.get("journal_status") not in {"clean", "committed"}:
+            raise ValueError("installation journal is not terminal")
+        if not isinstance(document.get("managed_paths"), list):
+            raise ValueError("managed path ownership is missing")
+        decisions = document.get("decisions")
+        if not isinstance(decisions, list):
+            raise ValueError("installation decisions are malformed")
+        decision_bytes: list[bytes] = []
+        decision_paths: list[str] = []
+        shared_decisions: dict[str, str] = {}
+        for decision in decisions:
+            if not isinstance(decision, dict) or not isinstance(decision.get("path"), str):
+                raise ValueError("installation decision is malformed")
+            kind = decision.get("kind")
+            path = _normalize_installed_path(decision["path"])
+            if kind == "managed-block":
+                if set(decision) != {"kind", "path", "outcome"} or decision.get("outcome") not in {"adopt", "merge"}:
+                    raise ValueError("managed-block decision is malformed")
+            elif kind == "toml-keys":
+                if set(decision) != {"kind", "path", "outcome", "owned_values"} or decision.get("outcome") not in {"adopt", "merge"}:
+                    raise ValueError("TOML decision is malformed")
+                values = decision.get("owned_values")
+                if not isinstance(values, dict) or set(values) != {"agents.max_depth", "agents.max_threads", "features.hooks"} or type(values["agents.max_depth"]) is not int or type(values["agents.max_threads"]) is not int or type(values["features.hooks"]) is not bool:
+                    raise ValueError("TOML decision values are malformed")
+            elif kind == "preserved-collision":
+                if set(decision) != {"kind", "path", "reason", "target_hash"} or decision.get("reason") not in {"unmanaged-collision", "customized-managed-file", "historical-remnant"}:
+                    raise ValueError("collision decision is malformed")
+                target_hash = decision.get("target_hash")
+                if target_hash is not None and not _HASH.fullmatch(str(target_hash)):
+                    raise ValueError("collision decision hash is malformed")
+            else:
+                raise ValueError("unknown installation decision kind")
+            if kind in {"managed-block", "toml-keys"}:
+                shared_decisions[path] = str(kind)
+            decision_paths.append(path.casefold())
+            decision_bytes.append((json.dumps(decision, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode())
+        if decision_bytes != sorted(decision_bytes) or len(decision_bytes) != len(set(decision_bytes)) or len(decision_paths) != len(set(decision_paths)):
+            raise ValueError("installation decisions are unsorted or duplicated")
+        records = document["managed_paths"]
+        record_paths: list[str] = []
+        shared_records: dict[str, str] = {}
+        projection: list[list[object]] = []
+        for record in records:
+            if not isinstance(record, dict) or set(record) != _INSTALLED_PATH_KEYS:
+                raise ValueError("managed path record is malformed")
+            path = _normalize_installed_path(record.get("path"))
+            ownership, merge = record.get("ownership"), record.get("merge")
+            installed_hash, block_hash = record.get("installed_hash"), record.get("block_hash")
+            if ownership not in {"dedicated", "shared"} or (ownership == "dedicated" and merge is not None) or (ownership == "shared" and merge not in {"managed-block", "toml-keys"}):
+                raise ValueError("managed ownership contract is malformed")
+            if installed_hash is not None and not _HASH.fullmatch(str(installed_hash)):
+                raise ValueError("installed ownership hash is malformed")
+            if ownership == "shared" and installed_hash is None:
+                raise ValueError("shared installed hash is missing")
+            if merge == "managed-block":
+                if not _HASH.fullmatch(str(block_hash)):
+                    raise ValueError("managed block hash is malformed")
+            elif block_hash is not None:
+                raise ValueError("unexpected managed block hash")
+            record_paths.append(path)
+            if ownership == "shared":
+                shared_records[path] = str(merge)
+            expected_hash = installed_hash if ownership == "dedicated" and path != "tools/codex_studio/validate.py" else None
+            projection.append([path, ownership, merge, "directory" if installed_hash is None else "file", expected_hash])
+        if record_paths != sorted(record_paths) or len(record_paths) != len({path.casefold() for path in record_paths}):
+            raise ValueError("managed paths are unsorted or duplicated")
+        if shared_records != shared_decisions:
+            raise ValueError("shared ownership decisions do not match managed paths")
+        projection_bytes = (json.dumps(projection, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+        if len(projection) != _INSTALLED_INVENTORY_ENTRY_COUNT or hashlib.sha256(projection_bytes).hexdigest() != _INSTALLED_INVENTORY_SHA256:
+            raise ValueError("authenticated installed inventory does not match")
+        return document, []
+    except (UnicodeError, json.JSONDecodeError, ValueError, TypeError, KeyError) as error:
+        return None, [_installed_issue(_INSTALLATION_STATE, str(error))]
+
+
+def _normalize_installed_path(value: object) -> str:
+    if not isinstance(value, str) or not value or unicodedata.normalize("NFC", value) != value or "\\" in value or "\x00" in value:
+        raise ValueError("managed path is unsafe or not NFC-normalized")
+    pure = pathlib.PurePosixPath(value)
+    if pure.is_absolute() or pure.as_posix() != value or any(part in {"", ".", ".."} for part in pure.parts):
+        raise ValueError("managed path is unsafe or non-normalized")
+    return value
+
+
+def _validate_shared_content(record: dict[str, object], decisions: list[object], content: bytes) -> list[ValidationIssue]:
+    path = str(record["path"])
+    merge = record["merge"]
+    if merge == "managed-block":
+        start = b"<!-- codex-game-studios:start -->"
+        end = b"<!-- codex-game-studios:end -->"
+        if content.count(start) != 1 or content.count(end) != 1 or content.index(start) >= content.index(end):
+            return [_installed_issue(path, "managed block markers are missing or malformed")]
+        line_end = content.find(b"\n", content.index(end))
+        stop = len(content) if line_end < 0 else line_end + 1
+        block = content[content.rfind(b"\n", 0, content.index(start)) + 1:stop]
+        candidates = {hashlib.sha256(block).hexdigest(), hashlib.sha256(b"\n" + block).hexdigest()}
+        if record["block_hash"] not in candidates:
+            return [_installed_issue(path, "managed block differs from recorded ownership hash")]
+    elif merge == "toml-keys":
+        decision = next(item for item in decisions if isinstance(item, dict) and item.get("kind") == "toml-keys" and item.get("path") == path)
+        try:
+            parsed = tomllib.loads(content.decode("utf-8"))
+            actual = {
+                "agents.max_depth": parsed["agents"]["max_depth"],
+                "agents.max_threads": parsed["agents"]["max_threads"],
+                "features.hooks": parsed["features"]["hooks"],
+            }
+        except (UnicodeError, tomllib.TOMLDecodeError, KeyError, TypeError) as error:
+            return [_installed_issue(path, f"owned TOML contract is invalid: {error}")]
+        if actual != decision["owned_values"]:
+            return [_installed_issue(path, "owned TOML values differ from installation state")]
+    return []
+
+
+def _validate_installed_repository_secure(root: pathlib.Path) -> tuple[list[ValidationIssue], bytes | None]:
+    """Return installed issues and the exact securely read canonical state."""
+
+    issues: list[ValidationIssue] = []
+    state_raw: bytes | None = None
+    try:
+        with _SecureInstalledRoot(pathlib.Path(root)) as secure:
+            state_raw = secure.read(_INSTALLATION_STATE)
+            state, state_issues = _load_installed_state(state_raw)
+            if state is None:
+                return state_issues, state_raw
+            records = state["managed_paths"]
+            decisions = state["decisions"]
+            assert isinstance(records, list) and isinstance(decisions, list)
+            recorded_files: set[str] = set()
+            configured_files: set[str] = set()
+            try:
+                studio = tomllib.loads(secure.read(".codex/studio.toml").decode("utf-8"))
+                expected_studio_fields = {"engine", "engine_version", "language", "review_mode", "active_engine_pack", "model_policy"}
+                if set(studio) != expected_studio_fields or any(not isinstance(studio.get(key), str) for key in expected_studio_fields):
+                    raise ValueError("studio config fields are not exact strings")
+                if studio["review_mode"] != "phase-gated" or studio["model_policy"] != "balanced":
+                    raise ValueError("non-engine studio authority differs from installed baseline")
+                engine = studio.get("engine")
+                active_pack = studio.get("active_engine_pack")
+                if engine == "unconfigured" and active_pack != "none":
+                    raise ValueError("unconfigured studio must not activate an engine pack")
+                if engine in EXPECTED_PACK_NAMES:
+                    if active_pack != engine:
+                        raise ValueError("configured engine and active pack differ")
+                    allowed_languages = {
+                        "godot": {"gdscript", "csharp"},
+                        "unity": {"csharp"},
+                        "unreal": {"cpp", "blueprint", "cpp-blueprint"},
+                    }
+                    version = studio["engine_version"]
+                    language = studio["language"]
+                    if not version or version != version.strip() or any(unicodedata.category(character).startswith("C") or unicodedata.category(character) in {"Zl", "Zp"} for character in version):
+                        raise ValueError("configured engine version is invalid")
+                    if language not in allowed_languages[engine]:
+                        raise ValueError("configured engine language is invalid")
+                    active = json.loads(secure.read(".codex/active-engine.json").decode("utf-8"))
+                    generated = active.get("generated") if isinstance(active, dict) and active.get("engine") == engine else None
+                    expected_names = {f"{name}.toml" for name in EXPECTED_PACK_NAMES[engine]}
+                    if not isinstance(generated, dict) or set(generated) != expected_names:
+                        raise ValueError("active engine manifest does not declare exactly five profiles")
+                    for name, expected_hash in generated.items():
+                        if not _HASH.fullmatch(str(expected_hash)):
+                            raise ValueError("active engine manifest contains an invalid hash")
+                        active_path = f".codex/agents/{name}"
+                        pack_path = f".codex/agent-packs/{engine}/{name}"
+                        active_content = secure.read(active_path)
+                        pack_content = secure.read(pack_path)
+                        if hashlib.sha256(active_content).hexdigest() != expected_hash or active_content != pack_content:
+                            raise ValueError(f"active profile does not match immutable pack: {name}")
+                        configured_files.add(active_path)
+                elif engine != "unconfigured":
+                    raise ValueError("unsupported configured engine")
+            except (OSError, UnicodeError, tomllib.TOMLDecodeError, json.JSONDecodeError, ValueError) as error:
+                issues.append(_installed_issue(".codex/studio.toml", f"configured routing is invalid: {error}"))
+            for record in records:
+                assert isinstance(record, dict)
+                path = str(record["path"])
+                expected_kind = "directory" if record["installed_hash"] is None else "file"
+                try:
+                    actual_kind = secure.kind(path)
+                    if actual_kind != expected_kind:
+                        issues.append(_installed_issue(path, f"managed path has wrong type: expected {expected_kind}"))
+                        continue
+                    if actual_kind == "file":
+                        content = secure.read(path)
+                        recorded_files.add(path)
+                        if record["ownership"] == "shared":
+                            issues.extend(_validate_shared_content(record, decisions, content))
+                        elif path == ".codex/studio.toml" and configured_files:
+                            pass
+                        elif hashlib.sha256(content).hexdigest() != record["installed_hash"]:
+                            issues.append(_installed_issue(path, "managed file differs from recorded ownership hash"))
+                except OSError as error:
+                    issues.append(_installed_issue(path, f"secure managed-path inspection failed: {error}"))
+
+            control_files = secure.walk_files(".codex/codex-game-studios")
+            for path in control_files:
+                relative = pathlib.PurePosixPath(path).relative_to(".codex/codex-game-studios").as_posix()
+                if relative != "installation.json" and not relative.startswith(("legal/", "recovery/")) and relative != "manager.lock":
+                    issues.append(_installed_issue(path, "unrecorded manager write"))
+            for operational_root in (
+                ".agents/skills", ".codex/agents", ".codex/agent-packs", ".codex/hooks",
+                ".codex/docs", "tools/codex_studio", "Codex Studio Testing Framework",
+                "docs/engine-reference",
+            ):
+                try:
+                    operational_files = secure.walk_files(operational_root)
+                except OSError as error:
+                    issues.append(_installed_issue(operational_root, f"secure operational-tree inspection failed: {error}"))
+                    continue
+                for path in operational_files:
+                    if path not in recorded_files and path not in configured_files:
+                        issues.append(_installed_issue(path, "unrecorded write beneath manager-owned operational root"))
+            secure.verify()
+    except (OSError, ValueError) as error:
+        issues.append(_installed_issue(".", f"secure installed validation failed: {error}"))
+    return sorted(issues, key=lambda issue: (issue.path, issue.message)), state_raw
+
+
+def validate_installed_repository(root: pathlib.Path) -> list[ValidationIssue]:
+    """Securely validate a checksum-bound installed operational repository."""
+
+    return _validate_installed_repository_secure(root)[0]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Codex Game Studios")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path("."))
+    parser.add_argument("--mode", choices=("source", "installed"), default="source")
     parser.add_argument("--phase", choices=("pre-cleanup", "final"), default="final")
     args = parser.parse_args(argv)
-    issues = validate_repository(args.root, args.phase)
+    issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
     for issue in issues:
         print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
     if any(issue.severity == "error" for issue in issues):

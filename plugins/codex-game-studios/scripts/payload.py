@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import stat
 import tempfile
@@ -55,6 +56,13 @@ APPROVED_SOURCE_KEYS = {
 SOURCE_CATEGORIES = {"dedicated-root", "standalone", "nested-instruction", "shared", "legal"}
 PROVENANCE_VALUES = {"codex-native", "upstream-adapted", "upstream-legal"}
 MERGE_VALUES = {"managed-block", "toml-keys"}
+_VALIDATOR_PATH = "tools/codex_studio/validate.py"
+_ATTESTATION_PATTERN = re.compile(
+    rb"# payload-inventory-attestation:start\n"
+    rb"_INSTALLED_INVENTORY_ENTRY_COUNT = [0-9]+\n"
+    rb'_INSTALLED_INVENTORY_SHA256 = "[0-9a-f]{64}"\n'
+    rb"# payload-inventory-attestation:end\n"
+)
 
 
 def _entry_dict(entry: PayloadEntry) -> dict[str, object]:
@@ -87,6 +95,52 @@ def _manifest_dict(manifest: PayloadManifest) -> dict[str, object]:
     value = _manifest_body(manifest.schema_version, manifest.version, manifest.entries)
     value["digest"] = manifest.digest
     return value
+
+
+def inventory_attestation(manifest: PayloadManifest) -> tuple[int, str]:
+    """Return the non-circular authenticated installed inventory projection."""
+
+    projection = []
+    for entry in manifest.entries:
+        expected_hash = (
+            entry.sha256
+            if entry.ownership == "dedicated" and entry.path != _VALIDATOR_PATH
+            else None
+        )
+        projection.append(
+            [entry.path, entry.ownership, entry.merge, entry.entry_type, expected_hash]
+        )
+    return len(projection), hashlib.sha256(canonical_json(projection)).hexdigest()
+
+
+def _render_inventory_attestation(source: bytes, manifest: PayloadManifest) -> bytes:
+    count, digest = inventory_attestation(manifest)
+    replacement = (
+        "# payload-inventory-attestation:start\n"
+        f"_INSTALLED_INVENTORY_ENTRY_COUNT = {count}\n"
+        f'_INSTALLED_INVENTORY_SHA256 = "{digest}"\n'
+        "# payload-inventory-attestation:end\n"
+    ).encode("utf-8")
+    rendered, replacements = _ATTESTATION_PATTERN.subn(replacement, source)
+    if replacements != 1:
+        raise PayloadError("installed inventory attestation block is missing or malformed")
+    return rendered
+
+
+def _verify_inventory_attestation(
+    source_root: pathlib.Path, manifest: PayloadManifest
+) -> None:
+    """Require the reviewed source block to match the generated projection."""
+
+    count, digest = inventory_attestation(manifest)
+    expected = f"expected count={count} sha256={digest}"
+    current = read_file_secure(source_root, _VALIDATOR_PATH)
+    try:
+        rendered = _render_inventory_attestation(current, manifest)
+    except PayloadError as error:
+        raise PayloadError(f"installed inventory attestation is malformed; {expected}") from error
+    if rendered != current:
+        raise PayloadError(f"installed inventory attestation is stale; {expected}")
 
 
 def _safe_type(path: pathlib.Path) -> tuple[str, os.stat_result]:
@@ -635,6 +689,7 @@ def build_payload(
         staged_assets = staged_plugin / "assets"
         staged_assets.mkdir(mode=0o755)
         manifest = _materialize(source, plugin, staged_assets)
+        _verify_inventory_attestation(source, manifest)
         staged_issues = verify_payload(staged_plugin)
         if staged_issues:
             raise PayloadError("staged payload failed public verification: " + "; ".join(staged_issues))

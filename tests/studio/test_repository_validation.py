@@ -16,6 +16,7 @@ from tools.codex_studio.validate import (
     validate_hooks,
     validate_agent,
     validate_skill,
+    main,
 )
 
 
@@ -37,6 +38,12 @@ def _minimal_runtime_tree(root: Path) -> None:
 
 
 class RepositoryValidationTests(unittest.TestCase):
+    def test_source_mode_remains_default_and_backward_compatible(self):
+        # Arrange / Act / Assert
+        self.assertEqual([], validate_repository(ROOT, "final"))
+        self.assertEqual(0, main(["--root", str(ROOT), "--phase", "final"]))
+        self.assertEqual(0, main(["--root", str(ROOT), "--mode", "source", "--phase", "final"]))
+
     def test_final_repository_validation_accepts_each_configured_engine_pack(self):
         targets = {
             "godot": ("4.6", "gdscript"),

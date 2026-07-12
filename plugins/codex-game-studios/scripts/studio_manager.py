@@ -12,7 +12,9 @@ from pathlib import Path, PurePosixPath
 import re
 import stat
 import subprocess
+import sys
 import tomllib
+import types
 import uuid
 from collections.abc import Mapping
 
@@ -1047,6 +1049,54 @@ def plan_operation(operation: str, root: Path | str, plugin_root: Path | str) ->
                 raise ManagerError("INVALID_PAYLOAD", str(error)) from error
             pinned.verify()
             return plan
+    except PayloadError as error:
+        raise ManagerError("UNSAFE_PATH", str(error)) from error
+
+
+def validate_installed_read_only(root: Path | str, plugin_root: Path | str) -> list[object]:
+    """Run the embedded installed validator without writing bytecode to the target."""
+
+    try:
+        for requested in (Path(root).absolute(), Path(plugin_root).absolute()):
+            current = Path(requested.anchor)
+            for part in requested.parts[1:]:
+                current /= part
+                metadata = current.lstat()
+                if stat.S_ISLNK(metadata.st_mode) or is_reparse_point(metadata):
+                    raise ManagerError("UNSAFE_PATH", f"root ancestor is a link or reparse point: {current}")
+        with pin_root(root) as target_pin, pin_root(plugin_root) as plugin_pin:
+            manifest = load_verified_manifest(plugin_pin.root)
+            entry = next((item for item in manifest.entries if item.path == "tools/codex_studio/validate.py"), None)
+            if entry is None or entry.sha256 is None:
+                raise ManagerError("INVALID_PAYLOAD", "installed validator is absent from payload")
+            source = read_file_secure(plugin_pin.root / "assets/studio", entry.path)
+            if hashlib.sha256(source).hexdigest() != entry.sha256:
+                raise ManagerError("INVALID_PAYLOAD", "installed validator hash mismatch")
+            module_name = "_codex_studio_installed_validator"
+            module = types.ModuleType(module_name)
+            module.__file__ = str(plugin_pin.root / "assets/studio" / entry.path)
+            previous = sys.dont_write_bytecode
+            try:
+                sys.dont_write_bytecode = True
+                sys.modules[module_name] = module
+                exec(compile(source, module.__file__, "exec"), module.__dict__)
+                validator = module.__dict__["_validate_installed_repository_secure"]
+                result, state_raw = validator(target_pin.root)
+                if state_raw is None:
+                    raise ManagerError("INVALID_INSTALLATION_STATE", "installation state could not be read securely")
+                state = _parse_state(state_raw)
+                if state.payload_digest != manifest.digest or state.plugin_version != manifest.version:
+                    raise ManagerError(
+                        "INVALID_INSTALLATION_STATE",
+                        "installed payload provenance does not match the current embedded payload",
+                    )
+                _validate_state_manifest_parity(state, manifest)
+                target_pin.verify()
+                plugin_pin.verify()
+                return result
+            finally:
+                sys.modules.pop(module_name, None)
+                sys.dont_write_bytecode = previous
     except PayloadError as error:
         raise ManagerError("UNSAFE_PATH", str(error)) from error
 

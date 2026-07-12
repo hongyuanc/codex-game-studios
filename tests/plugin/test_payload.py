@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -26,6 +27,7 @@ from payload import (  # noqa: E402
     load_manifest,
     load_verified_manifest,
     verify_payload,
+    inventory_attestation,
 )
 from safe_fs import list_immediate_secure  # noqa: E402
 
@@ -73,6 +75,68 @@ class PayloadPathTests(unittest.TestCase):
 class PayloadGenerationTests(unittest.TestCase):
     """Verify generation, policy parity, and committed payload integrity."""
 
+    def test_payload_inventory_attestation_matches_exact_manifest_projection(self):
+        # Arrange
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        validator = (ROOT / "tools/codex_studio/validate.py").read_text(encoding="utf-8")
+        projection = []
+        for entry in manifest["entries"]:
+            expected_hash = entry["sha256"] if entry["ownership"] == "dedicated" and entry["path"] != "tools/codex_studio/validate.py" else None
+            projection.append([entry["path"], entry["ownership"], entry["merge"], entry["entry_type"], expected_hash])
+
+        # Act
+        digest = hashlib.sha256((json.dumps(projection, separators=(",", ":")) + "\n").encode()).hexdigest()
+
+        # Assert
+        self.assertEqual(513, len(projection))
+        self.assertIn(f'_INSTALLED_INVENTORY_ENTRY_COUNT = {len(projection)}', validator)
+        self.assertIn(f'_INSTALLED_INVENTORY_SHA256 = "{digest}"', validator)
+
+    def test_payload_check_rejects_stale_generated_inventory_attestation(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            shutil.copytree(ROOT, source, ignore=shutil.ignore_patterns(".git", ".superpowers", "__pycache__"))
+            validator = source / "tools/codex_studio/validate.py"
+            validator.write_text(
+                __import__("re").sub(
+                    r'_INSTALLED_INVENTORY_SHA256 = "[0-9a-f]{64}"',
+                    f'_INSTALLED_INVENTORY_SHA256 = "{"0" * 64}"',
+                    validator.read_text(encoding="utf-8"),
+                    count=1,
+                ),
+                encoding="utf-8",
+            )
+
+            # Act / Assert
+            with self.assertRaisesRegex(PayloadError, "inventory attestation"):
+                build_payload(source, source / "plugins/codex-game-studios", check=True)
+
+    def test_payload_build_and_check_report_reviewed_attestation_without_source_mutation(self):
+        # Arrange / Act / Assert
+        expected_count, expected_digest = inventory_attestation(load_manifest(MANIFEST))
+        expected_message = f"expected count={expected_count} sha256={expected_digest}"
+        for check, malformed in ((False, False), (True, False), (False, True), (True, True)):
+            with self.subTest(check=check, malformed=malformed), tempfile.TemporaryDirectory() as directory:
+                source = Path(directory) / "source"
+                shutil.copytree(ROOT, source, ignore=shutil.ignore_patterns(".git", ".superpowers", "__pycache__"))
+                validator = source / "tools/codex_studio/validate.py"
+                original = validator.read_bytes()
+                if malformed:
+                    stale = original.replace(b"# payload-inventory-attestation:start", b"# malformed-attestation:start", 1)
+                else:
+                    stale = __import__("re").sub(
+                        rb'_INSTALLED_INVENTORY_SHA256 = "[0-9a-f]{64}"',
+                        b'_INSTALLED_INVENTORY_SHA256 = "' + b"0" * 64 + b'"',
+                        original,
+                        count=1,
+                    )
+                validator.write_bytes(stale)
+                before = validator.read_bytes()
+
+                with self.assertRaisesRegex(PayloadError, expected_message):
+                    build_payload(source, source / "plugins/codex-game-studios", check=check)
+                self.assertEqual(before, validator.read_bytes())
     def test_payload_verified_snapshot_consumes_one_manifest_object(self):
         # Arrange
         import payload
