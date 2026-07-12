@@ -15,6 +15,13 @@ import sys
 from typing import Callable
 
 
+HOOK_DIRECTORY = pathlib.Path(__file__).resolve().parent
+if str(HOOK_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(HOOK_DIRECTORY))
+
+from safe_io import UnsafeAtomicPathError, atomic_append_text, atomic_read_text
+
+
 ACTIONS = {
     "session-start",
     "detect-gaps",
@@ -1096,10 +1103,11 @@ def _safe_read_text(
     *,
     errors: str = "strict",
 ) -> str:
-    path = _safe_path(root, relative)
-    if not path.is_file():
-        raise FileNotFoundError(path)
-    return path.read_text(encoding="utf-8", errors=errors)
+    _safe_relative_path(root, relative)
+    try:
+        return atomic_read_text(root, relative, errors=errors)
+    except UnsafeAtomicPathError as error:
+        raise UnsafePathError(str(error)) from error
 
 
 def _safe_is_file(root: pathlib.Path, relative: str | pathlib.Path) -> bool:
@@ -1107,23 +1115,6 @@ def _safe_is_file(root: pathlib.Path, relative: str | pathlib.Path) -> bool:
         return _safe_path(root, relative).is_file()
     except UnsafePathError:
         raise
-
-
-def _safe_mkdir(root: pathlib.Path, relative: pathlib.Path) -> pathlib.Path:
-    trusted_root = root.resolve()
-    current = trusted_root
-    for part in relative.parts:
-        current = current / part
-        try:
-            info = current.lstat()
-        except FileNotFoundError:
-            current.mkdir()
-            info = current.lstat()
-        except (OSError, ValueError) as error:
-            raise UnsafePathError(f"unsafe session directory: {relative.as_posix()}") from error
-        if _is_link_or_reparse(info) or not stat.S_ISDIR(info.st_mode):
-            raise UnsafePathError(f"unsafe session directory: {relative.as_posix()}")
-    return current
 
 
 def _relative_files(root: pathlib.Path, directory: str, suffix: str | None = None) -> list[pathlib.Path]:
@@ -1765,11 +1756,11 @@ def _detect_gaps(event: dict, root: pathlib.Path) -> HookResult:
 
 
 def _append(root: pathlib.Path, relative: str, text: str) -> None:
-    relative_path = _safe_relative_path(root, relative)
-    _safe_mkdir(root, relative_path.parent)
-    path = _safe_path(root, relative_path)
-    with path.open("a", encoding="utf-8") as stream:
-        stream.write(text)
+    _safe_relative_path(root, relative)
+    try:
+        atomic_append_text(root, relative, text)
+    except UnsafeAtomicPathError as error:
+        raise UnsafePathError(str(error)) from error
 
 
 def _pre_compact(event: dict, root: pathlib.Path) -> HookResult:

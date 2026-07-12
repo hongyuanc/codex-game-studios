@@ -1,5 +1,7 @@
 from importlib.util import module_from_spec, spec_from_file_location
+import inspect
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -15,6 +17,13 @@ SPEC = spec_from_file_location("hook_runner", ROOT / ".codex/hooks/hook_runner.p
 HOOKS = module_from_spec(SPEC)
 sys.modules[SPEC.name] = HOOKS
 SPEC.loader.exec_module(HOOKS)
+
+SAFE_IO_SPEC = spec_from_file_location(
+    "codex_hook_safe_io", ROOT / ".codex/hooks/safe_io.py"
+)
+SAFE_IO = module_from_spec(SAFE_IO_SPEC)
+sys.modules[SAFE_IO_SPEC.name] = SAFE_IO
+SAFE_IO_SPEC.loader.exec_module(SAFE_IO)
 
 VALIDATE_SPEC = spec_from_file_location(
     "studio_validate_hooks", ROOT / "tools/codex_studio/validate.py"
@@ -830,6 +839,314 @@ class HookBehaviorTests(unittest.TestCase):
         root = Path(temporary.name)
         subprocess.run(["git", "init", "-q", str(root)], check=True)
         return temporary, root
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_read_rejects_parent_swapped_to_symlink(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        state_dir = root / "production/session-state"
+        state_dir.mkdir(parents=True)
+        (state_dir / "active.md").write_text("safe", encoding="utf-8")
+
+        def swap_parent(parts):
+            if parts == ("production", "session-state"):
+                (state_dir / "active.md").unlink()
+                state_dir.rmdir()
+                state_dir.symlink_to(Path(external.name), target_is_directory=True)
+
+        with mock.patch.object(
+            SAFE_IO, "_posix_after_component_open", side_effect=swap_parent
+        ):
+            with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+                SAFE_IO.atomic_read_text(
+                    root, "production/session-state/active.md"
+                )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_append_creates_and_appends_inside_repository(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        SAFE_IO.atomic_append_text(
+            root, "production/session-logs/audit.log", "one\n"
+        )
+        SAFE_IO.atomic_append_text(
+            root, "production/session-logs/audit.log", "two\n"
+        )
+        self.assertEqual(
+            "one\ntwo\n",
+            (root / "production/session-logs/audit.log").read_text(),
+        )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_read_rejects_final_file_symlink_replacement(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        state_dir = root / "production/session-state"
+        state_dir.mkdir(parents=True)
+        state = state_dir / "active.md"
+        state.write_text("safe", encoding="utf-8")
+        secret = Path(external.name) / "secret.md"
+        secret.write_text("external", encoding="utf-8")
+        real_open = SAFE_IO.os.open
+        swapped = False
+
+        def swap_before_final(path, flags, mode=0o777, *, dir_fd=None):
+            nonlocal swapped
+            if path == "active.md" and dir_fd is not None and not swapped:
+                swapped = True
+                state.unlink()
+                state.symlink_to(secret)
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(SAFE_IO.os, "open", side_effect=swap_before_final):
+            with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+                SAFE_IO.atomic_read_text(
+                    root, "production/session-state/active.md"
+                )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_append_rejects_target_symlink_replacement(self):
+        temporary, root = self.make_root()
+        external = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.addCleanup(external.cleanup)
+        log_dir = root / "production/session-logs"
+        log_dir.mkdir(parents=True)
+        audit = log_dir / "audit.log"
+        audit.write_text("safe\n", encoding="utf-8")
+        outside = Path(external.name) / "outside.log"
+        outside.write_text("external\n", encoding="utf-8")
+        real_open = SAFE_IO.os.open
+        swapped = False
+
+        def swap_before_final(path, flags, mode=0o777, *, dir_fd=None):
+            nonlocal swapped
+            if path == "audit.log" and dir_fd is not None and not swapped:
+                swapped = True
+                audit.unlink()
+                audit.symlink_to(outside)
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        with mock.patch.object(SAFE_IO.os, "open", side_effect=swap_before_final):
+            with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+                SAFE_IO.atomic_append_text(
+                    root, "production/session-logs/audit.log", "unsafe\n"
+                )
+        self.assertEqual("external\n", outside.read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_read_missing_file_raises_file_not_found(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        with self.assertRaises(FileNotFoundError):
+            SAFE_IO.atomic_read_text(root, "production/session-state/missing.md")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_read_rejects_non_regular_file(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        target = root / "production/session-state/active.md"
+        target.mkdir(parents=True)
+        with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+            SAFE_IO.atomic_read_text(root, "production/session-state/active.md")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_parent_descriptors_close_after_injected_failure(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        (root / "production/session-state").mkdir(parents=True)
+        closed = []
+        real_close = SAFE_IO.os.close
+
+        def record_close(fd):
+            closed.append(fd)
+            real_close(fd)
+
+        def fail_after_nested_parent(parts):
+            if parts == ("production", "session-state"):
+                raise RuntimeError("injected failure")
+
+        with mock.patch.object(SAFE_IO.os, "close", side_effect=record_close):
+            with mock.patch.object(
+                SAFE_IO,
+                "_posix_after_component_open",
+                side_effect=fail_after_nested_parent,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "injected failure"):
+                    SAFE_IO.atomic_read_text(
+                        root, "production/session-state/active.md"
+                    )
+        self.assertEqual(3, len(closed))
+
+    def test_windows_open_rejects_reparse_and_outside_final_path(self):
+        class FakeWindowsApi:
+            def __init__(self, *, reparse_path=None, outside_final=False):
+                self.reparse_path = reparse_path
+                self.outside_final = outside_final
+                self.handles = {}
+                self.closed = []
+
+            def CreateFileW(
+                self,
+                path,
+                desired_access,
+                share_mode,
+                security_attributes,
+                creation_disposition,
+                flags_and_attributes,
+                template_file,
+            ):
+                del (
+                    desired_access,
+                    share_mode,
+                    security_attributes,
+                    creation_disposition,
+                    flags_and_attributes,
+                    template_file,
+                )
+                handle = len(self.handles) + 1
+                self.handles[handle] = path
+                return handle
+
+            def FileAttributeTagInfo(self, handle):
+                if self.handles[handle] == self.reparse_path:
+                    return SAFE_IO.FILE_ATTRIBUTE_REPARSE_POINT, 0xA0000003
+                if not self.handles[handle].endswith("active.md"):
+                    return SAFE_IO.FILE_ATTRIBUTE_DIRECTORY, 0
+                return 0, 0
+
+            def GetFinalPathNameByHandleW(self, handle):
+                path = self.handles[handle]
+                if self.outside_final and path.endswith("active.md"):
+                    return r"\\?\C:\outside\active.md"
+                return "\\\\?\\" + path
+
+            def CloseHandle(self, handle):
+                self.closed.append(handle)
+
+        root = r"C:\repo"
+        parts = ("production", "session-state", "active.md")
+        reparse_api = FakeWindowsApi(reparse_path=r"C:\repo\production")
+        with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+            SAFE_IO._windows_open_verified(
+                root,
+                parts,
+                desired_access=SAFE_IO.GENERIC_READ,
+                creation_disposition=SAFE_IO.OPEN_EXISTING,
+                create_parents=False,
+                api=reparse_api,
+            )
+        self.assertEqual([2, 1], reparse_api.closed)
+
+        outside_api = FakeWindowsApi(outside_final=True)
+        with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+            SAFE_IO._windows_open_verified(
+                root,
+                parts,
+                desired_access=SAFE_IO.GENERIC_READ,
+                creation_disposition=SAFE_IO.OPEN_EXISTING,
+                create_parents=False,
+                api=outside_api,
+            )
+        self.assertEqual([4, 3, 2, 1], outside_api.closed)
+
+    def test_windows_open_uses_required_flags(self):
+        class RecordingWindowsApi:
+            def __init__(self):
+                self.calls = []
+                self.handles = {}
+                self.closed = []
+
+            def CreateFileW(
+                self,
+                path,
+                desired_access,
+                share_mode,
+                security_attributes,
+                creation_disposition,
+                flags_and_attributes,
+                template_file,
+            ):
+                del security_attributes, template_file
+                self.calls.append(
+                    (
+                        path,
+                        desired_access,
+                        share_mode,
+                        creation_disposition,
+                        flags_and_attributes,
+                    )
+                )
+                handle = len(self.handles) + 1
+                self.handles[handle] = path
+                return handle
+
+            def FileAttributeTagInfo(self, handle):
+                if not self.handles[handle].endswith("audit.log"):
+                    return SAFE_IO.FILE_ATTRIBUTE_DIRECTORY, 0
+                return 0, 0
+
+            def GetFinalPathNameByHandleW(self, handle):
+                return "\\\\?\\" + self.handles[handle]
+
+            def CloseHandle(self, handle):
+                self.closed.append(handle)
+
+        root = r"C:\repo"
+        parts = ("production", "session-logs", "audit.log")
+        api = RecordingWindowsApi()
+        handle = SAFE_IO._windows_open_verified(
+            root,
+            parts,
+            desired_access=SAFE_IO.GENERIC_READ,
+            creation_disposition=SAFE_IO.OPEN_EXISTING,
+            create_parents=False,
+            api=api,
+        )
+        directory_flags = (
+            SAFE_IO.FILE_FLAG_BACKUP_SEMANTICS
+            | SAFE_IO.FILE_FLAG_OPEN_REPARSE_POINT
+        )
+        self.assertEqual(directory_flags, api.calls[0][4])
+        self.assertEqual(directory_flags, api.calls[1][4])
+        self.assertEqual(directory_flags, api.calls[2][4])
+        self.assertEqual(SAFE_IO.FILE_FLAG_OPEN_REPARSE_POINT, api.calls[3][4])
+        self.assertEqual(SAFE_IO.OPEN_EXISTING, api.calls[3][3])
+        self.assertEqual(SAFE_IO.GENERIC_READ, api.calls[3][1])
+        api.CloseHandle(handle)
+        self.assertEqual([3, 2, 1, 4], api.closed)
+
+        append_api = RecordingWindowsApi()
+        append_handle = SAFE_IO._windows_open_verified(
+            root,
+            parts,
+            desired_access=SAFE_IO.FILE_APPEND_DATA,
+            creation_disposition=SAFE_IO.OPEN_ALWAYS,
+            create_parents=True,
+            api=append_api,
+        )
+        self.assertEqual(
+            SAFE_IO.FILE_FLAG_OPEN_REPARSE_POINT,
+            append_api.calls[-1][4],
+        )
+        self.assertEqual(SAFE_IO.OPEN_ALWAYS, append_api.calls[-1][3])
+        self.assertEqual(SAFE_IO.FILE_APPEND_DATA, append_api.calls[-1][1])
+        append_api.CloseHandle(append_handle)
+
+    def test_hook_repository_io_has_no_pathname_fallback(self):
+        for helper, atomic_call in (
+            (HOOKS._safe_read_text, "atomic_read_text("),
+            (HOOKS._append, "atomic_append_text("),
+        ):
+            with self.subTest(helper=helper.__name__):
+                source = inspect.getsource(helper)
+                self.assertIn(atomic_call, source)
+                for fallback in (".read_text(", ".open(", "_safe_mkdir("):
+                    self.assertNotIn(fallback, source)
 
     def test_session_start_and_gap_detection_are_plain_text_and_fail_open(self):
         temporary, root = self.make_root()
