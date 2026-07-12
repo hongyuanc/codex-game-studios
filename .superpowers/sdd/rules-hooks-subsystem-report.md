@@ -232,14 +232,31 @@ skill findings, gap detection, and lifecycle context remain fail-open.
 
 ## Repository I/O Safety
 
-All runner-controlled reads and writes use lexical containment plus component
-`lstat` checks. Traversal, POSIX symlinks, Windows reparse-point attributes,
-nonzero reparse tags, and junction/name-surrogate metadata are rejected before
-access. NUL, surrogate, non-text, and malformed path values fail open without
-I/O. Unsafe advisory I/O is skipped with a safe warning and never blocks; tests
-prove external state files, log directories, asset files, and enumerated
-directories are neither disclosed nor modified. Session/audit writes remain
-limited to `production/session-state/` and `production/session-logs/`.
+All runner-controlled reads and writes now use verified OS handles from open
+through read or append. On POSIX, the root is opened with
+`O_DIRECTORY | O_NOFOLLOW`, every descendant parent is opened relative to the
+previous descriptor and checked against its parent entry, and the final
+`O_NOFOLLOW | O_NONBLOCK` descriptor must identify a regular file before it is
+made blocking and used.
+Native POSIX race tests replace an opened parent or the final path with a
+symlink and prove that reads and appends reject the swap without disclosing or
+modifying the external target. FIFO and descriptor-cleanup cases are also
+covered natively.
+
+On Windows, the implementation opens and retains the root and each ancestor
+without delete sharing, uses `FILE_FLAG_OPEN_REPARSE_POINT`, rejects reparse
+metadata, verifies each handle's final path remains under the verified root,
+and transfers only a verified regular-file handle to the read/append stream.
+The Windows evidence in this report is mock-based contract coverage for flags,
+containment, reparse rejection, component validation, and handle cleanup; this
+verification did not execute the implementation natively on Windows.
+
+Traversal, NUL, surrogate, non-text, and malformed path values fail open
+without I/O. Unsafe advisory I/O is skipped with a safe warning and never
+blocks; tests prove external state files, log directories, asset files, and
+enumerated directories are neither disclosed nor modified. Session/audit
+writes remain limited to `production/session-state/` and
+`production/session-logs/`.
 
 `changed_paths()` recognizes Add, Update, Delete, and `*** Move to:` paths so
 post-edit asset and skill checks inspect both sides of moves. Gap detection
@@ -259,25 +276,21 @@ those handlers and legacy permissions/status-line behavior.
 ## Verification Commands
 
 ```text
-python3 -m unittest tests.studio.test_hooks tests.studio.test_instruction_coverage -v
-python3 -m unittest discover -s tests/studio -v
-python3 -m json.tool .codex/hooks.json
-python3 -m py_compile .codex/hooks/hook_runner.py tools/codex_studio/validate.py
+python3 -m unittest tests.studio.test_hooks tests.studio.test_instruction_coverage -q
+python3 -m unittest discover -s tests/studio -q
+python3 -m tools.codex_studio.validate --root . --phase final
+python3 -m py_compile .codex/hooks/safe_io.py .codex/hooks/hook_runner.py tools/codex_studio/*.py
+python3 -m json.tool .codex/hooks.json >/dev/null
 git diff --check
-git diff --cached --check
-rg -n '/Users/|/home/|Claude Code|\.claude/' .codex/hooks.json .codex/hooks src/gameplay src/core src/ai src/networking src/ui assets/shaders assets/data design/gdd design/narrative tests/AGENTS.md prototypes/AGENTS.md
-find .claude/hooks .codex/hooks -maxdepth 1 -type f -name '*.sh' -print
-git ls-files .claude/hooks .claude/settings.json
 ```
 
-Final evidence: 62 focused and 136 studio tests pass; JSON/Python and whitespace
-checks pass; runtime forbidden scans return no matches; neither hook tree
-contains shell scripts; the tracked legacy hook/settings inventory is empty.
+Final evidence on this POSIX feature-branch run: the focused suite passed 78
+tests and the complete studio suite passed 270 tests, both with `OK`; the
+validator printed `Codex Studio validation: PASS`; Python compilation, JSON
+parsing, and whitespace checks each exited 0.
 
 ## Concerns
 
-None blocking. The cross-platform component checks materially reduce path escape
-risk, but they are pre-open checks rather than an atomic no-follow open. A
-filesystem entry could theoretically change between `lstat` and read/open
-(TOCTOU); Python's portable standard-library APIs do not provide one atomic
-no-follow primitive across POSIX and Windows.
+None blocking. Native race evidence is present for POSIX. Windows guarantees are
+supported by mock-based API-contract tests in this branch, not by a native
+Windows execution; native Windows CI remains the outstanding portability check.
