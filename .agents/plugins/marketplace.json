@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "codex-game-studios",
+  "owner": {
+    "name": "hongyuanc"
+  },
+  "plugins": [
+    {
+      "name": "codex-game-studios",
+      "source": "./plugins/codex-game-studios"
+    }
+  ]
+}
