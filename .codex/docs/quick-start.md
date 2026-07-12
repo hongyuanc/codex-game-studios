@@ -279,7 +279,7 @@ AGENTS.md                          -- Master config (read this first, ~60 lines)
   config.toml                      -- Bounded multi-agent and feature settings
   studio.toml                      -- Engine, language, review, and model policy
   hooks.json                       -- Codex lifecycle and tool hook declarations
-  agents/                          -- 34 engine-independent agent TOMLs
+  agents/                          -- 34 core TOMLs plus 5 managed copies after setup
   agent-packs/                     -- 15 inactive engine profiles in three packs
   hooks/                           -- Portable hook implementations
   docs/
@@ -290,6 +290,6 @@ AGENTS.md                          -- Master config (read this first, ~60 lines)
     context-management.md          -- Context budgets and compaction instructions
     directory-structure.md         -- Project directory layout
     workflow-catalog.yaml          -- 7-phase pipeline definition (read by $help)
-    setup-requirements.md          -- System prerequisites (Git Bash, jq, Python)
+    setup-requirements.md          -- System prerequisites (Git, Codex, Python 3)
     templates/                     -- 40 authoritative document templates
 ```

@@ -23,7 +23,10 @@ On Windows, `py -3 --version` may be used instead. Hook registrations in
 - `.codex/hooks.json` maps Codex events to Python commands.
 - `.codex/hooks/hook_runner.py` implements all 10 hook actions.
 - `.agents/skills/` contains the 73 discoverable studio skills.
-- `.codex/agents/` and `.codex/agent-packs/` contain the 49 TOML profiles.
+- `.codex/agents/` starts with 34 core profiles and receives five managed copies
+  from the selected pack; `.codex/agent-packs/` retains the 15 immutable source
+  profiles. Together they define 49 distinct roles despite the five managed
+  runtime copies.
 
 ## Verify the installation
 

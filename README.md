@@ -16,8 +16,10 @@ Engine 5 are supported through mutually exclusive engine packs.
 4. Choose Godot, Unity, or Unreal when `$setup-engine` runs.
 
 Review [AGENTS.md](AGENTS.md), [.codex/config.toml](.codex/config.toml), and
-[.codex/hooks.json](.codex/hooks.json) before trusting the project. Hooks run
-repository-relative Python commands and are part of the security boundary.
+[.codex/hooks.json](.codex/hooks.json) before trusting the project. Hooks are
+best-effort defense-in-depth guardrails with incomplete interception. Codex
+permissions, explicit approvals, and durable instructions remain the
+authorization boundary.
 
 ## What is included
 
@@ -55,7 +57,7 @@ Skills use `$name` invocation syntax. Common entry points include `$brainstorm`,
 ```text
 AGENTS.md                         durable project instructions
 .agents/skills/                   73 Codex skills
-.codex/agents/                   34 active core agent profiles
+.codex/agents/                   34 core profiles, plus 5 managed profiles after engine setup
 .codex/agent-packs/              inactive Godot, Unity, and Unreal packs
 .codex/hooks.json                reviewed native hook registration
 .codex/hooks/                    native Python hook runner and modules
@@ -77,8 +79,8 @@ python3 -m unittest discover -s tests/studio -v
 python3 -m tools.codex_studio.validate --root . --phase final
 ```
 
-The final gate checks exact agent, skill, engine-pack, instruction, document,
-hook, and reference inventories. See [.codex/docs/quick-start.md](.codex/docs/quick-start.md)
+The final gate checks exact state-aware agent, skill, engine-pack, instruction,
+document, hook, and reference inventories. See [.codex/docs/quick-start.md](.codex/docs/quick-start.md)
 for the guided flow and [docs/WORKFLOW-GUIDE.md](docs/WORKFLOW-GUIDE.md) for the
 full lifecycle.
 

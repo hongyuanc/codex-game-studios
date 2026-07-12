@@ -12,6 +12,8 @@ import re
 import sys
 import tomllib
 
+from tools.codex_studio.engine_pack import load_studio_config, validate_activation
+
 
 ALLOWED_MODELS = {"gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"}
 ALLOWED_EFFORTS = {"low", "medium", "high", "xhigh"}
@@ -530,7 +532,23 @@ def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
                 )
             )
 
-    require_count(".codex/agents", core, 34)
+    try:
+        studio = load_studio_config(root)
+    except (OSError, ValueError) as error:
+        studio = None
+        issues.append(
+            ValidationIssue(
+                "error",
+                ".codex/studio.toml",
+                f"invalid studio configuration: {error}",
+            )
+        )
+    active_names = (
+        EXPECTED_PACK_NAMES.get(studio.engine, set()) if studio is not None else set()
+    )
+    expected_active_names = EXPECTED_CORE_NAMES | active_names
+
+    require_count(".codex/agents", core, len(expected_active_names))
     require_count(".codex/agent-packs", packed, 15)
     require_count(".agents/skills", skills, 73)
     core_files = {path.stem for path in core}
@@ -538,16 +556,16 @@ def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
         path.name for path in (root / ".codex/agents").iterdir()
         if path.is_file() or path.is_symlink()
     } if (root / ".codex/agents").is_dir() else set()
-    expected_core_entries = {f"{name}.toml" for name in EXPECTED_CORE_NAMES}
+    expected_core_entries = {f"{name}.toml" for name in expected_active_names}
     if core_entries != expected_core_entries:
         issues.append(
-            ValidationIssue("error", ".codex/agents", f"approved core profile files differ; missing={sorted(expected_core_entries - core_entries)}, extra={sorted(core_entries - expected_core_entries)}")
+            ValidationIssue("error", ".codex/agents", f"approved active profile files differ; missing={sorted(expected_core_entries - core_entries)}, extra={sorted(core_entries - expected_core_entries)}")
         )
-    if core_files != EXPECTED_CORE_NAMES:
+    if core_files != expected_active_names:
         issues.append(
             ValidationIssue(
                 "error", ".codex/agents",
-                f"approved core agent identities differ; missing={sorted(EXPECTED_CORE_NAMES - core_files)}, extra={sorted(core_files - EXPECTED_CORE_NAMES)}",
+                f"approved active agent identities differ; missing={sorted(expected_active_names - core_files)}, extra={sorted(core_files - expected_active_names)}",
             )
         )
     names = [_profile_name(path) for path in [*core, *packed]]
@@ -593,15 +611,8 @@ def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
             )
         )
 
-    studio_path = root / ".codex/studio.toml"
-    try:
-        studio = tomllib.loads(studio_path.read_text(encoding="utf-8"))
-        if studio.get("engine") != "unconfigured" or studio.get("active_engine_pack") != "none":
-            issues.append(
-                ValidationIssue("error", ".codex/studio.toml", "template must remain unconfigured with no active engine pack")
-            )
-    except (OSError, tomllib.TOMLDecodeError) as error:
-        issues.append(ValidationIssue("error", ".codex/studio.toml", f"invalid studio configuration: {error}"))
+    for message in validate_activation(root):
+        issues.append(ValidationIssue("error", ".codex/active-engine.json", message))
 
     instructions = {
         _relative(root, path)

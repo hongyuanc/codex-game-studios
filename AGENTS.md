@@ -16,19 +16,30 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Project Structure
 
-@.codex/docs/directory-structure.md
+Before adding, moving, or deleting project paths, you must read
+`.codex/docs/directory-structure.md`. Keep runtime configuration under
+`.codex/`, reusable skills under `.agents/skills/`, game work under `src/` and
+`assets/`, design under `design/`, and production evidence under `production/`.
 
 ## Engine Version Reference
 
-@docs/engine-reference/godot/VERSION.md
+Before engine- or version-specific work, you must read the active engine's
+`docs/engine-reference/<engine>/VERSION.md`. Read
+`docs/engine-reference/godot/VERSION.md` only when Godot is active; do not infer
+an engine from the template placeholder above.
 
 ## Technical Preferences
 
-@.codex/docs/technical-preferences.md
+Before changing source, build configuration, tests, or asset-pipeline behavior,
+you must read `.codex/docs/technical-preferences.md`. Treat its configured
+engine, language, build/test commands, budgets, and active-pack routing as
+project requirements.
 
 ## Coordination Rules
 
-@.codex/docs/coordination-rules.md
+Before delegating or coordinating cross-domain work, you must read
+`.codex/docs/coordination-rules.md`. Respect role ownership, direct-child
+delegation, bounded tasks, parent synthesis, and required director gates.
 
 ## Collaboration Protocol
 
@@ -54,8 +65,13 @@ See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
 
 ## Coding Standards
 
-@.codex/docs/coding-standards.md
+Before editing game code, tests, data, or technical documentation, you must read
+`.codex/docs/coding-standards.md` and the nearest nested `AGENTS.md`. Follow the
+engine-specific conventions after `$setup-engine` fills in the project choices.
 
 ## Context Management
 
-@.codex/docs/context-management.md
+Before long-running or multi-agent work, and before context compaction, you must
+read `.codex/docs/context-management.md`. Keep durable state in project files,
+record handoffs explicitly, and reload the current story and governing design
+after compaction.

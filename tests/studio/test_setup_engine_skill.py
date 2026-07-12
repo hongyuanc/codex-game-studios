@@ -22,6 +22,7 @@ class SetupEngineSkillTests(unittest.TestCase):
             "post-apply validation",
             "one decision per turn",
             "five active profiles",
+            "tools.codex_studio.validate --root . --phase final",
         ):
             self.assertIn(required, text)
         self.assertNotIn("AskUserQuestion", text)  # enforcement-literal

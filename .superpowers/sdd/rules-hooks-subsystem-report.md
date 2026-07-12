@@ -247,6 +247,9 @@ On Windows, the implementation opens and retains the root and each ancestor
 without delete sharing, uses `FILE_FLAG_OPEN_REPARSE_POINT`, rejects reparse
 metadata, verifies each handle's final path remains under the verified root,
 and transfers only a verified regular-file handle to the read/append stream.
+If stream construction fails after `open_osfhandle` transfers ownership, the
+new descriptor is closed for both read and append paths without attempting a
+second close through the Win32 handle API.
 The Windows evidence in this report is mock-based contract coverage for flags,
 containment, reparse rejection, component validation, and handle cleanup; this
 verification did not execute the implementation natively on Windows.

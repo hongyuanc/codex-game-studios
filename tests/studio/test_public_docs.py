@@ -51,7 +51,7 @@ def local_markdown_links(path: Path) -> list[str]:
 
 
 class PublicDocumentationTests(unittest.TestCase):
-    def test_root_entry_links_and_instruction_imports_resolve(self):
+    def test_root_entry_links_and_native_instruction_contract_resolve(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         local_links = [
             target
@@ -59,9 +59,35 @@ class PublicDocumentationTests(unittest.TestCase):
             if not re.match(r"(?:https?://|mailto:|#)", target)
         ]
         missing = [target for target in local_links if not (ROOT / target).exists()]
-        imports = re.findall(r"^@([^\s]+)$", (ROOT / "AGENTS.md").read_text(encoding="utf-8"), re.MULTILINE)
-        missing.extend(target for target in imports if not (ROOT / target).exists())
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertNotRegex(agents, r"(?m)^@")
+        required_reads = (
+            ".codex/docs/directory-structure.md",
+            ".codex/docs/technical-preferences.md",
+            ".codex/docs/coordination-rules.md",
+            ".codex/docs/coding-standards.md",
+            ".codex/docs/context-management.md",
+        )
+        self.assertIn("must read", agents.lower())
+        for target in required_reads:
+            self.assertIn(f"`{target}`", agents)
+            if not (ROOT / target).exists():
+                missing.append(target)
         self.assertEqual([], missing)
+
+    def test_hook_docs_describe_best_effort_defense_in_depth(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        hooks = (ROOT / ".codex/docs/hooks-reference.md").read_text(
+            encoding="utf-8"
+        )
+        combined = readme + hooks
+        self.assertIn("defense-in-depth", combined)
+        self.assertIn("best-effort", combined)
+        self.assertIn("permissions", combined)
+        self.assertIn("durable instructions", combined)
+        self.assertNotIn("part of the security boundary", combined)
+        self.assertIn("tests.studio.test_hooks", hooks)
+        self.assertNotIn("tests.studio.test_hook_runner", hooks)
 
     def test_all_public_markdown_links_resolve_recursively(self):
         missing = []

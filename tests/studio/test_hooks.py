@@ -1285,6 +1285,48 @@ class HookBehaviorTests(unittest.TestCase):
         self.assertEqual(SAFE_IO.FILE_APPEND_DATA, append_api.calls[-1][1])
         append_api.CloseHandle(append_handle)
 
+    def test_windows_read_closes_transferred_descriptor_when_fdopen_fails(self):
+        api = mock.Mock()
+        windows_runtime = SimpleNamespace(open_osfhandle=mock.Mock(return_value=42))
+        with mock.patch.dict(sys.modules, {"msvcrt": windows_runtime}):
+            with mock.patch.object(SAFE_IO, "_WindowsApi", return_value=api):
+                with mock.patch.object(
+                    SAFE_IO, "_windows_open_verified", return_value=41
+                ):
+                    with mock.patch.object(
+                        SAFE_IO.os, "fdopen", side_effect=OSError("fdopen failed")
+                    ):
+                        with mock.patch.object(SAFE_IO.os, "close") as close:
+                            with self.assertRaisesRegex(OSError, "fdopen failed"):
+                                SAFE_IO._windows_read_text(
+                                    Path(r"C:\repo"),
+                                    ("production", "active.md"),
+                                    errors="strict",
+                                )
+        close.assert_called_once_with(42)
+        api.CloseHandle.assert_not_called()
+
+    def test_windows_append_closes_transferred_descriptor_when_fdopen_fails(self):
+        api = mock.Mock()
+        windows_runtime = SimpleNamespace(open_osfhandle=mock.Mock(return_value=42))
+        with mock.patch.dict(sys.modules, {"msvcrt": windows_runtime}):
+            with mock.patch.object(SAFE_IO, "_WindowsApi", return_value=api):
+                with mock.patch.object(
+                    SAFE_IO, "_windows_open_verified", return_value=41
+                ):
+                    with mock.patch.object(
+                        SAFE_IO.os, "fdopen", side_effect=OSError("fdopen failed")
+                    ):
+                        with mock.patch.object(SAFE_IO.os, "close") as close:
+                            with self.assertRaisesRegex(OSError, "fdopen failed"):
+                                SAFE_IO._windows_append_text(
+                                    Path(r"C:\repo"),
+                                    ("production", "audit.log"),
+                                    "entry\n",
+                                )
+        close.assert_called_once_with(42)
+        api.CloseHandle.assert_not_called()
+
     def test_windows_cleanup_retains_and_closes_final_handle_on_close_failure(self):
         class FailingCloseWindowsApi:
             def __init__(self):

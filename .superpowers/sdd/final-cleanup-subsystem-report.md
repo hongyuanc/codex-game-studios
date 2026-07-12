@@ -487,13 +487,15 @@ same filenames.
 - Cross-runtime/framework tests pin these start routing, gate-mode, incremental
   authoring, and structural skill-validation semantics.
 
-## Known limitation
+## Superseded hook I/O limitation
 
-The hook runner defends repository boundaries with reviewed path checks and
-no-follow-style validation, but its check/read sequence is not an atomic
-filesystem transaction. A hostile concurrent writer could create a TOCTOU race.
-The project does not claim otherwise; hook tests cover the practical symlink and
-reparse-point cases.
+The earlier review identified a pathname check/read TOCTOU limitation. That
+finding is superseded by the later atomic hook-I/O work recorded in
+`.superpowers/sdd/rules-hooks-subsystem-report.md`: runner-controlled reads and
+appends now keep verified OS handles from traversal through I/O. Native POSIX
+race coverage passes. Windows flag, containment, reparse, ownership-transfer,
+and cleanup evidence is mock-based; the implementation was not executed
+natively on Windows in this environment.
 
 ## Final automated gate
 
@@ -508,7 +510,8 @@ reparse-point cases.
   clean after excluding exactly the retained historical evidence directories
   (`.superpowers/sdd/`, `docs/superpowers/`, and `production/migration/`) and
   the validator/test literal definitions that enforce the prohibition.
-- Root README links and `AGENTS.md` imports resolve.
+- Root README links and `AGENTS.md` mandatory-read references resolve; no
+  `@path` pseudo-import remains.
 - Python compilation, JSON/TOML/YAML parsing, deterministic catalog/coverage
   and parity parsing, recursive link/path validation, and `git diff --check`:
   pass.
@@ -519,7 +522,7 @@ reparse-point cases.
 
 | Check | Evidence | Status |
 | --- | --- | --- |
-| `AGENTS.md` loads without broken references | Automated root-import resolution test | VERIFIED STATICALLY |
+| `AGENTS.md` loads without broken references | Automated native mandatory-read contract test | VERIFIED STATICALLY |
 | All 73 skills appear in the selector | Runtime inventory and exact framework catalog are 73/73 | UI NOT EXERCISED |
 | 34 core agents are available before engine selection | Native profile count and unconfigured studio tests | UI NOT EXERCISED |
 | Hooks appear in the review screen with relative commands | Native hook JSON, command-template, and portability tests | UI NOT EXERCISED |

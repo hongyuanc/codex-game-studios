@@ -4,6 +4,12 @@
 Python action in `.codex/hooks/hook_runner.py` and receives Codex JSON on
 standard input.
 
+Hooks are best-effort defense-in-depth guardrails, not a complete enforcement
+or security boundary. Codex may expose operations or execution paths that a
+registered hook does not intercept. Permissions, explicit approvals, and
+durable instructions remain the authorization boundary; review all hook code
+before trusting a repository.
+
 | Action | Event | Behavior |
 | --- | --- | --- |
 | `session-start` | `SessionStart` | Loads Git, sprint, milestone, and recoverable session context |
@@ -29,7 +35,7 @@ Add focused cases under `tests/studio/` for every behavior change. Include safe,
 unsafe, malformed, and platform-relevant payloads. Then run:
 
 ```text
-python3 -m unittest tests.studio.test_hook_runner -v
+python3 -m unittest tests.studio.test_hooks -v
 python3 -m unittest discover -s tests/studio -v
 ```
 

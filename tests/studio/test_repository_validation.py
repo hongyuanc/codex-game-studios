@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tools.codex_studio.engine_pack import apply_activation, plan_activation
 from tools.codex_studio.validate import (
     validate_repository,
     validate_repository_counts,
@@ -36,6 +37,34 @@ def _minimal_runtime_tree(root: Path) -> None:
 
 
 class RepositoryValidationTests(unittest.TestCase):
+    def test_final_repository_validation_accepts_each_configured_engine_pack(self):
+        targets = {
+            "godot": ("4.6", "gdscript"),
+            "unity": ("6000.1", "csharp"),
+            "unreal": ("5.7", "cpp"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            shutil.copytree(
+                ROOT,
+                project,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".superpowers", "superpowers", "__pycache__"
+                ),
+            )
+            for engine, (version, language) in targets.items():
+                with self.subTest(engine=engine):
+                    apply_activation(
+                        project,
+                        plan_activation(
+                            project,
+                            engine,
+                            version=version,
+                            language=language,
+                        ),
+                    )
+                    self.assertEqual([], validate_repository(project, "final"))
+
     def test_coverage_contract_is_immutable_and_complete(self):
         self.assertEqual([], validate_coverage_manifest(ROOT, "final"))
         with tempfile.TemporaryDirectory() as directory:
@@ -255,7 +284,7 @@ class RepositoryValidationTests(unittest.TestCase):
             template.rename(temp / ".codex/docs/templates/impostor-plan.md")
             issues = validate_repository_counts(temp)
         messages = "\n".join(issue.message for issue in issues)
-        self.assertIn("approved core agent identities", messages)
+        self.assertIn("approved active agent identities", messages)
         self.assertIn("approved packed identities", messages)
         self.assertIn("approved skill identities", messages)
         self.assertIn("approved templates", messages)

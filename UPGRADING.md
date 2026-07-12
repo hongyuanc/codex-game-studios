@@ -104,9 +104,12 @@ phase-gating contract, then reapply the project's domain-specific behavior.
 ## Verification checklist
 
 - [ ] Project code, assets, design, architecture, and production artifacts match the backup.
-- [ ] `AGENTS.md` imports resolve and no operational instruction points at retired paths.
+- [ ] Every mandatory-read path named by `AGENTS.md` exists, no `@path`
+      pseudo-import remains, and no operational instruction points at retired paths.
 - [ ] Exactly 73 native skills are discoverable and use `$skill-name` syntax.
-- [ ] Exactly 49 profiles exist across core agents and engine packs.
+- [ ] Exactly 49 distinct roles exist: 34 core profiles and 15 immutable pack
+      profiles; a configured `.codex/agents/` also contains five managed copies
+      from the selected pack.
 - [ ] `.codex/studio.toml` selects zero or one engine pack, never several.
 - [ ] All 10 hook actions run through `.codex/hooks/hook_runner.py`.
 - [ ] Public Markdown links resolve.

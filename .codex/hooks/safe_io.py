@@ -567,7 +567,12 @@ def _windows_read_text(
     except BaseException:
         api.CloseHandle(handle)
         raise
-    with os.fdopen(descriptor, "r", encoding="utf-8", errors=errors) as stream:
+    try:
+        stream = os.fdopen(descriptor, "r", encoding="utf-8", errors=errors)
+    except BaseException:
+        _posix_close_descriptors(iter((descriptor,)))
+        raise
+    with stream:
         return stream.read()
 
 
@@ -592,7 +597,12 @@ def _windows_append_text(
     except BaseException:
         api.CloseHandle(handle)
         raise
-    with os.fdopen(descriptor, "a", encoding="utf-8") as stream:
+    try:
+        stream = os.fdopen(descriptor, "a", encoding="utf-8")
+    except BaseException:
+        _posix_close_descriptors(iter((descriptor,)))
+        raise
+    with stream:
         stream.write(text)
 
 

@@ -73,11 +73,14 @@ Before writing any code:
 
 ### Branching Strategy
 
-- `main` -- always shippable, protected
-- `develop` -- integration branch, runs full CI
-- `feature/*` -- feature branches, branched from develop
-- `release/*` -- release candidate branches
-- `hotfix/*` -- emergency fixes branched from main
+- `main` -- always shippable, protected, and the default integration branch
+- Short-lived topic branches -- branch from `main`, run focused and full CI,
+  and merge back to `main` promptly through the project's review policy
+- Release stabilization -- use tags and short-lived stabilization branches only
+  when the project explicitly configures them; do not impose a permanent
+  `develop` branch or a standing release-branch hierarchy
+- Hotfixes -- branch from `main`, verify narrowly and fully, then merge back to
+  `main` and any explicitly configured stabilization branch
 
 ### What This Agent Must NOT Do
 

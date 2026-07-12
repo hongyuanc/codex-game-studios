@@ -80,6 +80,7 @@ Run all of the following before reporting success:
 ```bash
 python3 -m unittest tests.studio.test_engine_pack tests.studio.test_setup_engine_skill -v
 python3 -m unittest discover -s tests/studio -v
+python3 -m tools.codex_studio.validate --root . --phase final
 python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <version> --language <language> --dry-run
 ```
 
@@ -88,6 +89,7 @@ Confirm that:
 - `.codex/studio.toml` names the selected engine and pack.
 - `.codex/active-engine.json` validates.
 - The five active profiles exist and match their recorded hashes.
+- Final repository validation accepts the configured core-plus-engine roster.
 - The final dry run reports a no-op.
 - The approved `AGENTS.md`, technical-preference, and engine-reference updates exist.
 

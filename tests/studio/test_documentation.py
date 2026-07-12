@@ -263,12 +263,15 @@ class DocumentationTests(unittest.TestCase):
     def test_public_facing_codex_docs_use_python_hook_runtime(self):
         setup = (CODEX_DOCS / "setup-requirements.md").read_text(encoding="utf-8")
         hooks = (CODEX_DOCS / "hooks-reference.md").read_text(encoding="utf-8")
+        quick_start = (CODEX_DOCS / "quick-start.md").read_text(encoding="utf-8")
         self.assertIn("Python 3", setup)
         self.assertIn("10 hook actions", setup)
         self.assertNotIn("jq", setup.lower())
         self.assertNotIn("Bash", setup)
         self.assertIn("hook_runner.py", hooks)
         self.assertNotIn(".sh", hooks)
+        self.assertNotIn("Git Bash", quick_start)
+        self.assertNotIn("jq", quick_start.lower())
 
     def test_context_and_skill_test_templates_use_phase_gates(self):
         context = (CODEX_DOCS / "context-management.md").read_text(encoding="utf-8")
