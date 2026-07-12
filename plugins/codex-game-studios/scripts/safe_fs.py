@@ -14,14 +14,16 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import dataclasses
+import errno
 import hashlib
 import ntpath
 import os
 import pathlib
 import stat
+import sys
 from typing import Iterator
 
-from models import PayloadError, normalize_relative_path
+from models import PayloadError, digest_document, normalize_relative_path
 
 
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -35,6 +37,7 @@ _IDENTITY_FIELDS = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns")
 GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
 FILE_WRITE_ATTRIBUTES = 0x00000100
+DELETE_ACCESS = 0x00010000
 FILE_SHARE_READ = 0x00000001
 FILE_SHARE_WRITE = 0x00000002
 FILE_SHARE_DELETE = 0x00000004
@@ -48,6 +51,8 @@ FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 _FILE_ATTRIBUTE_TAG_INFO_CLASS = 9
 _FILE_BASIC_INFO_CLASS = 0
+_FILE_RENAME_INFO_CLASS = 3
+_FILE_DISPOSITION_INFO_CLASS = 4
 _VOLUME_NAME_DOS = 0
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
@@ -66,6 +71,28 @@ class _FileBasicInfo(ctypes.Structure):
     ]
 
 
+class _FileDispositionInfo(ctypes.Structure):
+    _fields_ = [("DeleteFile", ctypes.c_ubyte)]
+
+
+class _ByHandleFileInformation(ctypes.Structure):
+    _fields_ = [
+        ("FileAttributes", ctypes.c_uint32),
+        ("CreationTimeLow", ctypes.c_uint32),
+        ("CreationTimeHigh", ctypes.c_uint32),
+        ("LastAccessTimeLow", ctypes.c_uint32),
+        ("LastAccessTimeHigh", ctypes.c_uint32),
+        ("LastWriteTimeLow", ctypes.c_uint32),
+        ("LastWriteTimeHigh", ctypes.c_uint32),
+        ("VolumeSerialNumber", ctypes.c_uint32),
+        ("FileSizeHigh", ctypes.c_uint32),
+        ("FileSizeLow", ctypes.c_uint32),
+        ("NumberOfLinks", ctypes.c_uint32),
+        ("FileIndexHigh", ctypes.c_uint32),
+        ("FileIndexLow", ctypes.c_uint32),
+    ]
+
+
 class _WindowsApi:
     """Typed Win32 operations used to bind I/O to verified handles."""
 
@@ -79,11 +106,11 @@ class _WindowsApi:
             wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
         ]
         self._create_file.restype = wintypes.HANDLE
-        self._get_file_information = kernel32.GetFileInformationByHandleEx
-        self._get_file_information.argtypes = [
+        self._get_file_information_ex = kernel32.GetFileInformationByHandleEx
+        self._get_file_information_ex.argtypes = [
             wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
         ]
-        self._get_file_information.restype = wintypes.BOOL
+        self._get_file_information_ex.restype = wintypes.BOOL
         self._set_file_information = kernel32.SetFileInformationByHandle
         self._set_file_information.argtypes = [
             wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
@@ -100,6 +127,12 @@ class _WindowsApi:
         self._create_directory = kernel32.CreateDirectoryW
         self._create_directory.argtypes = [wintypes.LPCWSTR, wintypes.LPVOID]
         self._create_directory.restype = wintypes.BOOL
+        self._get_file_information_basic = kernel32.GetFileInformationByHandle
+        self._get_file_information_basic.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(_ByHandleFileInformation),
+        ]
+        self._get_file_information_basic.restype = wintypes.BOOL
 
     def create_file(self, path: str, access: int, share: int, disposition: int, flags: int) -> int:
         handle = self._create_file(path, access, share, None, disposition, flags, None)
@@ -109,7 +142,7 @@ class _WindowsApi:
 
     def attributes(self, handle: int) -> tuple[int, int]:
         information = _FileAttributeTagInfo()
-        if not self._get_file_information(
+        if not self._get_file_information_ex(
             handle, _FILE_ATTRIBUTE_TAG_INFO_CLASS, ctypes.byref(information), ctypes.sizeof(information)
         ):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -124,7 +157,7 @@ class _WindowsApi:
 
     def basic_info(self, handle: int) -> _FileBasicInfo:
         information = _FileBasicInfo()
-        if not self._get_file_information(
+        if not self._get_file_information_ex(
             handle, _FILE_BASIC_INFO_CLASS, ctypes.byref(information), ctypes.sizeof(information)
         ):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -136,6 +169,47 @@ class _WindowsApi:
         ):
             raise ctypes.WinError(ctypes.get_last_error())
 
+    def mark_delete(self, handle: int) -> None:
+        """Mark the exact opened file or empty directory for deletion."""
+
+        information = _FileDispositionInfo(1)
+        if not self._set_file_information(
+            handle,
+            _FILE_DISPOSITION_INFO_CLASS,
+            ctypes.byref(information),
+            ctypes.sizeof(information),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def _rename(self, handle: int, destination: str, *, replace: bool) -> None:
+        encoded = destination.encode("utf-16-le")
+        alignment = ctypes.alignment(ctypes.c_void_p)
+        root_offset = (ctypes.sizeof(ctypes.c_ubyte) + alignment - 1) & ~(alignment - 1)
+        name_length_offset = root_offset + ctypes.sizeof(ctypes.c_void_p)
+        name_offset = name_length_offset + ctypes.sizeof(ctypes.c_uint32)
+        buffer = ctypes.create_string_buffer(name_offset + len(encoded))
+        ctypes.c_ubyte.from_buffer(buffer, 0).value = int(replace)
+        ctypes.c_void_p.from_buffer(buffer, root_offset).value = None
+        ctypes.c_uint32.from_buffer(buffer, name_length_offset).value = len(encoded)
+        buffer[name_offset : name_offset + len(encoded)] = encoded
+        if not self._set_file_information(
+            handle,
+            _FILE_RENAME_INFO_CLASS,
+            ctypes.byref(buffer),
+            len(buffer),
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def rename_no_replace(self, handle: int, destination: str) -> None:
+        """Rename the exact opened source handle and fail if target exists."""
+
+        self._rename(handle, destination, replace=False)
+
+    def rename_replace(self, handle: int, destination: str) -> None:
+        """Atomically replace an internal destination with the exact source handle."""
+
+        self._rename(handle, destination, replace=True)
+
     def close(self, handle: int) -> None:
         if not self._close_handle(handle):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -144,8 +218,16 @@ class _WindowsApi:
         if self._create_directory(path, None):
             return
         error = ctypes.get_last_error()
-        if error != 183:
-            raise ctypes.WinError(error)
+        raise ctypes.WinError(error)
+
+    def identity(self, handle: int) -> tuple[int, int]:
+        """Return volume serial and file index for one retained handle."""
+
+        information = _ByHandleFileInformation()
+        if not self._get_file_information_basic(handle, ctypes.byref(information)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        index = (int(information.FileIndexHigh) << 32) | int(information.FileIndexLow)
+        return int(information.VolumeSerialNumber), index
 
 
 def _windows_normal_path(path: str) -> str:
@@ -435,6 +517,23 @@ def pin_root(root: pathlib.Path | str) -> Iterator[PinnedRoot]:
         os.close(descriptor)
 
 
+def secure_root_identity(root: pathlib.Path | str | PinnedRoot) -> str:
+    """Return a canonical root identity from a retained no-follow handle."""
+
+    if isinstance(root, PinnedRoot):
+        pinned = root
+        pinned.verify()
+        if pinned._windows_handle is not None:
+            assert pinned._windows_api is not None
+            volume, index = pinned._windows_api.identity(pinned._windows_handle)
+            return f"windows:{volume}:{index}"
+        assert pinned._descriptor is not None
+        opened = os.fstat(pinned._descriptor)
+        return f"posix:{opened.st_dev}:{opened.st_ino}"
+    with pin_root(root) as pinned:
+        return secure_root_identity(pinned)
+
+
 @dataclasses.dataclass(frozen=True)
 class ImmediateEntry:
     """One securely observed immediate directory child."""
@@ -559,6 +658,28 @@ def list_immediate_secure(
     except PayloadError as error:
         raise PayloadError("directory changed during immediate observation") from error
     return tuple(entries)
+
+
+def recovery_tree_digest_secure(root: pathlib.Path, relative: str) -> str:
+    """Digest every recovery descendant through no-follow secure reads."""
+
+    inventory: list[dict[str, object]] = []
+
+    def visit(directory: str) -> None:
+        for item in list_immediate_secure(root, directory):
+            child = f"{directory}/{item.name}"
+            inventory.append(
+                {
+                    "path": child[len(relative) + 1 :],
+                    "entry_type": item.entry_type,
+                    "sha256": item.sha256,
+                }
+            )
+            if item.entry_type == "directory":
+                visit(child)
+
+    visit(relative)
+    return digest_document({"entries": inventory})
 
 
 @contextlib.contextmanager
@@ -992,3 +1113,954 @@ def walk_tree_secure(root: pathlib.Path) -> dict[str, tuple[str, object]]:
             relative = path.relative_to(root).as_posix()
             found[relative] = inspect_secure(root, relative)
     return found
+
+
+@dataclasses.dataclass(frozen=True)
+class SecureEntry:
+    """One handle-observed entry used by the recovery transaction boundary."""
+
+    entry_type: str
+    digest: str | None
+    mode: int | None
+    identity: tuple[int, int] | str | None
+
+
+def _rename_no_replace_posix(
+    source_parent_fd: int,
+    source_name: str,
+    destination_parent_fd: int,
+    destination_name: str,
+) -> None:
+    """Atomically rename without replacement using the native POSIX extension."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    source = os.fsencode(source_name)
+    destination = os.fsencode(destination_name)
+    if sys.platform.startswith("linux"):
+        operation = getattr(libc, "renameat2", None)
+        flag = 0x1  # RENAME_NOREPLACE
+    elif sys.platform == "darwin":
+        operation = getattr(libc, "renameatx_np", None)
+        flag = 0x4  # RENAME_EXCL from <sys/stdio.h>
+    else:
+        operation = None
+        flag = 0
+    if operation is None:
+        raise PayloadError("UNSUPPORTED_ENVIRONMENT: native no-replace rename unavailable")
+    operation.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    operation.restype = ctypes.c_int
+    if operation(
+        source_parent_fd,
+        source,
+        destination_parent_fd,
+        destination,
+        flag,
+    ) != 0:
+        error = ctypes.get_errno()
+        if error == errno.EEXIST:
+            raise FileExistsError(error, os.strerror(error), destination_name)
+        raise OSError(error, os.strerror(error), destination_name)
+
+
+class AnchoredFilesystem:
+    """Mutation boundary rooted in one retained :class:`PinnedRoot` handle."""
+
+    def __init__(self, pinned: PinnedRoot, boundary: object | None = None):
+        self.pinned = pinned
+        self.root = pinned.root
+        self._boundary = boundary if boundary is not None else lambda: pinned.verify()
+        self._quarantine_relative: str | None = None
+        self._quarantine_counts: dict[str, int] = {}
+
+    def set_quarantine(self, relative: str) -> None:
+        """Bind destructive target moves to one exclusive recovery directory."""
+
+        self._quarantine_relative = normalize_relative_path(relative)
+
+    def _quarantine_name(self, relative: str, role: str) -> str:
+        if self._quarantine_relative is None:
+            raise PayloadError("recovery quarantine is not configured")
+        index = self._quarantine_counts.get(relative, 0)
+        self._quarantine_counts[relative] = index + 1
+        path_digest = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:16]
+        return f"{role}-{path_digest}-{index:04d}"
+
+    def verify_boundary(self) -> None:
+        """Reverify the retained root plus the caller's lock identity guard."""
+
+        self.pinned.verify()
+        self._boundary()
+
+    @contextlib.contextmanager
+    def _posix_parent(
+        self, relative: str, *, missing_ok: bool = False
+    ) -> Iterator[tuple[int, str] | None]:
+        relative = normalize_relative_path(relative)
+        if self.pinned._descriptor is None:
+            raise PayloadError("POSIX anchored filesystem requires retained root descriptor")
+        root_fd = os.dup(self.pinned._descriptor)
+        descriptors = [root_fd]
+        current = root_fd
+        try:
+            parts = pathlib.PurePosixPath(relative).parts
+            for part in parts[:-1]:
+                try:
+                    child = os.open(part, _DIRECTORY_FLAGS, dir_fd=current)
+                except FileNotFoundError:
+                    if missing_ok:
+                        yield None
+                        return
+                    raise PayloadError(f"secure path parent is missing: {relative}")
+                except OSError as error:
+                    raise PayloadError(
+                        f"cannot open anchored path parent: {relative}: {error}"
+                    ) from error
+                opened = os.fstat(child)
+                current_stat = os.stat(part, dir_fd=current, follow_symlinks=False)
+                if _kind(opened) != "directory" or not _same_object(opened, current_stat):
+                    os.close(child)
+                    raise PayloadError(f"anchored path parent changed: {relative}")
+                descriptors.append(child)
+                current = child
+            yield current, parts[-1]
+        finally:
+            for descriptor in reversed(descriptors):
+                os.close(descriptor)
+
+    def _posix_observe(self, relative: str) -> SecureEntry:
+        with self._posix_parent(relative, missing_ok=True) as parent:
+            if parent is None:
+                return SecureEntry("missing", None, None, None)
+            parent_fd, name = parent
+            try:
+                descriptor = os.open(
+                    name,
+                    _READ_FLAGS | _NOFOLLOW | _NONBLOCK,
+                    dir_fd=parent_fd,
+                )
+            except FileNotFoundError:
+                return SecureEntry("missing", None, None, None)
+            except OSError as error:
+                raise PayloadError(f"cannot open anchored target: {relative}: {error}") from error
+            try:
+                opened = os.fstat(descriptor)
+                entry_type = _kind(opened)
+                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if not _same_object(opened, current):
+                    raise PayloadError(f"anchored target changed while opening: {relative}")
+                digest: str | None
+                if entry_type == "file":
+                    digest = _hash_descriptor(descriptor, opened)
+                else:
+                    entries: list[dict[str, object]] = []
+                    for child_name in sorted(os.listdir(descriptor)):
+                        child_fd = os.open(
+                            child_name,
+                            _READ_FLAGS | _NOFOLLOW | _NONBLOCK,
+                            dir_fd=descriptor,
+                        )
+                        try:
+                            child_stat = os.fstat(child_fd)
+                            child_type = _kind(child_stat)
+                            child_hash = (
+                                _hash_descriptor(child_fd, child_stat)
+                                if child_type == "file"
+                                else None
+                            )
+                            current_child = os.stat(
+                                child_name,
+                                dir_fd=descriptor,
+                                follow_symlinks=False,
+                            )
+                            if not _same_object(child_stat, current_child):
+                                raise PayloadError(
+                                    "directory child changed during anchored observation"
+                                )
+                            entries.append(
+                                {
+                                    "name": child_name,
+                                    "entry_type": child_type,
+                                    "sha256": child_hash,
+                                }
+                            )
+                        finally:
+                            os.close(child_fd)
+                    digest = digest_document({"entries": entries})
+                return SecureEntry(
+                    entry_type,
+                    digest,
+                    stat.S_IMODE(opened.st_mode),
+                    (opened.st_dev, opened.st_ino),
+                )
+            finally:
+                os.close(descriptor)
+
+    def observe(self, relative: str) -> SecureEntry:
+        """Observe one path through the retained root without following links."""
+
+        self.verify_boundary()
+        relative = normalize_relative_path(relative)
+        if os.name != "nt":
+            return self._posix_observe(relative)
+        try:
+            entry_type, file_stat = inspect_secure(self.root, relative)
+        except PayloadError as error:
+            if "cannot inspect payload path" in str(error):
+                return SecureEntry("missing", None, None, None)
+            raise
+        digest = None
+        if entry_type == "file":
+            digest = hashlib.sha256(read_file_secure(self.root, relative)).hexdigest()
+        else:
+            entries = [dataclasses.asdict(item) for item in list_immediate_secure(self.root, relative)]
+            digest = digest_document({"entries": entries})
+        opened = _windows_open_verified(
+            self.root,
+            relative,
+            access=GENERIC_READ,
+            share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+            disposition=OPEN_EXISTING,
+            create_parents=False,
+            final_directory=entry_type == "directory",
+        )
+        with opened as handles:
+            volume, index = handles.api.identity(handles.final_handle)
+            identity = f"windows:{volume}:{index}"
+        return SecureEntry(entry_type, digest, stat.S_IMODE(file_stat.st_mode), identity)
+
+    def list_immediate(self, relative: str) -> tuple[ImmediateEntry, ...]:
+        """List a directory through the retained root handle without recursion."""
+
+        self.verify_boundary()
+        if os.name == "nt":
+            return list_immediate_secure(self.root, relative)
+        with self._posix_parent(relative) as parent:
+            assert parent is not None
+            parent_fd, name = parent
+            directory_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+            try:
+                entries: list[ImmediateEntry] = []
+                for child_name in sorted(os.listdir(directory_fd)):
+                    child_fd = os.open(
+                        child_name,
+                        _READ_FLAGS | _NOFOLLOW | _NONBLOCK,
+                        dir_fd=directory_fd,
+                    )
+                    try:
+                        child_stat = os.fstat(child_fd)
+                        child_type = _kind(child_stat)
+                        child_hash = (
+                            _hash_descriptor(child_fd, child_stat)
+                            if child_type == "file"
+                            else None
+                        )
+                        current_child = os.stat(
+                            child_name,
+                            dir_fd=directory_fd,
+                            follow_symlinks=False,
+                        )
+                        if not _same_object(child_stat, current_child):
+                            raise PayloadError(
+                                "directory child changed during anchored listing"
+                            )
+                        entries.append(ImmediateEntry(child_name, child_type, child_hash))
+                    finally:
+                        os.close(child_fd)
+                return tuple(entries)
+            finally:
+                os.close(directory_fd)
+
+    def same_filesystem(self, relative: str) -> bool:
+        """Compare an observed entry's native volume/device with the pinned root."""
+
+        observed = self.observe(relative)
+        if observed.identity is None:
+            return False
+        root_identity = secure_root_identity(self.pinned)
+        if os.name == "nt":
+            return str(observed.identity).split(":", 2)[1] == root_identity.split(":", 2)[1]
+        assert isinstance(observed.identity, tuple)
+        return observed.identity[0] == int(root_identity.split(":", 2)[1])
+
+    def recovery_tree_digest(self, relative: str) -> str:
+        """Digest a recovery tree while retaining the transaction root anchor."""
+
+        inventory: list[dict[str, object]] = []
+
+        def visit(directory: str) -> None:
+            for item in self.list_immediate(directory):
+                child = f"{directory}/{item.name}"
+                inventory.append(
+                    {
+                        "path": child[len(relative) + 1 :],
+                        "entry_type": item.entry_type,
+                        "sha256": item.sha256,
+                    }
+                )
+                if item.entry_type == "directory":
+                    visit(child)
+
+        visit(relative)
+        return digest_document({"entries": inventory})
+
+    def tree_digest(self, relative: str) -> str:
+        """Recursively digest an ordinary tree without following links."""
+
+        digest, _identities = self.tree_digest_and_identities(relative)
+        return digest
+
+    def tree_digest_and_identities(
+        self,
+        relative: str,
+        expected: SecureEntry | None = None,
+    ) -> tuple[str, tuple[tuple[str, object], ...]]:
+        """Digest a tree and retain ephemeral identities for stale-plan checks."""
+
+        inventory: list[dict[str, object]] = []
+        identities: list[tuple[str, object]] = []
+
+        def visit(path: str, parent_observed: SecureEntry | None = None) -> None:
+            before = self.observe(path)
+            if before.entry_type != "directory":
+                raise PayloadError("recursive digest target is not a directory")
+            continuity = expected if path == relative else parent_observed
+            if continuity is not None and not self.matches(before, continuity):
+                raise PayloadError("recursive digest child identity changed")
+            identities.append((path[len(relative) :], before.identity))
+            for item in self.list_immediate(path):
+                child = f"{path}/{item.name}"
+                observed = self.observe(child)
+                if observed.entry_type != item.entry_type:
+                    raise PayloadError("recursive digest child type changed")
+                identities.append((child[len(relative) :], observed.identity))
+                inventory.append(
+                    {
+                        "path": child[len(relative) + 1 :],
+                        "entry_type": observed.entry_type,
+                        "mode": observed.mode,
+                        "sha256": observed.digest if observed.entry_type == "file" else None,
+                    }
+                )
+                if observed.entry_type == "directory":
+                    identities.pop()
+                    visit(child, observed)
+            after = self.observe(path)
+            if not self.matches(after, before):
+                raise PayloadError("directory changed during recursive digest")
+
+        visit(relative)
+        return digest_document({"entries": inventory}), tuple(identities)
+
+    @staticmethod
+    def matches(observed: SecureEntry, expected: SecureEntry) -> bool:
+        """Compare exact logical state and retained identity when present."""
+
+        return (
+            observed.entry_type == expected.entry_type
+            and observed.digest == expected.digest
+            and observed.mode == expected.mode
+            and (expected.identity is None or observed.identity == expected.identity)
+        )
+
+    def read_file(self, relative: str, expected: SecureEntry | None = None) -> bytes:
+        """Read a file and reject any identity or content change."""
+
+        before = self.observe(relative)
+        if before.entry_type != "file" or (expected is not None and not self.matches(before, expected)):
+            raise PayloadError("anchored file differs from expected state")
+        if os.name == "nt":
+            content = read_file_secure(self.root, relative)
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                descriptor = os.open(name, _READ_FLAGS | _NOFOLLOW, dir_fd=parent_fd)
+                try:
+                    chunks = []
+                    while True:
+                        chunk = os.read(descriptor, 1024 * 1024)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                finally:
+                    os.close(descriptor)
+                content = b"".join(chunks)
+        after = self.observe(relative)
+        if not self.matches(after, before):
+            raise PayloadError("anchored file changed during read")
+        return content
+
+    def read_file_verified(
+        self, relative: str, *, expected_digest: str, expected_mode: int
+    ) -> bytes:
+        """Read and verify bytes/type/mode/hash through one retained handle."""
+
+        relative = normalize_relative_path(relative)
+        self.verify_boundary()
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                relative,
+                access=GENERIC_READ,
+                share=FILE_SHARE_READ,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=False,
+            )
+            with opened as handles:
+                descriptor = _windows_descriptor_from_verified(opened, os.O_RDONLY | _BINARY)
+                try:
+                    native_handle = __import__("msvcrt").get_osfhandle(descriptor)
+                    before_identity = handles.api.identity(native_handle)
+                    before_info = handles.api.basic_info(native_handle)
+                    chunks: list[bytes] = []
+                    while True:
+                        chunk = os.read(descriptor, 1024 * 1024)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                    after_identity = handles.api.identity(native_handle)
+                    after_info = handles.api.basic_info(native_handle)
+                finally:
+                    os.close(descriptor)
+                mode = stat.S_IREAD
+                if not after_info.FileAttributes & FILE_ATTRIBUTE_READONLY:
+                    mode |= stat.S_IWRITE
+                if before_identity != after_identity or before_info.FileAttributes != after_info.FileAttributes:
+                    raise PayloadError("verified file identity changed during read")
+                content = b"".join(chunks)
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                descriptor = os.open(name, _READ_FLAGS | _NOFOLLOW, dir_fd=parent_fd)
+                try:
+                    before = os.fstat(descriptor)
+                    if _kind(before) != "file":
+                        raise PayloadError("verified snapshot is not a regular file")
+                    chunks = []
+                    while True:
+                        chunk = os.read(descriptor, 1024 * 1024)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                    after = os.fstat(descriptor)
+                    current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                    if not _same_object(before, after) or not _same_object(after, current):
+                        raise PayloadError("verified file identity changed during read")
+                    mode = stat.S_IMODE(after.st_mode)
+                    content = b"".join(chunks)
+                finally:
+                    os.close(descriptor)
+        if mode != expected_mode or hashlib.sha256(content).hexdigest() != expected_digest:
+            raise PayloadError("verified file bytes or mode do not match authority")
+        return content
+
+    def create_directory_exclusive(
+        self,
+        relative: str,
+        mode: int = 0o700,
+        on_destructive: object | None = None,
+    ) -> SecureEntry:
+        """Create a new directory exclusively and immediately verify its identity."""
+
+        self.verify_boundary()
+        if self.observe(relative).entry_type != "missing":
+            raise PayloadError("exclusive directory destination already exists")
+        mark_destructive = on_destructive if on_destructive is not None else lambda: None
+        if os.name == "nt":
+            parts = pathlib.PurePosixPath(relative).parts
+            parent_relative = "/".join(parts[:-1])
+            parent_root = self.root if parent_relative else self.root.parent
+            opened_relative = parent_relative if parent_relative else normalize_relative_path(self.root.name)
+            parent = _windows_open_verified(
+                parent_root,
+                opened_relative,
+                access=GENERIC_READ,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=True,
+            )
+            with parent as handles:
+                mark_destructive()
+                handles.api.create_directory(str(self.root / pathlib.PurePosixPath(relative)))
+                created = _windows_open_verified(
+                    self.root,
+                    relative,
+                    access=GENERIC_READ,
+                    share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    disposition=OPEN_EXISTING,
+                    create_parents=False,
+                    final_directory=True,
+                    api=handles.api,
+                )
+                with created as created_handles:
+                    _windows_set_writable(
+                        handles.api,
+                        created_handles.final_handle,
+                        writable=bool(mode & 0o222),
+                    )
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                mark_destructive()
+                os.mkdir(name, mode=mode, dir_fd=parent_fd)
+                created_fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+                try:
+                    os.fchmod(created_fd, mode)
+                finally:
+                    os.close(created_fd)
+                os.fsync(parent_fd)
+        created_state = self.observe(relative)
+        if created_state.entry_type != "directory":
+            raise PayloadError("exclusive directory creation verification failed")
+        return created_state
+
+    def atomic_replace(
+        self,
+        relative: str,
+        data: bytes,
+        mode: int,
+        expected: SecureEntry,
+        token: str,
+        on_destructive: object | None = None,
+        on_quarantined: object | None = None,
+    ) -> SecureEntry:
+        """Replace one exact expected file through anchored temporary storage."""
+
+        self.verify_boundary()
+        mark_destructive = on_destructive if on_destructive is not None else lambda: None
+        mark_quarantined = on_quarantined if on_quarantined is not None else lambda: None
+        current = self.observe(relative)
+        if not self.matches(current, expected):
+            raise PayloadError("atomic replacement pre-state changed")
+        parts = pathlib.PurePosixPath(relative).parts
+        temporary_name = f".{parts[-1]}.{token}.tmp"
+        temporary_relative = "/".join((*parts[:-1], temporary_name))
+        temp_identity: tuple[int, int] | str | None = None
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                temporary_relative,
+                access=GENERIC_READ | GENERIC_WRITE | DELETE_ACCESS,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                disposition=CREATE_NEW,
+                create_parents=False,
+                final_directory=False,
+            )
+            with opened as handles:
+                descriptor = _windows_descriptor_from_verified(opened, os.O_RDWR | _BINARY)
+                renamed = False
+                native_handle: int | None = None
+                try:
+                    view = memoryview(data)
+                    while view:
+                        count = os.write(descriptor, view)
+                        if count <= 0:
+                            raise PayloadError("atomic replacement short write made no progress")
+                        view = view[count:]
+                    os.fsync(descriptor)
+                    native_handle = __import__("msvcrt").get_osfhandle(descriptor)
+                    _windows_set_writable(
+                        handles.api, native_handle, writable=bool(mode & 0o222)
+                    )
+                    self.verify_boundary()
+                    if not self.matches(self.observe(relative), expected):
+                        raise PayloadError("atomic replacement target raced")
+                    if expected.entry_type != "missing":
+                        target = _windows_open_verified(
+                            self.root,
+                            relative,
+                            access=GENERIC_READ | DELETE_ACCESS | FILE_WRITE_ATTRIBUTES,
+                            share=FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                            disposition=OPEN_EXISTING,
+                            create_parents=False,
+                            final_directory=False,
+                            api=handles.api,
+                        )
+                        with target as target_handles:
+                            volume, index = handles.api.identity(
+                                target_handles.final_handle
+                            )
+                            if expected.identity != f"windows:{volume}:{index}":
+                                raise PayloadError(
+                                    "atomic replacement target identity raced"
+                                )
+                            _windows_set_writable(
+                                handles.api, target_handles.final_handle, writable=True
+                            )
+                            mark_destructive()
+                            quarantine_name = self._quarantine_name(relative, "before")
+                            assert self._quarantine_relative is not None
+                            handles.api.rename_no_replace(
+                                target_handles.final_handle,
+                                str(
+                                    self.root
+                                    / pathlib.PurePosixPath(self._quarantine_relative)
+                                    / quarantine_name
+                                ),
+                            )
+                            mark_quarantined()
+                    else:
+                        mark_destructive()
+                    handles.api.rename_no_replace(
+                        native_handle, str(self.root / pathlib.PurePosixPath(relative))
+                    )
+                    renamed = True
+                finally:
+                    if not renamed and native_handle is not None:
+                        handles.api.mark_delete(native_handle)
+                    os.close(descriptor)
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW | _CLOEXEC
+                temp_fd = os.open(temporary_name, flags, 0o600, dir_fd=parent_fd)
+                try:
+                    temp_stat = os.fstat(temp_fd)
+                    temp_identity = (temp_stat.st_dev, temp_stat.st_ino)
+                    view = memoryview(data)
+                    while view:
+                        count = os.write(temp_fd, view)
+                        if count <= 0:
+                            raise PayloadError("atomic replacement short write made no progress")
+                        view = view[count:]
+                    os.fchmod(temp_fd, mode)
+                    os.fsync(temp_fd)
+                    self.verify_boundary()
+                    if not self.matches(self.observe(relative), expected):
+                        raise PayloadError("atomic replacement target raced")
+                    mark_destructive()
+                    if expected.entry_type != "missing":
+                        target_fd = os.open(
+                            name,
+                            _READ_FLAGS | _NOFOLLOW | _NONBLOCK,
+                            dir_fd=parent_fd,
+                        )
+                        try:
+                            target_stat = os.fstat(target_fd)
+                            if expected.identity != (target_stat.st_dev, target_stat.st_ino):
+                                raise PayloadError("atomic replacement target identity raced")
+                            quarantine_name = self._quarantine_name(relative, "before")
+                            assert self._quarantine_relative is not None
+                            with self._posix_parent(
+                                f"{self._quarantine_relative}/{quarantine_name}"
+                            ) as quarantine_parent:
+                                assert quarantine_parent is not None
+                                quarantine_fd, _ = quarantine_parent
+                                _rename_no_replace_posix(
+                                    parent_fd,
+                                    name,
+                                    quarantine_fd,
+                                    quarantine_name,
+                                )
+                                moved = os.stat(
+                                    quarantine_name,
+                                    dir_fd=quarantine_fd,
+                                    follow_symlinks=False,
+                                )
+                                if (moved.st_dev, moved.st_ino) != (
+                                    target_stat.st_dev,
+                                    target_stat.st_ino,
+                                ):
+                                    try:
+                                        _rename_no_replace_posix(
+                                            quarantine_fd,
+                                            quarantine_name,
+                                            parent_fd,
+                                            name,
+                                        )
+                                    finally:
+                                        raise PayloadError(
+                                            "atomic replacement source identity raced"
+                                        )
+                                mark_quarantined()
+                        finally:
+                            os.close(target_fd)
+                    _rename_no_replace_posix(
+                        parent_fd,
+                        temporary_name,
+                        parent_fd,
+                        name,
+                    )
+                    os.fsync(parent_fd)
+                    temp_identity = None
+                finally:
+                    os.close(temp_fd)
+                    if temp_identity is not None:
+                        try:
+                            leftover = os.stat(
+                                temporary_name, dir_fd=parent_fd, follow_symlinks=False
+                            )
+                            if (leftover.st_dev, leftover.st_ino) == temp_identity:
+                                os.unlink(temporary_name, dir_fd=parent_fd)
+                        except FileNotFoundError:
+                            pass
+        result = self.observe(relative)
+        expected_digest = hashlib.sha256(data).hexdigest()
+        if result.entry_type != "file" or result.digest != expected_digest:
+            raise PayloadError("atomic replacement result verification failed")
+        return result
+
+    def atomic_replace_internal(
+        self,
+        relative: str,
+        data: bytes,
+        mode: int,
+        token: str,
+        *,
+        failpoint: object | None = None,
+    ) -> SecureEntry:
+        """Atomically overwrite one current-generation journal without quarantine."""
+
+        relative = normalize_relative_path(relative)
+        parts = pathlib.PurePosixPath(relative).parts
+        if (
+            len(parts) != 5
+            or parts[:3] != (".codex", "codex-game-studios", "recovery")
+            or parts[-1] != "journal.json"
+        ):
+            raise PayloadError("internal replacement path is outside a recovery generation")
+        self.verify_boundary()
+        expected = self.observe(relative)
+        if expected.entry_type not in {"missing", "file"}:
+            raise PayloadError("internal journal target is not a regular file")
+        trigger = failpoint if failpoint is not None else lambda _phase: None
+        temporary_name = f".journal.{token}.tmp"
+        temporary_relative = "/".join((*parts[:-1], temporary_name))
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                temporary_relative,
+                access=GENERIC_READ | GENERIC_WRITE | DELETE_ACCESS,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                disposition=CREATE_NEW,
+                create_parents=False,
+                final_directory=False,
+            )
+            with opened as handles:
+                descriptor = _windows_descriptor_from_verified(opened, os.O_RDWR | _BINARY)
+                renamed = False
+                native_handle: int | None = None
+                try:
+                    view = memoryview(data)
+                    while view:
+                        written = os.write(descriptor, view)
+                        if written <= 0:
+                            raise PayloadError("internal journal short write made no progress")
+                        view = view[written:]
+                    os.fsync(descriptor)
+                    native_handle = __import__("msvcrt").get_osfhandle(descriptor)
+                    _windows_set_writable(handles.api, native_handle, writable=bool(mode & 0o222))
+                    if not self.matches(self.observe(relative), expected):
+                        raise PayloadError("internal journal target raced")
+                    trigger("before-rename")
+                    trigger("at-rename")
+                    handles.api.rename_replace(
+                        native_handle, str(self.root / pathlib.PurePosixPath(relative))
+                    )
+                    renamed = True
+                    trigger("after-rename")
+                finally:
+                    if not renamed and native_handle is not None:
+                        handles.api.mark_delete(native_handle)
+                    os.close(descriptor)
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                temp_fd = os.open(
+                    temporary_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW | _CLOEXEC,
+                    0o600,
+                    dir_fd=parent_fd,
+                )
+                temp_identity = None
+                try:
+                    temp_stat = os.fstat(temp_fd)
+                    temp_identity = (temp_stat.st_dev, temp_stat.st_ino)
+                    view = memoryview(data)
+                    while view:
+                        written = os.write(temp_fd, view)
+                        if written <= 0:
+                            raise PayloadError("internal journal short write made no progress")
+                        view = view[written:]
+                    os.fchmod(temp_fd, mode)
+                    os.fsync(temp_fd)
+                    if not self.matches(self.observe(relative), expected):
+                        raise PayloadError("internal journal target raced")
+                    trigger("before-rename")
+                    trigger("at-rename")
+                    os.rename(temporary_name, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+                    temp_identity = None
+                    os.fsync(parent_fd)
+                    trigger("after-rename")
+                finally:
+                    os.close(temp_fd)
+                    if temp_identity is not None:
+                        try:
+                            leftover = os.stat(temporary_name, dir_fd=parent_fd, follow_symlinks=False)
+                            if (leftover.st_dev, leftover.st_ino) == temp_identity:
+                                os.unlink(temporary_name, dir_fd=parent_fd)
+                        except FileNotFoundError:
+                            pass
+        result = self.observe(relative)
+        if result.entry_type != "file" or result.digest != hashlib.sha256(data).hexdigest():
+            raise PayloadError("internal journal replacement verification failed")
+        return result
+
+    def remove(
+        self,
+        relative: str,
+        expected: SecureEntry,
+        on_destructive: object | None = None,
+        on_quarantined: object | None = None,
+    ) -> None:
+        """Remove exactly the securely observed file or empty directory."""
+
+        self.verify_boundary()
+        if not self.matches(self.observe(relative), expected):
+            raise PayloadError("remove pre-state changed")
+        mark_destructive = on_destructive if on_destructive is not None else lambda: None
+        mark_quarantined = on_quarantined if on_quarantined is not None else lambda: None
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                relative,
+                access=GENERIC_READ | DELETE_ACCESS | FILE_WRITE_ATTRIBUTES,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=expected.entry_type == "directory",
+            )
+            with opened as handles:
+                volume, index = handles.api.identity(handles.final_handle)
+                if expected.identity != f"windows:{volume}:{index}":
+                    raise PayloadError("remove target identity raced")
+                if expected.entry_type == "file":
+                    _windows_set_writable(handles.api, handles.final_handle, writable=True)
+                mark_destructive()
+                quarantine_name = self._quarantine_name(relative, "removed")
+                assert self._quarantine_relative is not None
+                handles.api.rename_no_replace(
+                    handles.final_handle,
+                    str(
+                        self.root
+                        / pathlib.PurePosixPath(self._quarantine_relative)
+                        / quarantine_name
+                    ),
+                )
+                mark_quarantined()
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                flags = _READ_FLAGS | _NOFOLLOW | _NONBLOCK
+                if expected.entry_type == "directory":
+                    flags |= _DIRECTORY
+                target_fd = os.open(name, flags, dir_fd=parent_fd)
+                try:
+                    current = os.fstat(target_fd)
+                    if expected.identity != (current.st_dev, current.st_ino):
+                        raise PayloadError("remove target identity raced")
+                    quarantine_name = self._quarantine_name(relative, "removed")
+                    assert self._quarantine_relative is not None
+                    with self._posix_parent(
+                        f"{self._quarantine_relative}/{quarantine_name}"
+                    ) as quarantine_parent:
+                        assert quarantine_parent is not None
+                        quarantine_fd, _ = quarantine_parent
+                        mark_destructive()
+                        _rename_no_replace_posix(
+                            parent_fd, name, quarantine_fd, quarantine_name
+                        )
+                        moved = os.stat(
+                            quarantine_name,
+                            dir_fd=quarantine_fd,
+                            follow_symlinks=False,
+                        )
+                        if (moved.st_dev, moved.st_ino) != (
+                            current.st_dev,
+                            current.st_ino,
+                        ):
+                            try:
+                                _rename_no_replace_posix(
+                                    quarantine_fd,
+                                    quarantine_name,
+                                    parent_fd,
+                                    name,
+                                )
+                            finally:
+                                raise PayloadError("remove source identity raced")
+                        mark_quarantined()
+                finally:
+                    os.close(target_fd)
+                os.fsync(parent_fd)
+        if self.observe(relative).entry_type != "missing":
+            raise PayloadError("remove result verification failed")
+
+    def remove_internal_exact(
+        self, relative: str, expected: SecureEntry, generation: str
+    ) -> None:
+        """Delete one proven pre-journal artifact without target quarantine semantics."""
+
+        relative = normalize_relative_path(relative)
+        generation = normalize_relative_path(generation)
+        recovery = ".codex/codex-game-studios/recovery"
+        if not (
+            relative == generation
+            or relative.startswith(f"{generation}/")
+            or relative == recovery
+        ):
+            raise PayloadError("internal cleanup escaped the current recovery generation")
+        self.verify_boundary()
+        current = self.observe(relative)
+        if not self.matches(current, expected) or current.entry_type not in {"file", "directory"}:
+            raise PayloadError("internal cleanup identity changed")
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                relative,
+                access=GENERIC_READ | DELETE_ACCESS | FILE_WRITE_ATTRIBUTES,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=current.entry_type == "directory",
+            )
+            with opened as handles:
+                volume, index = handles.api.identity(handles.final_handle)
+                if current.identity != f"windows:{volume}:{index}":
+                    raise PayloadError("internal cleanup handle identity changed")
+                if current.entry_type == "file":
+                    _windows_set_writable(handles.api, handles.final_handle, writable=True)
+                handles.api.mark_delete(handles.final_handle)
+        else:
+            with self._posix_parent(relative) as parent:
+                assert parent is not None
+                parent_fd, name = parent
+                flags = _READ_FLAGS | _NOFOLLOW | _NONBLOCK
+                if current.entry_type == "directory":
+                    flags |= _DIRECTORY
+                descriptor = os.open(name, flags, dir_fd=parent_fd)
+                try:
+                    opened = os.fstat(descriptor)
+                    if current.identity != (opened.st_dev, opened.st_ino):
+                        raise PayloadError("internal cleanup descriptor identity changed")
+                    if current.entry_type == "directory":
+                        os.rmdir(name, dir_fd=parent_fd)
+                    else:
+                        os.unlink(name, dir_fd=parent_fd)
+                    os.fsync(parent_fd)
+                finally:
+                    os.close(descriptor)
+        if self.observe(relative).entry_type != "missing":
+            raise PayloadError("internal cleanup result verification failed")

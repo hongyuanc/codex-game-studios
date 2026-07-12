@@ -26,9 +26,11 @@ from models import (
     PayloadEntry,
     PayloadError,
     PayloadManifest,
+    TargetObservation,
     canonical_json,
     digest_document,
     normalize_relative_path,
+    plan_with_digest,
 )
 from payload import load_verified_manifest, verify_manifest_snapshot
 from safe_fs import (
@@ -37,6 +39,7 @@ from safe_fs import (
     list_immediate_secure,
     pin_root,
     read_file_secure,
+    recovery_tree_digest_secure,
 )
 
 
@@ -64,6 +67,10 @@ _COLLISION_REASONS = {
     "customized-managed-file",
     "historical-remnant",
 }
+_TRANSACTION_CONTROL_DIRECTORY = ".codex/codex-game-studios"
+_TRANSACTION_INTERNAL_CHILD_TYPES = {
+    "manager.lock": "file",
+}
 
 
 class ManagerError(ValueError):
@@ -81,6 +88,7 @@ class _Observed:
     digest: str | None
     content: bytes | None
     children: tuple[tuple[str, str], ...] = ()
+    mode: int | None = None
 
 
 def _managed_path_document(item: ManagedPath) -> dict[str, object]:
@@ -354,6 +362,42 @@ def _resolve_git_root(root: Path | str) -> Path:
     return resolved
 
 
+def _transaction_control_only(root: Path) -> bool:
+    """Return whether the manager directory contains transaction internals only.
+
+    This is a narrow logical projection used solely so the first authorized
+    lock/recovery mutation cannot invalidate an otherwise unchanged approved
+    plan. Wrongly typed or unknown siblings remain ordinary digest-bound data.
+    """
+
+    try:
+        entries = list_immediate_secure(root, _TRANSACTION_CONTROL_DIRECTORY)
+    except PayloadError as error:
+        raise ManagerError("UNSAFE_PATH", str(error)) from error
+    return all(
+        _TRANSACTION_INTERNAL_CHILD_TYPES.get(item.name) == item.entry_type
+        for item in entries
+    )
+
+
+def _project_transaction_control_children(
+    root: Path,
+    relative: str,
+    children: tuple[tuple[str, str], ...],
+) -> tuple[tuple[str, str], ...]:
+    """Remove only exact, correctly typed transaction-internal observations."""
+
+    if relative == _TRANSACTION_CONTROL_DIRECTORY:
+        return tuple(
+            item
+            for item in children
+            if _TRANSACTION_INTERNAL_CHILD_TYPES.get(item[0]) != item[1]
+        )
+    if relative == ".codex" and children == (("codex-game-studios", "directory"),):
+        return () if _transaction_control_only(root) else children
+    return children
+
+
 def _observe(root: Path, relative: str) -> _Observed:
     relative = normalize_relative_path(relative)
     current = root
@@ -376,18 +420,37 @@ def _observe(root: Path, relative: str) -> _Observed:
             entries = list_immediate_secure(root, relative)
         except PayloadError as error:
             raise ManagerError("UNSAFE_PATH", str(error)) from error
-        immediate = [dataclasses.asdict(item) for item in entries]
-        children = [(item.name, item.entry_type) for item in entries]
+        children = tuple((item.name, item.entry_type) for item in entries)
+        projected = _project_transaction_control_children(root, relative, children)
+        if not projected and relative in {".codex", _TRANSACTION_CONTROL_DIRECTORY}:
+            return _Observed("missing", None, None)
+        immediate = [
+            dataclasses.asdict(item)
+            for item in entries
+            if (item.name, item.entry_type) in projected
+        ]
+        if relative == _TRANSACTION_CONTROL_DIRECTORY:
+            for item in immediate:
+                if item["name"] == "recovery" and item["entry_type"] == "directory":
+                    item["sha256"] = recovery_tree_digest_secure(
+                        root, f"{_TRANSACTION_CONTROL_DIRECTORY}/recovery"
+                    )
         return _Observed(
             "directory",
             digest_document({"entries": immediate}),
             None,
-            tuple(children),
+            projected,
+            stat.S_IMODE(file_stat.st_mode),
         )
     if not stat.S_ISREG(file_stat.st_mode):
         raise ManagerError("UNSAFE_PATH", f"target path is a special file: {relative}")
     content = read_file_secure(root, relative)
-    return _Observed("file", hashlib.sha256(content).hexdigest(), content)
+    return _Observed(
+        "file",
+        hashlib.sha256(content).hexdigest(),
+        content,
+        mode=stat.S_IMODE(file_stat.st_mode),
+    )
 
 
 def _load_optional_state(root: Path) -> InstallationState | None:
@@ -744,6 +807,8 @@ def _make_plan(
     conflicts: list[Conflict],
     target_hashes: Mapping[str, str | None],
     shared_hashes: Mapping[str, str | None],
+    observed: Mapping[str, _Observed],
+    entries: Mapping[str, PayloadEntry],
 ) -> OperationPlan:
     def action_order(item: Action) -> tuple[object, ...]:
         if item.kind in {"backup", "remove"}:
@@ -752,25 +817,47 @@ def _make_plan(
 
     ordered_actions = tuple(sorted(actions, key=action_order))
     ordered_conflicts = tuple(sorted(conflicts, key=lambda item: (item.path, item.code, item.detail)))
-    body: dict[str, object] = {
-        "operation": operation,
-        "plugin_version": plugin_version,
-        "payload_digest": payload_digest,
-        "state_digest": state_digest,
-        "target_hashes": dict(sorted(target_hashes.items())),
-        "shared_hashes": dict(sorted(shared_hashes.items())),
-        "actions": [_action_document(item) for item in ordered_actions],
-        "conflicts": [_conflict_document(item) for item in ordered_conflicts],
-    }
-    return OperationPlan(
+    changing_paths = sorted(
+        action.path
+        for action in ordered_actions
+        if action.kind in {"create", "merge", "update", "remove", "state-write"}
+    )
+    observations = tuple(
+        TargetObservation(
+            path,
+            observed[path].kind,
+            observed[path].mode,
+            observed[path].digest,
+        )
+        for path in changing_paths
+    )
+    action_by_path = {action.path: action for action in ordered_actions}
+    results: list[TargetObservation] = []
+    for path in changing_paths:
+        action = action_by_path[path]
+        if action.kind == "remove":
+            results.append(TargetObservation(path, "missing", None, None))
+            continue
+        entry = entries[path]
+        digest = (
+            digest_document({"entries": []})
+            if entry.entry_type == "directory"
+            else action.after_hash
+        )
+        results.append(TargetObservation(path, entry.entry_type, entry.mode, digest))
+    return plan_with_digest(OperationPlan(
         operation,
         plugin_version,
         payload_digest,
         state_digest,
         ordered_actions,
         ordered_conflicts,
-        digest_document(body),
-    )
+        "",
+        tuple(sorted(target_hashes.items())),
+        tuple(sorted(shared_hashes.items())),
+        observations,
+        tuple(results),
+    ))
 
 
 def _plan_operation_at_root(
@@ -799,13 +886,13 @@ def _plan_operation_at_root(
         conflicts.append(Conflict("NOT_INSTALLED", STATE_RELATIVE_PATH, "installation state is absent"))
         return _make_plan(
             operation, manifest.version, manifest.digest, None, actions, conflicts,
-            target_hashes, shared_hashes,
+            target_hashes, shared_hashes, observed, entries,
         )
     if state is not None and operation == "install":
         conflicts.append(Conflict("ALREADY_INSTALLED", STATE_RELATIVE_PATH, "valid installation state already exists"))
         return _make_plan(
             operation, manifest.version, manifest.digest, state.checksum, actions, conflicts,
-            target_hashes, shared_hashes,
+            target_hashes, shared_hashes, observed, entries,
         )
     if operation == "repair" and state is not None and (
         state.plugin_version != manifest.version or state.payload_digest != manifest.digest
@@ -819,7 +906,7 @@ def _plan_operation_at_root(
         )
         return _make_plan(
             operation, manifest.version, manifest.digest, state.checksum, actions, conflicts,
-            target_hashes, shared_hashes,
+            target_hashes, shared_hashes, observed, entries,
         )
     if operation == "verify" and state is not None and (
         state.plugin_version != manifest.version or state.payload_digest != manifest.digest
@@ -934,6 +1021,8 @@ def _plan_operation_at_root(
         conflicts,
         target_hashes,
         shared_hashes,
+        observed,
+        entries,
     )
 
 
@@ -970,6 +1059,10 @@ def _plan_document(plan: OperationPlan) -> dict[str, object]:
         "state_digest": plan.state_digest,
         "actions": [_action_document(item) for item in plan.actions],
         "conflicts": [_conflict_document(item) for item in plan.conflicts],
+        "target_hashes": dict(plan.target_hashes),
+        "shared_hashes": dict(plan.shared_hashes),
+        "target_observations": [dataclasses.asdict(item) for item in plan.target_observations],
+        "target_results": [dataclasses.asdict(item) for item in plan.target_results],
         "digest": plan.digest,
     }
 

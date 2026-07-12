@@ -319,6 +319,85 @@ class ManagerPlanningTests(unittest.TestCase):
         # Assert
         self.assertNotEqual(first.digest, second.digest)
 
+    def test_fresh_install_replan_projects_only_transaction_control_paths(self):
+        # Arrange
+        approved = plan_operation("install", self.repo, PLUGIN)
+        from transaction import RepositoryLock
+
+        # Act
+        with RepositoryLock(self.repo, timeout=0.1):
+            replanned = plan_operation("install", self.repo, PLUGIN)
+
+        # Assert
+        self.assertEqual(approved, replanned)
+
+    def test_fresh_install_replan_keeps_unknown_control_sibling_digest_bound(self):
+        # Arrange
+        approved = plan_operation("install", self.repo, PLUGIN)
+        control = self.repo / ".codex/codex-game-studios"
+        control.mkdir(parents=True)
+        (control / "manager.lock").write_bytes(b"\0")
+
+        # Act
+        internal_only = plan_operation("install", self.repo, PLUGIN)
+        (control / "unexpected.txt").write_bytes(b"user-owned\n")
+        with_unknown = plan_operation("install", self.repo, PLUGIN)
+
+        # Assert
+        self.assertEqual(approved, internal_only)
+        self.assertNotEqual(approved.digest, with_unknown.digest)
+
+    def test_fresh_install_replan_keeps_nested_recovery_content_digest_bound(self):
+        # Arrange
+        approved = plan_operation("install", self.repo, PLUGIN)
+        control = self.repo / ".codex/codex-game-studios"
+        control.mkdir(parents=True)
+        (control / "manager.lock").write_bytes(b"\0")
+        internal_only = plan_operation("install", self.repo, PLUGIN)
+
+        # Act
+        recovery = control / "recovery/current/snapshots"
+        recovery.mkdir(parents=True)
+        (recovery / "000000.bin").write_bytes(b"unknown-or-prior")
+        with_recovery = plan_operation("install", self.repo, PLUGIN)
+        (recovery / "000000.bin").write_bytes(b"changed-prior")
+        changed_nested = plan_operation("install", self.repo, PLUGIN)
+
+        # Assert
+        self.assertEqual(approved, internal_only)
+        self.assertNotEqual(approved.digest, with_recovery.digest)
+        self.assertNotEqual(with_recovery.digest, changed_nested.digest)
+
+    def test_fresh_install_replan_does_not_project_malformed_internal_types(self):
+        # Arrange
+        approved = plan_operation("install", self.repo, PLUGIN)
+        control = self.repo / ".codex/codex-game-studios"
+        control.mkdir(parents=True)
+        (control / "manager.lock").mkdir()
+
+        # Act
+        malformed = plan_operation("install", self.repo, PLUGIN)
+
+        # Assert
+        self.assertNotEqual(approved.digest, malformed.digest)
+
+    def test_installed_control_directory_with_state_and_legal_is_not_projected_away(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        before = plan_operation("update", self.repo, PLUGIN)
+        control = self.repo / ".codex/codex-game-studios"
+        (control / "manager.lock").write_bytes(b"\0")
+
+        # Act
+        after = plan_operation("update", self.repo, PLUGIN)
+
+        # Assert
+        self.assertEqual(before, after)
+        self.assertIn(
+            (".codex/codex-game-studios/legal", "preserve"),
+            {(action.path, action.kind) for action in after.actions},
+        )
+
     def test_plan_digest_changes_when_user_child_is_added_to_managed_directory(self):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
