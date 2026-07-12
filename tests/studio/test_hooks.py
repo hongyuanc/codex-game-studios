@@ -7,6 +7,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -954,6 +955,60 @@ class HookBehaviorTests(unittest.TestCase):
         with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
             SAFE_IO.atomic_read_text(root, "production/session-state/active.md")
 
+    def assert_fifo_rejected_without_blocking(self, fifo, operation):
+        outcome = []
+        completed = threading.Event()
+
+        def invoke():
+            try:
+                operation()
+            except BaseException as error:
+                outcome.append(error)
+            finally:
+                completed.set()
+
+        worker = threading.Thread(target=invoke, daemon=True)
+        worker.start()
+        finished_without_unblock = completed.wait(0.5)
+        unblock_descriptor = None
+        if not finished_without_unblock:
+            unblock_descriptor = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+            self.assertTrue(completed.wait(1.0), "FIFO operation did not unblock")
+        if unblock_descriptor is not None:
+            os.close(unblock_descriptor)
+        worker.join(timeout=1.0)
+        self.assertTrue(finished_without_unblock, "FIFO open blocked before verification")
+        self.assertEqual(1, len(outcome))
+        self.assertIsInstance(outcome[0], SAFE_IO.UnsafeAtomicPathError)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_read_rejects_fifo_without_blocking(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        fifo = root / "production/session-state/active.md"
+        fifo.parent.mkdir(parents=True)
+        os.mkfifo(fifo)
+
+        def operation():
+            SAFE_IO.atomic_read_text(root, "production/session-state/active.md")
+
+        self.assert_fifo_rejected_without_blocking(fifo, operation)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_append_rejects_fifo_without_blocking(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        fifo = root / "production/session-logs/audit.log"
+        fifo.parent.mkdir(parents=True)
+        os.mkfifo(fifo)
+
+        def operation():
+            SAFE_IO.atomic_append_text(
+                root, "production/session-logs/audit.log", "unsafe\n"
+            )
+
+        self.assert_fifo_rejected_without_blocking(fifo, operation)
+
     @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
     def test_atomic_parent_descriptors_close_after_injected_failure(self):
         temporary, root = self.make_root()
@@ -981,6 +1036,75 @@ class HookBehaviorTests(unittest.TestCase):
                         root, "production/session-state/active.md"
                     )
         self.assertEqual(3, len(closed))
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_parent_cleanup_continues_and_preserves_primary_failure(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        (root / "production/session-state").mkdir(parents=True)
+        opened = []
+        close_attempts = []
+        real_open = SAFE_IO.os.open
+        real_close = SAFE_IO.os.close
+
+        def record_open(*args, **kwargs):
+            descriptor = real_open(*args, **kwargs)
+            opened.append(descriptor)
+            return descriptor
+
+        def flaky_close(descriptor):
+            close_attempts.append(descriptor)
+            real_close(descriptor)
+            if len(close_attempts) == 1:
+                raise OSError("injected descriptor close failure")
+
+        def fail_after_nested_parent(parts):
+            if parts == ("production", "session-state"):
+                raise RuntimeError("primary operation failure")
+
+        try:
+            with mock.patch.object(SAFE_IO.os, "open", side_effect=record_open):
+                with mock.patch.object(SAFE_IO.os, "close", side_effect=flaky_close):
+                    with mock.patch.object(
+                        SAFE_IO,
+                        "_posix_after_component_open",
+                        side_effect=fail_after_nested_parent,
+                    ):
+                        with self.assertRaisesRegex(
+                            RuntimeError, "primary operation failure"
+                        ):
+                            SAFE_IO.atomic_read_text(
+                                root, "production/session-state/active.md"
+                            )
+        finally:
+            for descriptor in opened:
+                try:
+                    real_close(descriptor)
+                except OSError:
+                    pass
+        self.assertEqual(3, len(close_attempts))
+
+    @unittest.skipUnless(os.name == "posix", "POSIX descriptor traversal only")
+    def test_atomic_final_descriptor_close_does_not_mask_unsafe_file(self):
+        temporary, root = self.make_root()
+        self.addCleanup(temporary.cleanup)
+        target = root / "production/session-state/active.md"
+        target.mkdir(parents=True)
+        close_attempts = []
+        real_close = SAFE_IO.os.close
+
+        def flaky_close(descriptor):
+            close_attempts.append(descriptor)
+            real_close(descriptor)
+            if len(close_attempts) == 1:
+                raise OSError("injected final descriptor close failure")
+
+        with mock.patch.object(SAFE_IO.os, "close", side_effect=flaky_close):
+            with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+                SAFE_IO.atomic_read_text(
+                    root, "production/session-state/active.md"
+                )
+        self.assertEqual(4, len(close_attempts))
 
     def test_windows_open_rejects_reparse_and_outside_final_path(self):
         class FakeWindowsApi:
@@ -1053,6 +1177,30 @@ class HookBehaviorTests(unittest.TestCase):
                 api=outside_api,
             )
         self.assertEqual([4, 3, 2, 1], outside_api.closed)
+
+    def test_windows_open_rejects_root_reset_before_any_api_call(self):
+        class RecordingWindowsApi:
+            def __init__(self):
+                self.calls = []
+
+            def CreateDirectoryW(self, path):
+                self.calls.append(("CreateDirectoryW", path))
+
+            def CreateFileW(self, *args):
+                self.calls.append(("CreateFileW", args[0]))
+                return 1
+
+        api = RecordingWindowsApi()
+        with self.assertRaises(SAFE_IO.UnsafeAtomicPathError):
+            SAFE_IO._windows_open_verified(
+                r"C:\repo",
+                ("foo", "D:bar", "audit.log"),
+                desired_access=SAFE_IO.FILE_APPEND_DATA,
+                creation_disposition=SAFE_IO.OPEN_ALWAYS,
+                create_parents=True,
+                api=api,
+            )
+        self.assertEqual([], api.calls)
 
     def test_windows_open_uses_required_flags(self):
         class RecordingWindowsApi:
@@ -1136,6 +1284,59 @@ class HookBehaviorTests(unittest.TestCase):
         self.assertEqual(SAFE_IO.OPEN_ALWAYS, append_api.calls[-1][3])
         self.assertEqual(SAFE_IO.FILE_APPEND_DATA, append_api.calls[-1][1])
         append_api.CloseHandle(append_handle)
+
+    def test_windows_cleanup_retains_and_closes_final_handle_on_close_failure(self):
+        class FailingCloseWindowsApi:
+            def __init__(self):
+                self.handles = {}
+                self.close_attempts = []
+
+            def CreateFileW(
+                self,
+                path,
+                desired_access,
+                share_mode,
+                security_attributes,
+                creation_disposition,
+                flags_and_attributes,
+                template_file,
+            ):
+                del (
+                    desired_access,
+                    share_mode,
+                    security_attributes,
+                    creation_disposition,
+                    flags_and_attributes,
+                    template_file,
+                )
+                handle = len(self.handles) + 1
+                self.handles[handle] = path
+                return handle
+
+            def FileAttributeTagInfo(self, handle):
+                if not self.handles[handle].endswith("audit.log"):
+                    return SAFE_IO.FILE_ATTRIBUTE_DIRECTORY, 0
+                return 0, 0
+
+            def GetFinalPathNameByHandleW(self, handle):
+                return "\\\\?\\" + self.handles[handle]
+
+            def CloseHandle(self, handle):
+                self.close_attempts.append(handle)
+                if handle == 3:
+                    raise OSError("injected ancestor close failure")
+
+        api = FailingCloseWindowsApi()
+        with self.assertRaisesRegex(OSError, "injected ancestor close failure"):
+            SAFE_IO._windows_open_verified(
+                r"C:\repo",
+                ("production", "session-logs", "audit.log"),
+                desired_access=SAFE_IO.GENERIC_READ,
+                creation_disposition=SAFE_IO.OPEN_EXISTING,
+                create_parents=False,
+                api=api,
+            )
+        self.assertEqual([3, 2, 1, 4], api.close_attempts)
 
     def test_hook_repository_io_has_no_pathname_fallback(self):
         for helper, atomic_call in (

@@ -107,6 +107,17 @@ def _posix_verify_open_component(
         )
 
 
+def _posix_close_descriptors(descriptors: Iterator[int]) -> BaseException | None:
+    first_error: BaseException | None = None
+    for descriptor in descriptors:
+        try:
+            os.close(descriptor)
+        except BaseException as error:
+            if first_error is None:
+                first_error = error
+    return first_error
+
+
 @contextlib.contextmanager
 def _posix_parent_fd(
     root: pathlib.Path,
@@ -122,6 +133,7 @@ def _posix_parent_fd(
         os.O_DIRECTORY,
         os.O_NOFOLLOW,
     )
+    primary_error: BaseException | None = None
     try:
         try:
             root_fd = os.open(root, directory_flags)
@@ -165,9 +177,13 @@ def _posix_parent_fd(
                 relative,
             )
         yield descriptors[-1], parts[-1]
+    except BaseException as error:
+        primary_error = error
+        raise
     finally:
-        for descriptor in reversed(descriptors):
-            os.close(descriptor)
+        cleanup_error = _posix_close_descriptors(reversed(descriptors))
+        if cleanup_error is not None and primary_error is None:
+            raise cleanup_error
 
 
 def _posix_read_text(
@@ -180,18 +196,20 @@ def _posix_read_text(
         try:
             descriptor = os.open(
                 final_name,
-                _posix_open_flags(os.O_RDONLY, os.O_NOFOLLOW),
+                _posix_open_flags(os.O_RDONLY, os.O_NOFOLLOW, os.O_NONBLOCK),
                 dir_fd=parent_fd,
             )
         except FileNotFoundError:
             raise
         except OSError as error:
             raise _unsafe_open_error(parts, error) from error
+        primary_error: BaseException | None = None
         try:
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                 raise UnsafeAtomicPathError(
                     f"unsafe non-regular repository file: {'/'.join(parts)}"
                 )
+            os.set_blocking(descriptor, True)
             with os.fdopen(
                 descriptor,
                 "r",
@@ -200,9 +218,14 @@ def _posix_read_text(
             ) as stream:
                 descriptor = -1
                 return stream.read()
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
             if descriptor >= 0:
-                os.close(descriptor)
+                cleanup_error = _posix_close_descriptors(iter((descriptor,)))
+                if cleanup_error is not None and primary_error is None:
+                    raise cleanup_error
 
 
 def _posix_append_text(
@@ -219,23 +242,31 @@ def _posix_append_text(
                     os.O_CREAT,
                     os.O_WRONLY,
                     os.O_NOFOLLOW,
+                    os.O_NONBLOCK,
                 ),
                 0o666,
                 dir_fd=parent_fd,
             )
         except OSError as error:
             raise _unsafe_open_error(parts, error) from error
+        primary_error: BaseException | None = None
         try:
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                 raise UnsafeAtomicPathError(
                     f"unsafe non-regular repository file: {'/'.join(parts)}"
                 )
+            os.set_blocking(descriptor, True)
             with os.fdopen(descriptor, "a", encoding="utf-8") as stream:
                 descriptor = -1
                 stream.write(text)
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
             if descriptor >= 0:
-                os.close(descriptor)
+                cleanup_error = _posix_close_descriptors(iter((descriptor,)))
+                if cleanup_error is not None and primary_error is None:
+                    raise cleanup_error
 
 
 class _FileAttributeTagInfo(ctypes.Structure):
@@ -391,6 +422,37 @@ def _windows_verify_handle(
     return final_path
 
 
+def _windows_validate_parts(parts: tuple[str, ...]) -> None:
+    if not parts:
+        raise UnsafeAtomicPathError("unsafe empty repository path")
+    for component in parts:
+        if (
+            not isinstance(component, str)
+            or not component
+            or component in {".", ".."}
+            or "\x00" in component
+            or any(0xD800 <= ord(character) <= 0xDFFF for character in component)
+            or "/" in component
+            or "\\" in component
+            or ntpath.isabs(component)
+            or bool(ntpath.splitdrive(component)[0])
+        ):
+            raise UnsafeAtomicPathError(
+                f"unsafe Windows repository component: {component!r}"
+            )
+
+
+def _windows_close_handles(api: object, handles: Iterator[int]) -> BaseException | None:
+    first_error: BaseException | None = None
+    for handle in handles:
+        try:
+            api.CloseHandle(handle)
+        except BaseException as error:
+            if first_error is None:
+                first_error = error
+    return first_error
+
+
 def _windows_open_verified(
     root: str | pathlib.Path,
     parts: tuple[str, ...],
@@ -400,8 +462,7 @@ def _windows_open_verified(
     create_parents: bool,
     api: object,
 ) -> int:
-    if not parts:
-        raise UnsafeAtomicPathError("unsafe empty repository path")
+    _windows_validate_parts(parts)
     root_text = ntpath.normpath(str(root))
     # Denying delete sharing keeps every opened ancestor from being renamed or
     # replaced while later components are created and verified.
@@ -466,14 +527,22 @@ def _windows_open_verified(
             verified_root=verified_root,
             require_directory=False,
         )
-        transferred_handle = final_handle
-        final_handle = None
-        return transferred_handle
-    finally:
+    except BaseException:
+        cleanup_handles = iter(
+            ([final_handle] if final_handle is not None else [])
+            + list(reversed(directory_handles))
+        )
+        _windows_close_handles(api, cleanup_handles)
+        raise
+
+    cleanup_error = _windows_close_handles(api, reversed(directory_handles))
+    directory_handles.clear()
+    if cleanup_error is not None:
         if final_handle is not None:
-            api.CloseHandle(final_handle)
-        for handle in reversed(directory_handles):
-            api.CloseHandle(handle)
+            _windows_close_handles(api, iter((final_handle,)))
+        raise cleanup_error
+    assert final_handle is not None
+    return final_handle
 
 
 def _windows_read_text(
