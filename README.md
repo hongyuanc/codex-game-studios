@@ -8,6 +8,53 @@ Directors protect product and technical direction, department leads coordinate
 work, and specialists implement and verify the game. Godot 4, Unity, and Unreal
 Engine 5 are supported through mutually exclusive engine packs.
 
+<!-- upstream-attribution-start -->
+## Origins and attribution
+
+Codex Game Studios is an **independent Codex-native adaptation** of
+[Claude Code Game Studios](https://github.com/Donchitos/Claude-Code-Game-Studios),
+created by [Donchitos](https://github.com/Donchitos).
+
+The original project established the studio concept, specialized-agent
+hierarchy, game-development workflows, engine specialists, document templates,
+and testing-framework foundation that made this edition possible. We are
+grateful to Donchitos and the upstream contributors for publishing that work
+under the MIT License.
+
+This repository retains the original copyright and MIT permission notice in
+[LICENSE](LICENSE). It is not an official port or endorsement by Donchitos,
+Anthropic, or OpenAI. For the original implementation, documentation, and
+community, visit the
+[upstream repository](https://github.com/Donchitos/Claude-Code-Game-Studios).
+<!-- upstream-attribution-end -->
+
+## What this Codex edition adds
+
+> **Not a thin rename.** This edition rebuilds the studio as a native Codex
+> system instead of stopping at renamed agent definitions.
+
+- **Native Codex surfaces:** durable `AGENTS.md` guidance, 73 discoverable
+  skills in `.agents/skills/`, TOML agent profiles in `.codex/agents/`, and
+  repository-owned Codex configuration.
+- **GPT studio routing:** the 49 roles are organized as Sol, Terra, and Luna
+  profiles with explicit model, reasoning, sandbox, and delegation policies.
+- **Native workflow semantics:** all workflows use `$skill-name` invocation,
+  phase-gated collaboration, and explicit approval boundaries.
+- **Hardened lifecycle hooks:** 10 Python-based Codex hook actions provide
+  session continuity, gap detection, asset/skill validation, command guardrails,
+  and atomic repository I/O without the former shell runtime.
+- **Transactional engine packs:** Godot, Unity, and Unreal activation installs
+  exactly five managed specialists with collision checks, recorded hashes,
+  rollback, recovery, and post-apply validation.
+- **Codex-specific verification:** the behavioral testing framework and
+  state-aware repository validator check agents, skills, hooks, instructions,
+  engine state, documentation, and migration invariants.
+- **Lean cross-platform runtime:** studio automation requires Git, Codex, and
+  Python 3.11+, with no Node.js, shell-script, or `jq` runtime dependency.
+- **Migration path:** `UPGRADING.md` and the retained coverage evidence support
+  projects moving from the upstream template without an operational
+  compatibility bridge.
+
 ## Getting started
 
 1. Clone or use this repository as a template.
@@ -93,4 +140,7 @@ are migrating a project created from the source template, follow
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Codex Game Studios is distributed under the [MIT License](LICENSE). The
+original `Copyright (c) 2026 Donchitos` and MIT permission notice are retained
+for the upstream work, and this Codex-native adaptation is distributed under
+the same license.

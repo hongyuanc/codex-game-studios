@@ -214,6 +214,175 @@ class RepositoryValidationTests(unittest.TestCase):
             )
             issues = validate_runtime_references(temp, "final")
             self.assertTrue(any(issue.path == "UPGRADING.md" and "marker" in issue.message for issue in issues))
+
+    def test_readme_unmarked_upstream_runtime_name_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "README.md").write_text("Claude Code\n", encoding="utf-8")
+
+            issues = validate_runtime_references(temp, "final")
+
+        self.assertTrue(any(
+            issue.path == "README.md"
+            and issue.message == "contains legacy runtime product name"
+            for issue in issues
+        ))
+
+    def test_readme_single_balanced_upstream_attribution_is_exempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "README.md").write_text(
+                "Codex\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code and Anthropic\n"
+                "<!-- upstream-attribution-end -->\n",
+                encoding="utf-8",
+            )
+
+            issues = validate_runtime_references(temp, "final")
+
+        self.assertFalse(any(issue.path == "README.md" for issue in issues))
+
+    def test_readme_attribution_does_not_exempt_provider_names_outside_block(self):
+        readmes = {
+            "before": (
+                "Claude Code before\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code and Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "after": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code and Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+                "Anthropic after\n"
+            ),
+        }
+        for position, readme_text in readmes.items():
+            with self.subTest(position=position), tempfile.TemporaryDirectory() as directory:
+                temp = Path(directory)
+                _minimal_runtime_tree(temp)
+                (temp / "README.md").write_text(readme_text, encoding="utf-8")
+
+                issues = validate_runtime_references(temp, "final")
+
+                self.assertTrue(any(
+                    issue.path == "README.md"
+                    and issue.message in {
+                        "contains legacy runtime product name",
+                        "contains legacy runtime routing",
+                    }
+                    for issue in issues
+                ))
+
+    def test_readme_attribution_does_not_exempt_other_runtime_rules(self):
+        adversarial_content = {
+            "runtime_path": (".claude/", "contains legacy runtime path"),
+            "slash_skill": ("/start", "contains slash-style invocation for a known skill"),
+            "machine_path": ("/Users/example/project", "contains machine-specific absolute path"),
+        }
+        for case, (content, expected_message) in adversarial_content.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                temp = Path(directory)
+                _minimal_runtime_tree(temp)
+                (temp / "README.md").write_text(
+                    "<!-- upstream-attribution-start -->\n"
+                    "Claude Code and Anthropic\n"
+                    f"{content}\n"
+                    "<!-- upstream-attribution-end -->\n",
+                    encoding="utf-8",
+                )
+
+                issues = validate_runtime_references(temp, "final")
+
+                self.assertTrue(any(
+                    issue.path == "README.md" and issue.message == expected_message
+                    for issue in issues
+                ))
+
+    def test_readme_malformed_nested_or_duplicate_attribution_markers_fail(self):
+        invalid_readmes = {
+            "unbalanced": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+            ),
+            "nested": (
+                "<!-- upstream-attribution-start -->\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "duplicate": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "prefixed_start": (
+                "prefix <!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "suffixed_start": (
+                "<!-- upstream-attribution-start --> suffix\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "prefixed_end": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "prefix <!-- upstream-attribution-end -->\n"
+            ),
+            "suffixed_end": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end --> suffix\n"
+            ),
+            "inline": (
+                "<!-- upstream-attribution-start --> Claude Code "
+                "<!-- upstream-attribution-end -->\n"
+            ),
+        }
+        for case, readme_text in invalid_readmes.items():
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                temp = Path(directory)
+                _minimal_runtime_tree(temp)
+                (temp / "README.md").write_text(readme_text, encoding="utf-8")
+
+                issues = validate_runtime_references(temp, "final")
+
+                self.assertTrue(any(
+                    issue.path == "README.md" and "marker" in issue.message
+                    for issue in issues
+                ))
+                self.assertTrue(any(
+                    issue.path == "README.md"
+                    and issue.message == "contains legacy runtime product name"
+                    for issue in issues
+                ))
+
+    def test_upstream_attribution_markers_outside_readme_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            _minimal_runtime_tree(temp)
+            (temp / "CONTRIBUTING.md").write_text(
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n",
+                encoding="utf-8",
+            )
+
+            issues = validate_runtime_references(temp, "final")
+
+        self.assertTrue(any(
+            issue.path == "CONTRIBUTING.md"
+            and issue.message == "upstream attribution markers are restricted to README.md"
+            for issue in issues
+        ))
     # enforcement-literal-end
 
     def test_walk_errors_are_validation_errors(self):

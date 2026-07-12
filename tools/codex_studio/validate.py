@@ -164,6 +164,12 @@ ENFORCEMENT_END = "# enforcement-" + "literal-end"
 ENFORCEMENT_INLINE = "# enforcement-" + "literal"
 HISTORY_START = "<!-- historical-" + "source-start -->"
 HISTORY_END = "<!-- historical-" + "source-end -->"
+UPSTREAM_ATTRIBUTION_START = "<!-- upstream-" + "attribution-start -->"
+UPSTREAM_ATTRIBUTION_END = "<!-- upstream-" + "attribution-end -->"
+UPSTREAM_ATTRIBUTION_PROVIDER_LABELS = {
+    "legacy runtime routing",
+    "legacy runtime product name",
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -210,6 +216,40 @@ def _strip_bounded_markers(
     if active:
         errors.append("opening marker has no matching end")
     return "\n".join(cleaned), errors
+
+
+def _strip_exactly_one_bounded_block(
+    text: str,
+    *,
+    start: str,
+    end: str,
+) -> tuple[str, list[str]]:
+    """Strip one exact-line block, returning original text for any malformed use."""
+    lines = text.splitlines()
+    marker_lines = [
+        (line_number, line)
+        for line_number, line in enumerate(lines, start=1)
+        if start in line or end in line
+    ]
+    if not marker_lines:
+        return text, []
+
+    errors = [
+        f"markers must be exact standalone lines (line {line_number})"
+        for line_number, line in marker_lines
+        if line not in {start, end}
+    ]
+    cleaned, bounded_errors = _strip_bounded_markers(
+        text,
+        start=start,
+        end=end,
+    )
+    errors.extend(bounded_errors)
+    if lines.count(start) != 1 or lines.count(end) != 1:
+        errors.append("markers must define exactly one block")
+    if errors:
+        return text, errors
+    return cleaned, []
 
 
 def _read_utf8_file(path: pathlib.Path, label: str) -> tuple[str | None, list[ValidationIssue]]:
@@ -954,8 +994,30 @@ def validate_runtime_references(root: pathlib.Path, phase: str) -> list[Validati
                 text, start=HISTORY_START, end=HISTORY_END
             )
             issues.extend(ValidationIssue("error", relative, error) for error in marker_errors)
+        provider_scan_text = text
+        if relative == "README.md":
+            provider_scan_text, marker_errors = _strip_exactly_one_bounded_block(
+                text,
+                start=UPSTREAM_ATTRIBUTION_START,
+                end=UPSTREAM_ATTRIBUTION_END,
+            )
+            issues.extend(
+                ValidationIssue("error", relative, error)
+                for error in marker_errors
+            )
+        elif UPSTREAM_ATTRIBUTION_START in text or UPSTREAM_ATTRIBUTION_END in text:
+            issues.append(ValidationIssue(
+                "error",
+                relative,
+                "upstream attribution markers are restricted to README.md",
+            ))
         for pattern, label in RUNTIME_FORBIDDEN_PATTERNS.items():
-            if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
+            scan_text = (
+                provider_scan_text
+                if label in UPSTREAM_ATTRIBUTION_PROVIDER_LABELS
+                else text
+            )
+            if re.search(pattern, scan_text, flags=re.MULTILINE | re.IGNORECASE):
                 issues.append(ValidationIssue("error", relative, f"contains {label}"))
         if slash_skill.search(text):
             issues.append(ValidationIssue("error", relative, "contains slash-style invocation for a known skill"))

@@ -37,6 +37,10 @@ FORBIDDEN = (
     "Batch up to 4",
     "session-start.sh",
 )
+PROVIDER_NAMES = re.compile(
+    r"\b(?:Anthropic|Claude(?: Code)?)\b",
+    re.IGNORECASE,
+)
 # enforcement-literal-end
 
 
@@ -48,6 +52,59 @@ def local_markdown_links(path: Path) -> list[str]:
             continue
         links.append(target.split("#", 1)[0])
     return [link for link in links if link]
+
+
+def readme_upstream_attribution(text: str) -> tuple[str, str]:
+    start = "<!-- upstream-" + "attribution-start -->"
+    end = "<!-- upstream-" + "attribution-end -->"
+    for line in text.splitlines():
+        if (start in line or end in line) and line not in {start, end}:
+            raise AssertionError(
+                "README upstream attribution markers must be exact standalone lines"
+            )
+    lines = text.splitlines()
+    start_lines = [index for index, line in enumerate(lines) if line == start]
+    end_lines = [index for index, line in enumerate(lines) if line == end]
+    if (
+        len(start_lines) != 1
+        or len(end_lines) != 1
+        or start_lines[0] >= end_lines[0]
+    ):
+        raise AssertionError(
+            "README must contain exactly one balanced upstream attribution block"
+        )
+    pattern = re.compile(
+        rf"^{re.escape(start)}$\n(.*?)\n^{re.escape(end)}$",
+        re.DOTALL | re.MULTILINE,
+    )
+    matches = pattern.findall(text)
+    if len(matches) != 1:
+        raise AssertionError(
+            "README must contain exactly one balanced upstream attribution block"
+        )
+    attribution = matches[0]
+    protected_spans = [
+        match.span()
+        for token in FORBIDDEN
+        if PROVIDER_NAMES.fullmatch(token) is None
+        for match in re.finditer(re.escape(token), attribution)
+    ]
+
+    def redact_provider_name(match: re.Match[str]) -> str:
+        if any(
+            match.start() < protected_end and match.end() > protected_start
+            for protected_start, protected_end in protected_spans
+        ):
+            return match.group(0)
+        return ""
+
+    runtime_text = pattern.sub(
+        lambda match: (
+            f"{start}\n{PROVIDER_NAMES.sub(redact_provider_name, match.group(1))}\n{end}"
+        ),
+        text,
+    )
+    return attribution, runtime_text
 
 
 class PublicDocumentationTests(unittest.TestCase):
@@ -115,11 +172,204 @@ class PublicDocumentationTests(unittest.TestCase):
         for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):
             self.assertIn(required, text)
 
+    def test_readme_credits_upstream_and_defines_native_delta(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        attribution, runtime_text = readme_upstream_attribution(readme)
+        license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+
+        self.assertIn(  # enforcement-literal
+            "[Claude Code Game Studios](https://github.com/Donchitos/Claude-Code-Game-Studios)",  # enforcement-literal
+            attribution,
+        )
+        self.assertIn(
+            "[Donchitos](https://github.com/Donchitos)",
+            attribution,
+        )
+        self.assertIn("independent Codex-native adaptation", attribution)
+        self.assertIn("not an official port", attribution)
+        self.assertIn("MIT", attribution)
+        self.assertIn("Copyright (c) 2026 Donchitos", license_text)
+        self.assertNotIn("Claude Code", runtime_text)  # enforcement-literal
+        self.assertIn(
+            "Codex Game Studios is distributed under the [MIT License](LICENSE). The\n"
+            "original `Copyright (c) 2026 Donchitos` and MIT permission notice are retained\n"
+            "for the upstream work, and this Codex-native adaptation is distributed under\n"
+            "the same license.",
+            readme,
+        )
+        for claim in (
+            "Not a thin rename",
+            "AGENTS.md",
+            ".agents/skills/",
+            ".codex/agents/",
+            "Sol, Terra, and Luna",
+            "10 Python-based Codex hook actions",
+            "Transactional engine packs",
+            "state-aware repository validator",
+        ):
+            self.assertIn(claim, readme)
+
+    # enforcement-literal-start
+    def test_readme_attribution_runtime_view_exempts_only_provider_names(self):
+        readme = (
+            "Codex\n"
+            "<!-- upstream-attribution-start -->\n"
+            "Claude Code and Anthropic\n"
+            ".claude/ AskUserQuestion /start /Users/example/project\n"
+            "<!-- upstream-attribution-end -->\n"
+        )
+
+        attribution, runtime_text = readme_upstream_attribution(readme)
+
+        self.assertIn("Claude Code and Anthropic", attribution)
+        self.assertNotIn("Claude Code", runtime_text)
+        self.assertNotIn("Anthropic", runtime_text)
+        for token in (".claude/", "AskUserQuestion", "/start", "/Users/example/project"):
+            self.assertIn(token, runtime_text)
+
+    def test_readme_attribution_runtime_view_keeps_provider_names_outside_block(self):
+        readme = (
+            "Claude Code before\n"
+            "<!-- upstream-attribution-start -->\n"
+            "Claude Code and Anthropic\n"
+            "<!-- upstream-attribution-end -->\n"
+            "Anthropic after\n"
+        )
+
+        _, runtime_text = readme_upstream_attribution(readme)
+
+        self.assertIn("Claude Code before", runtime_text)
+        self.assertIn("Anthropic after", runtime_text)
+
+    def test_readme_provider_policy_is_case_insensitive_and_block_scoped(self):
+        inside = (
+            "Codex\n"
+            "<!-- upstream-attribution-start -->\n"
+            "Claude, claude code, and aNtHrOpIc\n"
+            "<!-- upstream-attribution-end -->\n"
+        )
+        _, inside_runtime_text = readme_upstream_attribution(inside)
+        self.assertIsNone(PROVIDER_NAMES.search(inside_runtime_text))
+
+        outside_readmes = {
+            "lowercase_product_before": (
+                "claude code before\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "mixed_case_provider_after": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+                "aNtHrOpIc after\n"
+            ),
+            "standalone_product_before": (
+                "Claude before\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+        }
+        for case, readme in outside_readmes.items():
+            with self.subTest(case=case):
+                _, runtime_text = readme_upstream_attribution(readme)
+                self.assertIsNotNone(PROVIDER_NAMES.search(runtime_text))
+
+    def test_readme_attribution_markers_must_be_exact_standalone_lines(self):
+        invalid_readmes = {
+            "prefixed_start": (
+                "prefix <!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "suffixed_start": (
+                "<!-- upstream-attribution-start --> suffix\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "prefixed_end": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "prefix <!-- upstream-attribution-end -->\n"
+            ),
+            "suffixed_end": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end --> suffix\n"
+            ),
+            "inline": (
+                "<!-- upstream-attribution-start --> Claude Code "
+                "<!-- upstream-attribution-end -->\n"
+            ),
+        }
+        for case, readme in invalid_readmes.items():
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "exact standalone lines",
+                ):
+                    readme_upstream_attribution(readme)
+
+    def test_readme_attribution_requires_one_balanced_ordered_block(self):
+        invalid_readmes = {
+            "nested_start": (
+                "<!-- upstream-attribution-start -->\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "extra_close": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "start_only": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+            ),
+            "end_only": (
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "duplicate_blocks": (
+                "<!-- upstream-attribution-start -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-end -->\n"
+                "<!-- upstream-attribution-start -->\n"
+                "Anthropic\n"
+                "<!-- upstream-attribution-end -->\n"
+            ),
+            "reversed": (
+                "<!-- upstream-attribution-end -->\n"
+                "Claude Code\n"
+                "<!-- upstream-attribution-start -->\n"
+            ),
+        }
+        for case, readme in invalid_readmes.items():
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(
+                    AssertionError,
+                    "exactly one balanced upstream attribution block",
+                ):
+                    readme_upstream_attribution(readme)
+    # enforcement-literal-end
+
     def test_runtime_public_surface_is_codex_only(self):
         failures = []
         for path in PUBLIC:
             text = path.read_text(encoding="utf-8")
+            if path == ROOT / "README.md":
+                _, provider_scan_text = readme_upstream_attribution(text)
+                provider_match = PROVIDER_NAMES.search(provider_scan_text)
+                if provider_match is not None:
+                    failures.append(
+                        f"{path.relative_to(ROOT)}: {provider_match.group(0)}"
+                    )
             for token in FORBIDDEN:
+                if token == "Claude Code" and path == ROOT / "README.md":  # enforcement-literal
+                    continue
                 if token in text:
                     failures.append(f"{path.relative_to(ROOT)}: {token}")
         self.assertEqual([], failures)
