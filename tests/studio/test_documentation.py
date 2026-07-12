@@ -200,7 +200,9 @@ class DocumentationTests(unittest.TestCase):
         map_spec = (ROOT / "Codex Studio Testing Framework/skills/pipeline/map-systems.md").read_text(encoding="utf-8")
         for gate in ("TD-SYSTEM-BOUNDARY", "CD-SYSTEMS", "PR-SCOPE"):
             self.assertIn(gate, map_systems)
-        self.assertIn("both gates are skipped", map_spec)
+            self.assertIn(gate, map_spec)
+            self.assertIn(f"{gate} skipped — Phase-gated mode.", map_spec)
+            self.assertIn(f"{gate} skipped — Solo mode.", map_spec)
 
         for name, gate in (
             ("create-epics", "PR-EPIC"),

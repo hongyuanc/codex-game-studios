@@ -5,7 +5,7 @@ description: Decompose an approved game concept into systems, dependencies, prio
 
 ## Codex-native operating rules
 
-Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
+Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring. Before the initial write, present one complete proposed changeset covering the systems index and session-state create/update, then obtain approval before either write. A later creative-director revision is a separate bounded changeset. Pause again for a new design decision or scope expansion.
 
 When this skill is invoked:
 
@@ -148,7 +148,7 @@ dependencies I'm missing or that should be removed?"
 
 **Review mode check** — apply before delegating to TD-SYSTEM-BOUNDARY:
 - `solo` → skip. Note: "TD-SYSTEM-BOUNDARY skipped — Solo mode." Proceed to priority assignment.
-- `lean` → skip (not a PHASE-GATE). Note: "TD-SYSTEM-BOUNDARY skipped — Lean mode." Proceed to priority assignment.
+- `lean` → skip (not a PHASE-GATE). Note: "TD-SYSTEM-BOUNDARY skipped — Phase-gated mode." Proceed to priority assignment.
 - `full` → delegate normally.
 
 **After dependency mapping is approved, delegate to `technical-director` through Codex custom-agent delegation using gate TD-SYSTEM-BOUNDARY (`.codex/docs/director-gates.md`) before proceeding to priority assignment.**
@@ -192,7 +192,7 @@ Pure technical necessity ("X depends on Y") is insufficient alone when the syste
 
 **Review mode check** — apply before delegating to PR-SCOPE:
 - `solo` → skip. Note: "PR-SCOPE skipped — Solo mode." Proceed to writing the systems index.
-- `lean` → skip (not a PHASE-GATE). Note: "PR-SCOPE skipped — Lean mode." Proceed to writing the systems index.
+- `lean` → skip (not a PHASE-GATE). Note: "PR-SCOPE skipped — Phase-gated mode." Proceed to writing the systems index.
 - `full` → delegate normally.
 
 **After priorities are approved, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`.codex/docs/director-gates.md`) before writing the index.**
@@ -234,28 +234,42 @@ Present a summary of the document:
 - First 3 systems in the design order
 - Any high-risk items
 
-Ask: "May I write the systems index to `design/gdd/systems-index.md`?"
+### Initial systems-index changeset
 
-Wait for approval. Write the file only after "yes."
+Present one complete proposed changeset before either write:
+
+- `design/gdd/systems-index.md` — create it from the displayed draft, or update
+  only the displayed sections when the index already exists.
+- `production/session-state/active.md` — create or update it with Task: Systems
+  decomposition; Status: Systems index created; File:
+  `design/gdd/systems-index.md`; Next: Design individual system GDDs.
+
+Ask one concise approval question and wait for the answer: "May I write this
+two-file changeset exactly as shown?" If declined, write neither file and return
+`Verdict: **BLOCKED**`. If approved, write the systems index first and then the
+session-state record exactly as listed. Approval covers no other path or edit.
 
 **Review mode check** — apply before delegating to CD-SYSTEMS:
 - `solo` → skip. Note: "CD-SYSTEMS skipped — Solo mode." Proceed to Phase 7 next steps.
-- `lean` → skip (not a PHASE-GATE). Note: "CD-SYSTEMS skipped — Lean mode." Proceed to Phase 7 next steps.
+- `lean` → skip (not a PHASE-GATE). Note: "CD-SYSTEMS skipped — Phase-gated mode." Proceed to Phase 7 next steps.
 - `full` → delegate normally.
 
-**After the systems index is written, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`.codex/docs/director-gates.md`).**
+**After the initial systems index write, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`.codex/docs/director-gates.md`).**
 
 Pass: systems index path, game pillars and core fantasy (from `design/gdd/game-concept.md`), MVP priority tier system list.
 
-Present the assessment. If REJECT, revise the system set with the user before GDD authoring begins. If CONCERNS, record them in the systems index as a `> **Creative Director Note**` at the top of the relevant tier section.
+Present the assessment. If CONCERNS or REJECT requires an index change or a
+Creative Director Note, show the exact revision changeset for
+`design/gdd/systems-index.md`, including every line to add, replace, or remove.
+Ask one concise question and obtain explicit approval before modifying the file.
+If approval is declined, leave the written index unchanged and report the
+unresolved feedback; never silently revise or append a note.
 
-### Step 5c: Update Session State
+### Step 5c: Confirm the Approved Initial Changeset
 
-After writing, create `production/session-state/active.md` if it does not exist, then update it with:
-- Task: Systems decomposition
-- Status: Systems index created
-- File: design/gdd/systems-index.md
-- Next: Design individual system GDDs
+Confirm that `production/session-state/active.md` was created or updated as the
+second write in the approved initial changeset. Do not perform a separate,
+unapproved session-state write here.
 
 **Verdict: COMPLETE** — systems index written to `design/gdd/systems-index.md`.
 If the user declined: **Verdict: BLOCKED** — user did not approve the write.
@@ -336,12 +350,14 @@ This skill follows the collaborative design principle at every phase:
    - Phase 4: "Priority assignments match your vision?"
    - Phase 5: "May I write the systems index?"
    - Phase 6: "Start designing, pick different, or stop?" then hand off to `$design-system`
-3. **Approval authorizes the listed write** — show the systems-index path with the complete draft and ask once; do not ask again per line or per file within that approved changeset
+3. **Approval authorizes the listed writes** — show `design/gdd/systems-index.md`
+   and `production/session-state/active.md` together as one complete proposed
+   changeset and ask once before either write
 4. **Incremental writing**: Update the systems index after each system is designed
 5. **Handoff**: Individual GDD authoring is owned by `$design-system`, which handles
    incremental section writing, cross-referencing, design review, and index updates
-6. **Session state updates**: Write to `production/session-state/active.md` after
-   each milestone (index created, system designed, priorities changed)
+6. **Session state updates**: Include each session-state create/update in the
+   applicable approved changeset; never append it silently
 
 **Never** auto-generate the full systems list and write it without review.
 **Never** start designing a system without user confirmation.

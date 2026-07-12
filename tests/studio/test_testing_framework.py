@@ -88,7 +88,7 @@ class TestingFrameworkTests(unittest.TestCase):
     def test_framework_uses_canonical_runtime_paths_and_phase_gated_authority(self):
         forbidden_patterns = {
             "legacy review-mode file": r"(?i)(?:production/(?:session-state/)?review-mode\.txt|review-mode\.txt)",
-            "legacy session state": r"production/session-state/",
+            "legacy session state": r"production/session-state/(?!active\.md)",
             "nonexistent skill-test tree": r"tests/skills(?:/|\b)",
             "nonexistent agent-test tree": r"tests/agents(?:/|\b)",
             "nonexistent status line": r"(?i)statusline|status line",
@@ -376,6 +376,44 @@ class TestingFrameworkTests(unittest.TestCase):
             spec = (NEW / f"skills/{locations[name]}/{name}.md").read_text(encoding="utf-8")
             self.assertIn(runtime_token, runtime, name)
             self.assertIn(spec_token, spec, name)
+
+    def test_map_systems_spec_matches_runtime_gate_order_and_write_boundaries(self):
+        runtime = (ROOT / ".agents/skills/map-systems/SKILL.md").read_text(encoding="utf-8")
+        spec = (NEW / "skills/pipeline/map-systems.md").read_text(encoding="utf-8")
+
+        runtime_order = (
+            "After dependency mapping is approved",
+            "After priorities are approved",
+            "### Initial systems-index changeset",
+            "After the initial systems index write",
+        )
+        spec_order = (
+            "TD-SYSTEM-BOUNDARY after dependency-map approval",
+            "PR-SCOPE after priority approval",
+            "initial two-file changeset",
+            "CD-SYSTEMS after the initial index write",
+        )
+        for text, markers in ((runtime, runtime_order), (spec, spec_order)):
+            for marker in markers:
+                self.assertIn(marker, text)
+            positions = [text.index(marker) for marker in markers]
+            self.assertEqual(sorted(positions), positions)
+
+        for gate in ("TD-SYSTEM-BOUNDARY", "PR-SCOPE", "CD-SYSTEMS"):
+            self.assertIn(f"{gate} skipped — Phase-gated mode.", runtime)
+            self.assertIn(f"{gate} skipped — Solo mode.", runtime)
+            self.assertIn(f"{gate} skipped — Phase-gated mode.", spec)
+            self.assertIn(f"{gate} skipped — Solo mode.", spec)
+
+        for text in (runtime, spec):
+            self.assertIn("`design/gdd/systems-index.md`", text)
+            self.assertIn("`production/session-state/active.md`", text)
+            self.assertIn("one complete proposed changeset", text)
+            self.assertIn("exact revision changeset", text)
+            self.assertIn("approval before modifying", text)
+            self.assertNotIn("`design/systems-index.md`", text)
+            self.assertNotIn("spawn in parallel", text)
+            self.assertNotIn("both gates", text)
 
     def test_authoring_specs_match_exact_gate_roles_modes_paths_and_finalization(self):
         architecture = (NEW / "skills/authoring/create-architecture.md").read_text(encoding="utf-8")

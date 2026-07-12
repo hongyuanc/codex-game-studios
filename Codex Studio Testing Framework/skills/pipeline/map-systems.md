@@ -13,194 +13,187 @@
 
 ---
 
-
 ## Skill Summary
 
-`$map-systems` is tested against the exact runtime discovery contract above. The five
-cases below preserve its domain fixtures, expected outputs, verdict vocabulary, review
-modes, and edge conditions.
+`$map-systems` decomposes an approved concept, validates dependencies and scope,
+then writes the canonical systems index and session-state record through one
+approved initial changeset. Full-mode gates are sequential at their runtime
+phases: TD-SYSTEM-BOUNDARY after dependency-map approval, PR-SCOPE after priority approval, the initial two-file changeset, then CD-SYSTEMS after the initial index write.
 
-Validation is read-only. If the workflow writes, the parent first presents one
-complete proposed changeset containing every target path and material edit; any
-new path or scope expansion requires fresh approval. If it delegates, direct
-children return scoped evidence and the parent synthesizes the result.
+The parent presents one complete proposed changeset containing every target path
+and material edit, then obtains approval before any write. Any post-write
+creative-director change uses a separate exact revision changeset and approval
+before modifying the index.
 
 ---
 
 ## Static Assertions (Structural)
 
-Verified automatically by `$skill-test static` — no fixture needed.
-
-- [ ] Runtime YAML frontmatter has only the required discovery fields `name` and `description`, and both match the contract above
-- [ ] Has ≥2 phase headings
-- [ ] Contains verdict keywords: COMPLETE, BLOCKED
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] Has a next-step handoff at the end (`$design-system`)
-- [ ] Documents gate behavior: CD-SYSTEMS + TD-SYSTEM-BOUNDARY in parallel in full mode
+- [ ] Runtime YAML frontmatter has only `name` and `description`, and both match the contract above.
+- [ ] Has at least two phase headings and contains COMPLETE and BLOCKED verdicts.
+- [ ] Uses only `design/gdd/systems-index.md` as the systems-index path.
+- [ ] Documents TD-SYSTEM-BOUNDARY, PR-SCOPE, and CD-SYSTEMS in their sequential runtime order.
+- [ ] Documents full, phase-gated, and solo behavior for all three optional gates.
+- [ ] Lists `design/gdd/systems-index.md` and `production/session-state/active.md` in one approved initial changeset.
+- [ ] Requires a separate approved revision changeset for post-write CD-SYSTEMS feedback.
+- [ ] Ends with a `$design-system` handoff.
 
 ---
 
 ## Director Gate Checks
 
-In `full` mode: CD-SYSTEMS (creative-director) and TD-SYSTEM-BOUNDARY
-(technical-director) spawn in parallel after the systems decomposition is drafted
-and before `design/systems-index.md` is written.
+Full mode follows this order:
 
-In `phase-gated` mode: both gates are skipped. Output notes:
-"CD-SYSTEMS skipped — phase-gated mode" and "TD-SYSTEM-BOUNDARY skipped — phase-gated mode".
+1. TD-SYSTEM-BOUNDARY after dependency-map approval.
+2. PR-SCOPE after priority approval.
+3. Present and approve the initial two-file changeset; write the index and then session state.
+4. CD-SYSTEMS after the initial index write.
 
-In `solo` mode: both gates are skipped with equivalent notes.
+Phase-gated mode skips each optional gate with these exact notes:
+
+- `TD-SYSTEM-BOUNDARY skipped — Phase-gated mode.`
+- `PR-SCOPE skipped — Phase-gated mode.`
+- `CD-SYSTEMS skipped — Phase-gated mode.`
+
+Solo mode skips each optional gate with these exact notes:
+
+- `TD-SYSTEM-BOUNDARY skipped — Solo mode.`
+- `PR-SCOPE skipped — Solo mode.`
+- `CD-SYSTEMS skipped — Solo mode.`
 
 ---
 
 ## Test Cases
 
-### Case 1: Happy Path — Game concept exists, 5-8 systems identified
+### Case 1: Happy Path — Full mode uses sequential gates and one initial changeset
 
 **Fixture:**
-- `design/gdd/game-concept.md` exists with Core Mechanics and MVP Definition sections
-- `design/gdd/game-pillars.md` exists with ≥1 pillar defined
-- No `design/systems-index.md` exists yet
-- `.codex/studio.toml` contains `full`
+- `design/gdd/game-concept.md` and `design/gdd/game-pillars.md` exist.
+- No `design/gdd/systems-index.md` exists.
+- `.codex/studio.toml` contains `review_mode = "full"`.
 
 **Input:** `$map-systems`
 
 **Expected behavior:**
-1. Skill reads game-concept.md and game-pillars.md
-2. Identifies 5-8 systems (explicit + implicit)
-3. Maps dependencies between systems and assigns layers
-4. CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel and return APPROVED
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-6. Writes systems-index.md after approval
-7. Updates the explicit skill argument or a user-selected artifact under `production/`
+1. Read the concept and pillars, enumerate systems, and obtain dependency-map approval.
+2. Run TD-SYSTEM-BOUNDARY and resolve its verdict before priority assignment.
+3. Obtain priority approval, run PR-SCOPE, and resolve its verdict.
+4. Draft the canonical index and present one complete proposed changeset for `design/gdd/systems-index.md` plus `production/session-state/active.md`.
+5. After approval, write the index first and session state second.
+6. Run CD-SYSTEMS against the initial written index, then return COMPLETE.
 
 **Assertions:**
-- [ ] Between 5 and 8 systems are identified (not fewer, not more without explanation)
-- [ ] CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel (not sequentially)
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] systems-index.md is NOT written without approval
-- [ ] Session state is updated after writing
-- [ ] Verdict is COMPLETE
+- [ ] The three gates run sequentially at their specified phases.
+- [ ] No write occurs before the initial two-file changeset is approved.
+- [ ] Both listed paths are written exactly as approved.
+- [ ] CD-SYSTEMS receives the written index, not an unwritten draft.
+- [ ] Verdict is COMPLETE.
 
 ---
 
-### Case 2: Failure Path — No game concept found
+### Case 2: Blocked Preconditions — Missing concept writes nothing
 
 **Fixture:**
-- `design/gdd/game-concept.md` does NOT exist
-- `design/gdd/` directory may be empty or absent
+- `design/gdd/game-concept.md` is missing.
 
 **Input:** `$map-systems`
 
 **Expected behavior:**
-1. Skill attempts to read `design/gdd/game-concept.md`
-2. File not found
-3. Skill outputs: "No game concept found. Run `$brainstorm` to create one, then return to `$map-systems`."
-4. Skill exits without creating systems-index.md
+1. Report the missing canonical concept path.
+2. Recommend `$brainstorm`.
+3. Run no director gate and write neither target file.
+4. Return BLOCKED.
 
 **Assertions:**
-- [ ] Skill outputs a clear error naming the missing file path
-- [ ] Skill recommends `$brainstorm` as the next action
-- [ ] No systems-index.md is created
-- [ ] Verdict is BLOCKED
+- [ ] The missing path is named.
+- [ ] No gate is delegated.
+- [ ] Neither the index nor session-state file is created.
+- [ ] Verdict is BLOCKED.
 
 ---
 
-### Case 3: Director Gate — CD-SYSTEMS returns CONCERNS (missing core system)
+### Case 3: Post-Write Review — CD-SYSTEMS feedback requires a revision approval
 
 **Fixture:**
-- Game concept exists
-- `.codex/studio.toml` contains `full`
-- CD-SYSTEMS gate returns CONCERNS: "The [core-system] is implied by the concept but not identified"
+- Full mode initial changeset was approved and written.
+- CD-SYSTEMS returns CONCERNS requiring a missing system and director note.
+
+**Input:** Continue `$map-systems` after the initial index write.
+
+**Expected behavior:**
+1. Present the CD-SYSTEMS verdict without changing the file.
+2. Show an exact revision changeset for `design/gdd/systems-index.md`, including every line to add, replace, or remove.
+3. Obtain approval before modifying the file.
+4. Apply only the approved revision, or leave the index unchanged if declined.
+
+**Assertions:**
+- [ ] Feedback is shown before the revision proposal.
+- [ ] No silent note or system-list edit occurs.
+- [ ] Declining the revision preserves the initial written index byte-for-byte.
+- [ ] New scope requires a new proposal.
+
+---
+
+### Case 4: Existing Index — Update path preserves unapproved content
+
+**Fixture:**
+- `design/gdd/systems-index.md` exists with N systems.
+- `production/session-state/active.md` may exist or be absent.
+- `.codex/studio.toml` contains `review_mode = "full"`.
 
 **Input:** `$map-systems`
 
 **Expected behavior:**
-1. Systems are drafted (5-8 initial systems identified)
-2. CD-SYSTEMS gate returns CONCERNS naming the missing core system
-3. TD-SYSTEM-BOUNDARY returns APPROVED
-4. Skill surfaces CD-SYSTEMS concerns to user
-5. User is asked: revise systems list to add the missing system, or proceed as-is
-6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+1. Read and summarize the existing canonical index before asking whether to update systems or priorities.
+2. Run TD-SYSTEM-BOUNDARY after any revised dependency map is approved.
+3. Run PR-SCOPE after revised priorities are approved.
+4. Present the exact index update and session-state create/update together for approval.
+5. Write only approved changes, then run CD-SYSTEMS against the updated index.
 
 **Assertions:**
-- [ ] CD-SYSTEMS concerns are shown to the user before writing
-- [ ] Skill does NOT auto-write systems-index.md while CONCERNS are unresolved
-- [ ] User is given the option to revise or proceed
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
+- [ ] Existing content is not silently overwritten.
+- [ ] The current system count is shown.
+- [ ] Unlisted sections and paths remain unchanged.
+- [ ] Post-write feedback uses the Case 3 revision boundary.
 
 ---
 
-### Case 4: Edge Case — systems-index.md already exists
+### Case 5: Mode Boundary — Phase-gated and solo skip all three optional gates
 
 **Fixture:**
-- `design/gdd/game-concept.md` exists
-- `design/systems-index.md` already exists with N systems
+- A valid concept exists.
+- Run once with `review_mode = "phase-gated"` and once with `review_mode = "solo"`.
 
 **Input:** `$map-systems`
 
 **Expected behavior:**
-1. Skill reads the existing systems-index.md and presents its current state
-2. Skill asks: "systems-index.md already exists with [N] systems. Update with new systems, or review and revise priorities?"
-3. User chooses an action
-4. Skill does NOT silently overwrite the existing index
+1. Complete enumeration, dependency approval, priority approval, and the initial changeset flow.
+2. Emit all three exact skip notes for the active mode at the gates' normal phases.
+3. Obtain initial two-file approval before writing in either mode.
+4. Do not delegate a director or producer child.
 
 **Assertions:**
-- [ ] Skill detects and reads the existing systems-index.md before proceeding
-- [ ] User is offered update/review options — not auto-overwritten
-- [ ] Existing system count is presented to the user
-- [ ] Skill does NOT proceed with a full re-decomposition without user choosing to do so
-
----
-
-### Case 5: Director Gate — Phase-gated mode and solo mode both skip gates, noted
-
-**Fixture (phase-gated mode):**
-- Game concept exists
-- `.codex/studio.toml` contains `phase-gated`
-
-**Phase-gated mode expected behavior:**
-1. Systems are decomposed and drafted
-2. Both CD-SYSTEMS and TD-SYSTEM-BOUNDARY are skipped
-3. Output notes: "CD-SYSTEMS skipped — phase-gated mode" and "TD-SYSTEM-BOUNDARY skipped — phase-gated mode"
-4. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-
-**Assertions (phase-gated mode):**
-- [ ] Both gate skip notes appear in output
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] systems-index.md is written after user approval
-
-**Fixture (solo mode):**
-- Same game concept, `.codex/studio.toml` contains `solo`
-
-**Solo mode expected behavior:**
-1. Same decomposition workflow
-2. Both gates skipped — noted in output with "solo mode"
-3. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
-
-**Assertions (solo mode):**
-- [ ] Both skip notes appear with "solo mode" label
-- [ ] Behavior is otherwise identical to phase-gated mode for this skill
+- [ ] Phase-gated output includes the three Phase-gated notes above.
+- [ ] Solo output includes the three Solo notes above.
+- [ ] Gate skips do not bypass human write approval.
+- [ ] The index and session-state paths remain canonical.
 
 ---
 
 ## Protocol Compliance
 
-- [ ] Reads game-concept.md and game-pillars.md before any decomposition
-- [ ] The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write
-- [ ] systems-index.md is NOT written without user approval
-- [ ] CD-SYSTEMS and TD-SYSTEM-BOUNDARY spawn in parallel in full mode
-- [ ] Skipped gates noted by name and mode in phase-gated/solo output
-- [ ] Ends with next-step handoff: `$design-system [next-system]`
+- [ ] Reads the concept before decomposition.
+- [ ] Full mode uses TD-SYSTEM-BOUNDARY, then PR-SCOPE, then the approved initial write, then CD-SYSTEMS.
+- [ ] Phase-gated and solo skip all three optional gates with exact notes.
+- [ ] The initial index and session-state writes share one complete approved changeset.
+- [ ] CD-SYSTEMS feedback never modifies the index without a separate approved revision.
+- [ ] Ends with `$design-system [next-system]` or `$map-systems next` handoff.
 
 ---
 
 ## Coverage Notes
 
-- Circular dependency detection (System A depends on System B which depends on A)
-  is part of the dependency mapping phase — not independently fixture-tested here.
-- Priority tier assignment (MVP heuristics) is evaluated as part of the Case 1
-  collaborative workflow rather than independently.
-- The `next` argument mode (handing off the highest-priority undesigned system to
-  `$design-system`) is not tested here — it is a post-index-creation convenience.
+- Circular-dependency resolution and priority heuristics are exercised within
+  Cases 1 and 4 rather than as separate fixtures.
+- The `next` argument is a post-index handoff convenience and does not change
+  the three-gate or write-approval contracts.

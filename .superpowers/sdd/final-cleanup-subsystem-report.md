@@ -473,6 +473,12 @@ same filenames.
 - `$architecture-decision` runs mandatory TD-ADR review in full, phase-gated,
   and solo modes, does not invoke LP-FEASIBILITY, and keeps new ADRs Proposed
   pending their separate lifecycle acceptance decision.
+- `$map-systems` runs optional full-mode gates sequentially at their owning
+  phases: TD-SYSTEM-BOUNDARY after dependency approval, PR-SCOPE after priority
+  approval, and CD-SYSTEMS after the approved initial index write. The index and
+  canonical active session record share one complete initial changeset; any
+  post-write creative-director revision requires a separately approved exact
+  revision changeset. Phase-gated and solo record all three gate skips.
 - `$skill-test` Check 4 accepts both approved workflow shapes and rejects any
   write before its appropriate complete-changeset or bounded-section approval.
 - Cross-runtime/framework tests pin these start routing, gate-mode, incremental
@@ -489,7 +495,7 @@ reparse-point cases.
 ## Final automated gate
 
 - `python3 -m unittest discover -s tests -v`:
-  **252 tests, OK; zero skips**.
+  **253 tests, OK; zero skips**.
 - `python3 -m tools.codex_studio.validate --root . --phase final`:
   **Codex Studio validation: PASS**.
 - Exact inventories: **34 core + 15 packed = 49 unique agents**, **73 skills**,
