@@ -415,6 +415,26 @@ class TestingFrameworkTests(unittest.TestCase):
             self.assertNotIn("spawn in parallel", text)
             self.assertNotIn("both gates", text)
 
+    def test_map_systems_reject_blocks_completion_until_review_is_resolved(self):
+        runtime = (ROOT / ".agents/skills/map-systems/SKILL.md").read_text(encoding="utf-8")
+        spec = (NEW / "skills/pipeline/map-systems.md").read_text(encoding="utf-8")
+        required = (
+            "CONCERNS may be explicitly accepted without revision",
+            "Verdict: **COMPLETE WITH CONCERNS**",
+            "REJECT is blocking",
+            "rerun CD-SYSTEMS",
+            "If revision approval is declined or CD-SYSTEMS returns REJECT again",
+            "leave the index unchanged",
+            "Verdict: **BLOCKED**",
+            "Do not enter Phase 6 or Phase 7",
+        )
+        for text in (runtime, spec):
+            for phrase in required:
+                self.assertIn(phrase, text)
+
+        self.assertIn("REJECT decline and repeat-REJECT paths return BLOCKED", spec)
+        self.assertIn("No COMPLETE verdict or handoff occurs while REJECT is unresolved", spec)
+
     def test_authoring_specs_match_exact_gate_roles_modes_paths_and_finalization(self):
         architecture = (NEW / "skills/authoring/create-architecture.md").read_text(encoding="utf-8")
         self.assertIn(

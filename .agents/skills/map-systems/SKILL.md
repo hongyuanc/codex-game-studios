@@ -258,12 +258,26 @@ session-state record exactly as listed. Approval covers no other path or edit.
 
 Pass: systems index path, game pillars and core fantasy (from `design/gdd/game-concept.md`), MVP priority tier system list.
 
-Present the assessment. If CONCERNS or REJECT requires an index change or a
-Creative Director Note, show the exact revision changeset for
-`design/gdd/systems-index.md`, including every line to add, replace, or remove.
-Ask one concise question and obtain explicit approval before modifying the file.
-If approval is declined, leave the written index unchanged and report the
-unresolved feedback; never silently revise or append a note.
+Present the assessment and branch on its exact verdict:
+
+- **APPROVE** — continue to Step 5c.
+- **CONCERNS** — CONCERNS may be explicitly accepted without revision. Ask one
+  concise question with: `Accept concerns and continue` / `Revise the index` /
+  `Discuss the concerns`. If accepted, preserve the index and record
+  `Verdict: **COMPLETE WITH CONCERNS**`. If revision is selected, show the exact
+  revision changeset for `design/gdd/systems-index.md`, including every line to
+  add, replace, or remove, and obtain approval before modifying the file. Apply
+  only the approved revision; declining it returns to the concerns decision and
+  never authorizes a silent edit.
+- **REJECT** — REJECT is blocking. Show the exact revision changeset for
+  `design/gdd/systems-index.md` and require explicit approval before modifying
+  the file. If approved, apply only that revision and rerun CD-SYSTEMS with the
+  revised index. If the new verdict is CONCERNS, use the CONCERNS branch above;
+  if it is APPROVE, continue. If revision approval is declined or CD-SYSTEMS returns REJECT again, leave the index unchanged from its latest approved
+  state, return `Verdict: **BLOCKED**`, and stop.
+
+Do not enter Phase 6 or Phase 7, return COMPLETE, or offer a handoff while a
+CD-SYSTEMS REJECT remains unresolved. Never silently revise or append a note.
 
 ### Step 5c: Confirm the Approved Initial Changeset
 
@@ -271,8 +285,12 @@ Confirm that `production/session-state/active.md` was created or updated as the
 second write in the approved initial changeset. Do not perform a separate,
 unapproved session-state write here.
 
-**Verdict: COMPLETE** — systems index written to `design/gdd/systems-index.md`.
-If the user declined: **Verdict: BLOCKED** — user did not approve the write.
+**Verdict: COMPLETE** — systems index written and CD-SYSTEMS is approved,
+resolved by an approved revision, or skipped by review mode.
+**Verdict: COMPLETE WITH CONCERNS** — the user explicitly accepted CD-SYSTEMS
+concerns without revision.
+**Verdict: BLOCKED** — the initial write was declined, a REJECT revision was
+declined, or CD-SYSTEMS returned REJECT again.
 
 ---
 

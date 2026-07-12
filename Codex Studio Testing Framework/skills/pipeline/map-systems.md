@@ -36,6 +36,7 @@ before modifying the index.
 - [ ] Documents full, phase-gated, and solo behavior for all three optional gates.
 - [ ] Lists `design/gdd/systems-index.md` and `production/session-state/active.md` in one approved initial changeset.
 - [ ] Requires a separate approved revision changeset for post-write CD-SYSTEMS feedback.
+- [ ] Distinguishes explicitly accepted CONCERNS from blocking REJECT and forbids completion while REJECT is unresolved.
 - [ ] Ends with a `$design-system` handoff.
 
 ---
@@ -112,24 +113,31 @@ Solo mode skips each optional gate with these exact notes:
 
 ---
 
-### Case 3: Post-Write Review — CD-SYSTEMS feedback requires a revision approval
+### Case 3: Post-Write Review — CONCERNS may continue; REJECT blocks
 
 **Fixture:**
 - Full mode initial changeset was approved and written.
-- CD-SYSTEMS returns CONCERNS requiring a missing system and director note.
+- Scenario A: CD-SYSTEMS returns CONCERNS.
+- Scenario B: CD-SYSTEMS returns REJECT.
 
 **Input:** Continue `$map-systems` after the initial index write.
 
 **Expected behavior:**
 1. Present the CD-SYSTEMS verdict without changing the file.
-2. Show an exact revision changeset for `design/gdd/systems-index.md`, including every line to add, replace, or remove.
-3. Obtain approval before modifying the file.
-4. Apply only the approved revision, or leave the index unchanged if declined.
+2. CONCERNS may be explicitly accepted without revision. The user may instead request an exact revision changeset and approve it before the index is modified.
+3. An accepted CONCERNS verdict records `Verdict: **COMPLETE WITH CONCERNS**` and may proceed to handoff.
+4. REJECT is blocking: show the exact revision changeset, obtain approval before modifying, apply only the approved revision, and rerun CD-SYSTEMS.
+5. If revision approval is declined or CD-SYSTEMS returns REJECT again, leave the index unchanged from its latest approved state and return `Verdict: **BLOCKED**`.
+6. Do not enter Phase 6 or Phase 7 until REJECT is resolved by a non-REJECT rerun verdict.
 
 **Assertions:**
 - [ ] Feedback is shown before the revision proposal.
 - [ ] No silent note or system-list edit occurs.
-- [ ] Declining the revision preserves the initial written index byte-for-byte.
+- [ ] CONCERNS acceptance is explicit and distinguishable from revision approval.
+- [ ] REJECT decline and repeat-REJECT paths return BLOCKED.
+- [ ] No COMPLETE verdict or handoff occurs while REJECT is unresolved.
+- [ ] A REJECT revision is reviewed again before completion.
+- [ ] Declining the revision preserves the latest approved index byte-for-byte.
 - [ ] New scope requires a new proposal.
 
 ---
@@ -187,6 +195,9 @@ Solo mode skips each optional gate with these exact notes:
 - [ ] Phase-gated and solo skip all three optional gates with exact notes.
 - [ ] The initial index and session-state writes share one complete approved changeset.
 - [ ] CD-SYSTEMS feedback never modifies the index without a separate approved revision.
+- [ ] CONCERNS can complete only after explicit acceptance or an approved revision.
+- [ ] REJECT requires revision approval and CD-SYSTEMS rerun; decline or repeat REJECT returns BLOCKED.
+- [ ] Do not enter Phase 6 or Phase 7 while REJECT is unresolved.
 - [ ] Ends with `$design-system [next-system]` or `$map-systems next` handoff.
 
 ---
