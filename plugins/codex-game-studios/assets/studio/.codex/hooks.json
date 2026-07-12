@@ -1,0 +1,119 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" session-start",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') session-start\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" detect-gaps",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') detect-gaps\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" validate-command",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') validate-command\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" validate-assets",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') validate-assets\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" validate-skill-change",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') validate-skill-change\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto|manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" pre-compact",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') pre-compact\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "auto|manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" post-compact",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') post-compact\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" subagent-start",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') subagent-start\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" subagent-stop",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') subagent-stop\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/hook_runner.py\" session-stop",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 ($root + '/.codex/hooks/hook_runner.py') session-stop\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -567,6 +567,32 @@ class RepositoryValidationTests(unittest.TestCase):
     def test_repository_counts_are_exact(self):
         self.assertEqual([], validate_repository_counts(ROOT))
 
+    def test_source_counts_ignore_plugin_payload_instructions_but_require_root_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            shutil.copytree(
+                ROOT,
+                project,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".superpowers", "superpowers", "__pycache__"
+                ),
+            )
+
+            self.assertEqual([], validate_repository_counts(project))
+
+            (project / "src/ui/AGENTS.md").unlink()
+            issues = validate_repository_counts(project)
+
+        self.assertTrue(
+            any(
+                issue.path == "AGENTS.md"
+                and "src/ui/AGENTS.md" in issue.message
+                and "plugins/codex-game-studios/assets/studio/src/ui/AGENTS.md"
+                not in issue.message
+                for issue in issues
+            )
+        )
+
     def test_pre_cleanup_gate_accepts_covered_legacy_sources(self):
         legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]  # enforcement-literal
         legacy += list(ROOT.rglob("CLAUDE.md"))  # enforcement-literal
