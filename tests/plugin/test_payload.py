@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -20,7 +21,13 @@ MANIFEST = PLUGIN / "assets/payload-manifest.json"
 sys.path.insert(0, str(PLUGIN / "scripts"))
 
 from models import PayloadError, canonical_json, normalize_relative_path  # noqa: E402
-from payload import build_payload, load_manifest, verify_payload  # noqa: E402
+from payload import (  # noqa: E402
+    build_payload,
+    load_manifest,
+    load_verified_manifest,
+    verify_payload,
+)
+from safe_fs import list_immediate_secure  # noqa: E402
 
 
 class PayloadPathTests(unittest.TestCase):
@@ -65,6 +72,62 @@ class PayloadPathTests(unittest.TestCase):
 
 class PayloadGenerationTests(unittest.TestCase):
     """Verify generation, policy parity, and committed payload integrity."""
+
+    def test_payload_verified_snapshot_consumes_one_manifest_object(self):
+        # Arrange
+        import payload
+
+        # Act
+        with mock.patch("payload.load_manifest", wraps=load_manifest) as loader:
+            manifest = load_verified_manifest(PLUGIN)
+
+        # Assert
+        self.assertEqual(1, loader.call_count)
+        self.assertEqual(load_manifest(MANIFEST), manifest)
+
+    def test_windows_immediate_listing_pins_children_without_recursion(self):
+        # Arrange
+        import safe_fs
+
+        class FakeApi:
+            def __init__(self):
+                self.paths = {}
+                self.closed = []
+
+            def create_file(self, path, access, share, disposition, flags):
+                handle = len(self.paths) + 1
+                self.paths[handle] = path
+                return handle
+
+            def attributes(self, handle):
+                return safe_fs.FILE_ATTRIBUTE_DIRECTORY, 0
+
+            def final_path(self, handle):
+                return self.paths[handle]
+
+            def close(self, handle):
+                self.closed.append(handle)
+
+        class Scan:
+            def __enter__(self):
+                return iter((types.SimpleNamespace(name="child"),))
+
+            def __exit__(self, exc_type, exc, traceback):
+                return None
+
+        api = FakeApi()
+        windows_root = Path(r"C:\repo")
+
+        # Act
+        with mock.patch("safe_fs._is_windows", return_value=True), mock.patch(
+            "safe_fs._WindowsApi", return_value=api
+        ), mock.patch("safe_fs.os.scandir", return_value=Scan()) as scandir:
+            entries = list_immediate_secure(windows_root, "managed")
+
+        # Assert
+        self.assertEqual((safe_fs.ImmediateEntry("child", "directory", None),), entries)
+        self.assertEqual(1, scandir.call_count)
+        self.assertEqual(set(api.paths), set(api.closed))
 
     def test_payload_build_is_deterministic_and_source_identical(self):
         # Arrange

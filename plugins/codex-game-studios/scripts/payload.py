@@ -537,7 +537,21 @@ def _verify_legal(studio: pathlib.Path, policy: dict[str, object]) -> None:
         raise PayloadError("payload legal attribution is incomplete")
 
 
-def verify_payload(plugin_root: pathlib.Path | str) -> list[str]:
+def verify_manifest_snapshot(
+    plugin_root: pathlib.Path | str, manifest: PayloadManifest
+) -> None:
+    """Verify that the manifest path still contains the exact consumed bytes."""
+
+    plugin = pathlib.Path(plugin_root)
+    serialized = read_file_secure(plugin, "assets/payload-manifest.json")
+    if serialized != canonical_json(_manifest_dict(manifest)):
+        raise PayloadError("payload manifest changed during verification")
+
+
+def verify_payload(
+    plugin_root: pathlib.Path | str,
+    expected_manifest: PayloadManifest | None = None,
+) -> list[str]:
     """Return deterministic findings for an embedded plugin payload."""
 
     plugin = pathlib.Path(plugin_root)
@@ -545,7 +559,12 @@ def verify_payload(plugin_root: pathlib.Path | str) -> list[str]:
         if _safe_type(plugin)[0] != "directory":
             return ["plugin root is not a directory"]
         inspect_secure(plugin, "assets", expect="directory")
-        manifest = load_manifest(plugin / "assets/payload-manifest.json")
+        manifest = (
+            load_manifest(plugin / "assets/payload-manifest.json")
+            if expected_manifest is None
+            else expected_manifest
+        )
+        verify_manifest_snapshot(plugin, manifest)
     except PayloadError as error:
         return [str(error)]
     issues: list[str] = []
@@ -566,7 +585,22 @@ def verify_payload(plugin_root: pathlib.Path | str) -> list[str]:
                 issues.append("plugin LICENSE differs from the complete approved MIT license")
         except (OSError, UnicodeError, PayloadError) as error:
             issues.append(str(error))
+    try:
+        verify_manifest_snapshot(plugin, manifest)
+    except PayloadError as error:
+        issues.append(str(error))
     return sorted(set(issues))
+
+
+def load_verified_manifest(plugin_root: pathlib.Path | str) -> PayloadManifest:
+    """Load one manifest object and verify the payload against that snapshot."""
+
+    plugin = pathlib.Path(plugin_root)
+    manifest = load_manifest(plugin / "assets/payload-manifest.json")
+    issues = verify_payload(plugin, expected_manifest=manifest)
+    if issues:
+        raise PayloadError("invalid plugin payload: " + "; ".join(issues))
+    return manifest
 
 
 def _tree_fingerprint(root: pathlib.Path) -> dict[str, tuple[str, int, str | None]]:

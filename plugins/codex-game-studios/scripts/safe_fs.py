@@ -28,6 +28,7 @@ _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _BINARY = getattr(os, "O_BINARY", 0)
 _CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
 _READ_FLAGS = os.O_RDONLY | _BINARY | _CLOEXEC
 _DIRECTORY_FLAGS = os.O_RDONLY | _DIRECTORY | _NOFOLLOW | _CLOEXEC
 _IDENTITY_FIELDS = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns")
@@ -318,8 +319,12 @@ def _same_identity(left: os.stat_result, right: os.stat_result) -> bool:
     return all(getattr(left, field) == getattr(right, field) for field in _IDENTITY_FIELDS)
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 def _same_object(left: os.stat_result, right: os.stat_result) -> bool:
-    if os.name == "nt":
+    if _is_windows():
         return (
             getattr(left, "st_ino", None),
             getattr(left, "st_dev", None),
@@ -338,6 +343,222 @@ def _validate_root(root: pathlib.Path) -> os.stat_result:
     if _kind(root_stat) != "directory":
         raise PayloadError("secure root must be a directory")
     return root_stat
+
+
+@dataclasses.dataclass
+class PinnedRoot:
+    """Repository root identity retained for the full enclosing operation."""
+
+    root: pathlib.Path
+    identity: object
+    _descriptor: int | None = None
+    _windows_api: object | None = None
+    _windows_handle: int | None = None
+
+    def verify(self) -> None:
+        """Raise when the path no longer names the retained root identity."""
+
+        if self._windows_handle is not None:
+            assert self._windows_api is not None
+            current_path, _ = _windows_verify_handle(
+                self._windows_api, self._windows_handle, None, True
+            )
+            fresh = self._windows_api.create_file(
+                str(self.root),
+                GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+            )
+            try:
+                fresh_path, _ = _windows_verify_handle(
+                    self._windows_api, fresh, None, True
+                )
+            finally:
+                self._windows_api.close(fresh)
+            if (
+                _windows_normal_path(current_path) != self.identity
+                or _windows_normal_path(fresh_path) != self.identity
+            ):
+                raise PayloadError("secure root changed during operation")
+            return
+        assert self._descriptor is not None
+        opened = os.fstat(self._descriptor)
+        current = _validate_root(self.root)
+        if not _same_object(opened, current) or not _same_object(opened, self.identity):
+            raise PayloadError("secure root changed during operation")
+
+
+@contextlib.contextmanager
+def pin_root(root: pathlib.Path | str) -> Iterator[PinnedRoot]:
+    """Retain a no-follow root handle and verify its path identity on success."""
+
+    root_path = pathlib.Path(root)
+    if _is_windows():
+        api = _WindowsApi()
+        handle = api.create_file(
+            str(root_path),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        )
+        try:
+            final_path, _ = _windows_verify_handle(api, handle, None, True)
+            pinned = PinnedRoot(
+                root_path,
+                _windows_normal_path(final_path),
+                _windows_api=api,
+                _windows_handle=handle,
+            )
+            yield pinned
+            pinned.verify()
+        finally:
+            api.close(handle)
+        return
+
+    expected = _validate_root(root_path)
+    try:
+        descriptor = os.open(root_path, _DIRECTORY_FLAGS)
+    except OSError as error:
+        raise PayloadError(
+            f"cannot open secure root without following links: {error}"
+        ) from error
+    try:
+        opened = os.fstat(descriptor)
+        if _kind(opened) != "directory" or not _same_object(expected, opened):
+            raise PayloadError("secure root changed while opening")
+        pinned = PinnedRoot(root_path, opened, _descriptor=descriptor)
+        yield pinned
+        pinned.verify()
+    finally:
+        os.close(descriptor)
+
+
+@dataclasses.dataclass(frozen=True)
+class ImmediateEntry:
+    """One securely observed immediate directory child."""
+
+    name: str
+    entry_type: str
+    sha256: str | None
+
+
+def _hash_descriptor(descriptor: int, before: os.stat_result) -> str:
+    digest = hashlib.sha256()
+    while True:
+        chunk = os.read(descriptor, 1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    if not _same_identity(before, os.fstat(descriptor)):
+        raise PayloadError("directory child changed during secure read")
+    return digest.hexdigest()
+
+
+def list_immediate_secure(
+    root: pathlib.Path, relative: str
+) -> tuple[ImmediateEntry, ...]:
+    """Return sorted immediate children without traversing nested directories."""
+
+    relative = normalize_relative_path(relative)
+    if _is_windows():
+        api = _WindowsApi()
+        directory = _windows_open_verified(
+            root,
+            relative,
+            access=GENERIC_READ,
+            share=FILE_SHARE_READ,
+            disposition=OPEN_EXISTING,
+            create_parents=False,
+            final_directory=True,
+            api=api,
+        )
+        entries: list[ImmediateEntry] = []
+        with directory:
+            directory_path = ntpath.join(
+                str(root), *pathlib.PurePosixPath(relative).parts
+            )
+            with os.scandir(directory_path) as iterator:
+                names = sorted(entry.name for entry in iterator)
+            for name in names:
+                child_relative = normalize_relative_path(f"{relative}/{name}")
+                child = _windows_open_verified(
+                    root,
+                    child_relative,
+                    access=GENERIC_READ,
+                    share=FILE_SHARE_READ,
+                    disposition=OPEN_EXISTING,
+                    create_parents=False,
+                    final_directory=None,
+                    api=api,
+                )
+                with child as handles:
+                    entry_type = (
+                        "directory" if handles.final_is_directory else "file"
+                    )
+                    child_hash = None
+                    if entry_type == "file":
+                        descriptor = _windows_descriptor_from_verified(
+                            handles, _READ_FLAGS
+                        )
+                        try:
+                            before = os.fstat(descriptor)
+                            child_hash = _hash_descriptor(descriptor, before)
+                        finally:
+                            os.close(descriptor)
+                    entries.append(ImmediateEntry(name, entry_type, child_hash))
+        return tuple(entries)
+
+    entries = []
+    with _open_existing(root, relative, expect="directory") as (
+        directory_descriptor,
+        directory_stat,
+    ):
+        try:
+            names = sorted(os.listdir(directory_descriptor))
+        except OSError as error:
+            raise PayloadError(
+                f"cannot list secure directory: {relative}: {error}"
+            ) from error
+        for name in names:
+            normalize_relative_path(f"{relative}/{name}")
+            try:
+                descriptor = os.open(
+                    name,
+                    _READ_FLAGS | _NOFOLLOW | _NONBLOCK,
+                    dir_fd=directory_descriptor,
+                )
+            except OSError as error:
+                raise PayloadError(
+                    f"link or reparse point or unsafe child is forbidden: {relative}/{name}: {error}"
+                ) from error
+            try:
+                before = os.fstat(descriptor)
+                entry_type = _kind(before)
+                child_hash = (
+                    _hash_descriptor(descriptor, before)
+                    if entry_type == "file"
+                    else None
+                )
+                current = os.stat(
+                    name, dir_fd=directory_descriptor, follow_symlinks=False
+                )
+                if not _same_object(before, current):
+                    raise PayloadError("directory child changed during observation")
+                entries.append(ImmediateEntry(name, entry_type, child_hash))
+            finally:
+                os.close(descriptor)
+    try:
+        with _open_existing(root, relative, expect="directory") as (
+            _descriptor,
+            current_directory,
+        ):
+            if not _same_object(directory_stat, current_directory):
+                raise PayloadError("directory changed during immediate observation")
+    except PayloadError as error:
+        raise PayloadError("directory changed during immediate observation") from error
+    return tuple(entries)
 
 
 @contextlib.contextmanager
