@@ -155,7 +155,9 @@ class TransactionTests(unittest.TestCase):
                             hashlib.sha256(content).hexdigest(),
                         )
                     )
-            if action.kind == "remove":
+            if action.kind == "remove" or (
+                action.kind == "state-write" and action.after_hash is None
+            ):
                 results.append(TargetObservation(action.path, "missing", None, None))
             elif action.after_hash is None:
                 import safe_fs
@@ -371,7 +373,7 @@ class TransactionTests(unittest.TestCase):
         before = self._payload_snapshot()
 
         # Act
-        with self.assertRaisesRegex(ManagerError, "VALIDATION_FAILED"):
+        with self.assertRaisesRegex(ManagerError, "VALIDATION_FAILED") as caught:
             apply_transaction(
                 self._approved,
                 self.repo,
@@ -383,6 +385,43 @@ class TransactionTests(unittest.TestCase):
         # Assert
         self.assertEqual(before, self._payload_snapshot())
         self.assertEqual(["rolled-back"], self._terminal_phases())
+        self.assertTrue(caught.exception.wrote)
+
+    def test_transaction_prewrite_failure_reports_wrote_false(self):
+        # Arrange
+        (self.repo / "managed.txt").write_bytes(b"raced\n")
+
+        # Act / Assert
+        with self.assertRaises(ManagerError) as caught:
+            apply_transaction(
+                self._approved, self.repo, lambda: self._approved,
+                self._apply_action, self._validate,
+            )
+        self.assertFalse(caught.exception.wrote)
+
+    def test_transaction_uses_approved_uuid_and_rejects_generation_collision(self):
+        # Arrange
+        approved_id = "12345678-1234-4234-8234-123456789abc"
+
+        # Act
+        result = apply_transaction(
+            self._approved, self.repo, self._replan, self._apply_action,
+            self._validate, transaction_id=approved_id,
+        )
+
+        # Assert
+        self.assertEqual(approved_id, result.transaction_id)
+        self.assertTrue((self.repo / f".codex/codex-game-studios/recovery/{approved_id}").is_dir())
+        (self.repo / "managed.txt").write_bytes(b"before\n")
+        os.chmod(self.repo / "managed.txt", 0o644)
+        import shutil
+        shutil.rmtree(self.repo / "nested")
+        with self.assertRaises(ManagerError) as caught:
+            apply_transaction(
+                self._approved, self.repo, self._replan, self._apply_action,
+                self._validate, transaction_id=approved_id,
+            )
+        self.assertFalse(caught.exception.wrote)
 
     def test_lock_failure_releases_operating_system_lock(self):
         # Arrange / Act
@@ -812,6 +851,135 @@ class TransactionTests(unittest.TestCase):
         # Assert
         self.assertFalse(called)
         self.assertFalse((self.repo / "state.json").exists())
+
+    def test_transaction_state_write_can_remove_exact_file_after_validation(self):
+        # Arrange
+        state = self.repo / "state.json"
+        state.write_bytes(b"owned state\n")
+        state.chmod(0o640)
+        state_action = Action(
+            "state-write",
+            "state.json",
+            hashlib.sha256(state.read_bytes()).hexdigest(),
+            None,
+            "remove installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+        order: list[str] = []
+
+        # Act
+        result = apply_transaction(
+            plan,
+            self.repo,
+            lambda: plan,
+            lambda _action, _mutation: None,
+            lambda _root: order.append("validate") or [],
+            persist_state=lambda action, mutation: (
+                order.append("state"), mutation.remove_state_file(action.path)
+            ),
+        )
+
+        # Assert
+        self.assertEqual("committed", result.status)
+        self.assertEqual(["validate", "state"], order)
+        self.assertFalse(state.exists())
+
+    def test_transaction_validation_failure_never_invokes_state_removal(self):
+        # Arrange
+        state = self.repo / "state.json"
+        state.write_bytes(b"owned state\n")
+        state_action = Action(
+            "state-write", "state.json", hashlib.sha256(state.read_bytes()).hexdigest(), None,
+            "remove installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+        called = False
+
+        def remove(_action, _mutation):
+            nonlocal called
+            called = True
+
+        # Act / Assert
+        with self.assertRaisesRegex(ManagerError, "VALIDATION_FAILED"):
+            apply_transaction(
+                plan, self.repo, lambda: plan, lambda _action, _mutation: None,
+                lambda _root: ["bad"], persist_state=remove,
+            )
+        self.assertFalse(called)
+        self.assertEqual(b"owned state\n", state.read_bytes())
+
+    def test_transaction_state_removal_rolls_back_bytes_and_mode_after_state_written_failure(self):
+        # Arrange
+        state = self.repo / "state.json"
+        state.write_bytes(b"owned state\n")
+        state.chmod(0o640)
+        state_action = Action(
+            "state-write", "state.json", hashlib.sha256(state.read_bytes()).hexdigest(), None,
+            "remove installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+
+        # Act
+        with self.assertRaisesRegex(InjectedFailure, "state-written"):
+            apply_transaction(
+                plan, self.repo, lambda: plan, lambda _action, _mutation: None,
+                self._validate,
+                persist_state=lambda action, mutation: mutation.remove_state_file(action.path),
+                failpoint=lambda phase: (_ for _ in ()).throw(InjectedFailure(phase))
+                if phase == "state-written" else None,
+            )
+
+        # Assert
+        self.assertEqual(b"owned state\n", state.read_bytes())
+        self.assertEqual(0o640, state.stat().st_mode & 0o777)
+        self.assertEqual(["rolled-back"], self._terminal_phases())
+
+    def test_transaction_state_removal_capability_is_revoked_and_path_bound(self):
+        # Arrange
+        state = self.repo / "state.json"
+        state.write_bytes(b"owned state\n")
+        state_action = Action(
+            "state-write", "state.json", hashlib.sha256(state.read_bytes()).hexdigest(), None,
+            "remove installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+        retained = []
+
+        def persist(action, mutation):
+            retained.append(mutation)
+            with self.assertRaisesRegex(ManagerError, "UNSAFE_PATH"):
+                mutation.remove_state_file("other.json")
+            mutation.remove_state_file(action.path)
+
+        # Act
+        apply_transaction(
+            plan, self.repo, lambda: plan, lambda _action, _mutation: None,
+            self._validate, persist_state=persist,
+        )
+
+        # Assert
+        with self.assertRaisesRegex(ManagerError, "UNSAFE_PATH"):
+            retained[0].remove_state_file("state.json")
+
+    def test_transaction_state_removal_rejects_nonmissing_approved_result(self):
+        # Arrange
+        state = self.repo / "state.json"
+        state.write_bytes(b"owned state\n")
+        replacement = b"replacement\n"
+        state_action = Action(
+            "state-write", "state.json", hashlib.sha256(state.read_bytes()).hexdigest(),
+            hashlib.sha256(replacement).hexdigest(), "replace installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+
+        # Act / Assert
+        with self.assertRaisesRegex(ManagerError, "UNSAFE_PATH"):
+            apply_transaction(
+                plan, self.repo, lambda: plan, lambda _action, _mutation: None,
+                self._validate,
+                persist_state=lambda action, mutation: mutation.remove_state_file(action.path),
+            )
+        self.assertEqual(b"owned state\n", state.read_bytes())
 
     def test_transaction_nested_scaffold_bytes_change_rejects_stale_plan(self):
         # Arrange
@@ -1517,7 +1685,7 @@ class TransactionTests(unittest.TestCase):
             "_restore_acquired_snapshot",
             side_effect=OSError("injected restore failure"),
         ):
-            with self.assertRaisesRegex(ManagerError, "ROLLBACK_FAILED"):
+            with self.assertRaisesRegex(ManagerError, "ROLLBACK_FAILED") as caught:
                 apply_transaction(
                     self._approved,
                     self.repo,
@@ -1539,6 +1707,14 @@ class TransactionTests(unittest.TestCase):
         )
         self.assertEqual("ROLLBACK_FAILED", journal.phase)
         self.assertTrue((generations[0] / "snapshots").is_dir())
+        relative_generation = generations[0].relative_to(self.repo).as_posix()
+        self.assertEqual({
+            "generation": relative_generation,
+            "journal": f"{relative_generation}/journal.json",
+            "snapshots": f"{relative_generation}/snapshots",
+            "phase": "ROLLBACK_FAILED",
+            "status": "retained",
+        }, caught.exception.recovery)
 
     def test_transaction_rejects_link_target_before_snapshot_or_action(self):
         # Arrange

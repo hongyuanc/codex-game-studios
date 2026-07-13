@@ -5,14 +5,41 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import tomllib
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
 sys.path.insert(0, str(PLUGIN / "scripts"))
+
+
+def copy_plugin_fixture(source: Path, destination: Path) -> None:
+    """Copy a plugin fixture without transient Python bytecode caches."""
+
+    def ignore_transient_caches(directory: str, names: list[str]) -> set[str]:
+        current = Path(directory)
+        ignored: set[str] = set()
+        for name in names:
+            entry = current / name
+            entry_mode = entry.lstat().st_mode
+            if name == "__pycache__" and stat.S_ISDIR(entry_mode):
+                ignored.add(name)
+            elif entry.suffix in {".pyc", ".pyo"} and stat.S_ISREG(entry_mode):
+                ignored.add(name)
+        return ignored
+
+    shutil.copytree(
+        source,
+        destination,
+        symlinks=True,
+        ignore=ignore_transient_caches,
+    )
 
 
 def init_git_repo(path: Path) -> None:
@@ -134,3 +161,55 @@ def snapshot_tree(path: Path) -> dict[str, tuple[str, int, str | None]]:
         else:
             result[relative] = ("special", mode, None)
     return result
+
+
+def run_manager(
+    operation: str,
+    root: Path,
+    approve_digest: str | None = None,
+    plugin_root: Path = PLUGIN,
+    approval_context: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the public manager CLI with deterministic JSON output."""
+
+    if plugin_root == PLUGIN:
+        with tempfile.TemporaryDirectory(
+            dir=Path(tempfile.gettempdir()).resolve()
+        ) as temporary:
+            fixture = Path(temporary) / "plugin"
+            copy_plugin_fixture(PLUGIN, fixture)
+            return run_manager(
+                operation,
+                root,
+                approve_digest,
+                fixture,
+                approval_context,
+            )
+
+    command = [
+        sys.executable,
+        str(plugin_root / "scripts/studio_manager.py"),
+        operation,
+        "--root",
+        str(root),
+        "--plugin-root",
+        str(plugin_root),
+        "--format",
+        "json",
+    ]
+    if approve_digest is not None:
+        command.extend(["--approve-digest", approve_digest])
+    if approval_context is not None:
+        command.extend(["--approval-context", approval_context])
+    return subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def approved_install(root: Path, plugin_root: Path = PLUGIN) -> SimpleNamespace:
+    """Plan and approve one installation, returning both CLI results."""
+
+    planned = run_manager("install", root, plugin_root=plugin_root)
+    document = __import__("json").loads(planned.stdout)
+    applied = run_manager(
+        "install", root, document["digest"], plugin_root, document["approval_context"]
+    )
+    return SimpleNamespace(planned=planned, applied=applied)

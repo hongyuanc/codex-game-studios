@@ -28,23 +28,34 @@ reports `ROLLBACK_FAILED`, stop and follow
 
 3. Parse the JSON response. Present its full action list, conflicts, preserved
    paths, warnings, and validation findings without omission or rewriting.
-4. For `verify`, present the findings and stop. `verify` runs once, remains
+   Exit `2` with `status: awaiting-approval` is the expected successful planning
+   result for a mutation. Exit `0` is a completed success; exit `1` is a stable
+   categorized failure.
+4. For `verify`, display every ordered relative-path entry in `findings`
+   exactly once and stop. Do not omit, summarize, or replace findings with the
+   status or conflict list. `verify` runs once, remains
    read-only, and never requests approval.
 5. For `install`, `update`, `repair`, or `uninstall`, request explicit approval
    for the displayed plan. Do not treat general intent, earlier approval, or
    approval of another digest as approval for this plan.
-6. Only after approval, copy the exact digest returned by the planning response
-   into the apply command:
+6. Only after approval, copy the exact digest and opaque `approval_context`
+   returned by the planning response into the apply command:
 
    ```text
-   python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --format json
+   python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --approval-context <context> --format json
    ```
 
-   Always use the exact returned value: never invent, shorten, normalize,
-   recalculate, or otherwise alter a digest.
+   Always use both exact returned values: never invent, shorten, normalize,
+   decode, recalculate, or otherwise alter the digest or approval context.
 7. Present the complete JSON result. Never claim success when the manager
    reports an error or incomplete rollback. Route `ROLLBACK_FAILED` directly to
-   `references/recovery.md` and preserve its reported journal and snapshot.
+   `references/recovery.md` and preserve every relative path and phase in its
+   trusted `recovery` object. Never synthesize missing recovery metadata.
+
+Every JSON response contains `status`, `operation`, `digest`, `actions`,
+`conflicts`, `findings`, `wrote`, `recovery`, `next_action`, and `approval_context`. Treat `wrote` and
+`recovery` as authoritative; never infer write or rollback status from the
+presence of target files.
 
 The manager commands are the only authorized interface. Do not reproduce their
 filesystem mutations manually or enable embedded project hooks as plugin

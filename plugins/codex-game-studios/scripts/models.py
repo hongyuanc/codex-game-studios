@@ -108,6 +108,7 @@ class OperationPlan:
     shared_hashes: tuple[tuple[str, str | None], ...] = ()
     target_observations: tuple[TargetObservation, ...] = ()
     target_results: tuple[TargetObservation, ...] = ()
+    approval_context_digest: str | None = None
 
 
 def _valid_digest(value: object) -> bool:
@@ -183,6 +184,10 @@ def validate_operation_plan_projections(plan: OperationPlan) -> None:
 
     _validate_projection_pairs("target", plan.target_hashes)
     _validate_projection_pairs("shared", plan.shared_hashes)
+    if plan.approval_context_digest is not None and not _valid_digest(
+        plan.approval_context_digest
+    ):
+        raise PayloadError("operation plan approval context commitment is malformed")
     observations = _validate_target_observations(plan.target_observations)
     results = _validate_target_observations(plan.target_results)
     changing = tuple(
@@ -214,6 +219,7 @@ def operation_plan_digest(plan: OperationPlan) -> str:
         "target_results": [dataclasses.asdict(item) for item in plan.target_results],
         "actions": [dataclasses.asdict(item) for item in plan.actions],
         "conflicts": [dataclasses.asdict(item) for item in plan.conflicts],
+        "approval_context_digest": plan.approval_context_digest,
     }
     return digest_document(body)
 

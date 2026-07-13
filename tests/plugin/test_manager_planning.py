@@ -28,6 +28,7 @@ from tests.plugin.helpers import (  # noqa: E402
 )
 from models import canonical_json  # noqa: E402
 from studio_manager import (  # noqa: E402
+    ApprovalContext,
     ManagerError,
     load_installation_state,
     plan_operation,
@@ -83,6 +84,28 @@ class ManagerPlanningTests(unittest.TestCase):
             "UNMANAGED_COLLISION", {conflict.code for conflict in collided.conflicts}
         )
 
+    def test_uninstall_plan_digest_binds_exact_approval_context(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        first = ApprovalContext(
+            "uninstall", "11111111-1111-4111-8111-111111111111",
+            "2026-07-13T01:02:03Z",
+        )
+        changed_uuid = dataclasses.replace(
+            first, transaction_id="22222222-2222-4222-8222-222222222222"
+        )
+        changed_time = dataclasses.replace(first, installed_at="2026-07-13T01:02:04Z")
+
+        # Act
+        plans = [
+            plan_operation("uninstall", self.repo, PLUGIN, context)
+            for context in (first, changed_uuid, changed_time)
+        ]
+
+        # Assert
+        self.assertEqual(3, len({plan.approval_context_digest for plan in plans}))
+        self.assertEqual(3, len({plan.digest for plan in plans}))
+
     def test_install_missing_shared_targets_are_creates(self):
         # Arrange / Act
         plan = plan_operation("install", self.repo, PLUGIN)
@@ -109,9 +132,10 @@ class ManagerPlanningTests(unittest.TestCase):
         completed = subprocess.run(command, capture_output=True, text=True)
 
         # Assert
-        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertEqual(2, completed.returncode, completed.stderr)
         document = json.loads(completed.stdout)
         self.assertEqual("install", document["operation"])
+        self.assertEqual("awaiting-approval", document["status"])
         self.assertEqual(canonical_json(document).decode("utf-8"), completed.stdout)
         self.assertEqual(before, snapshot_tree(self.repo))
 
@@ -141,8 +165,16 @@ class ManagerPlanningTests(unittest.TestCase):
             )
 
         # Assert
-        self.assertEqual(0, outputs[0][0])
-        self.assertEqual(outputs[0], outputs[1])
+        self.assertEqual(2, outputs[0][0])
+        self.assertEqual(2, outputs[1][0])
+        first_document = json.loads(outputs[0][1])
+        second_document = json.loads(outputs[1][1])
+        self.assertNotEqual(
+            first_document["approval_context"], second_document["approval_context"]
+        )
+        self.assertNotEqual(first_document["digest"], second_document["digest"])
+        self.assertEqual(canonical_json(first_document).decode("utf-8"), outputs[0][1])
+        self.assertEqual(canonical_json(second_document).decode("utf-8"), outputs[1][1])
         self.assertEqual(1, conflict_code)
         self.assertTrue(json.loads(stream.getvalue())["conflicts"])
         self.assertEqual(before, {k: v for k, v in snapshot_tree(self.repo).items() if not k.startswith(".agents")})
@@ -304,9 +336,45 @@ class ManagerPlanningTests(unittest.TestCase):
             (".agents/skills/start/SKILL.md", "preserve"),
             {(action.path, action.kind) for action in plan.actions},
         )
-        self.assertIn(
-            "CUSTOMIZED_MANAGED_FILE", {conflict.code for conflict in plan.conflicts}
+        self.assertFalse(plan.conflicts)
+
+    def test_uninstall_shared_toml_result_uses_changing_merge_digest(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        target = self.repo / ".codex/config.toml"
+        target.write_bytes(target.read_bytes() + b"\n[project]\nname = \"mine\"\n")
+
+        # Act
+        plan = plan_operation("uninstall", self.repo, PLUGIN)
+
+        # Assert
+        merge = next(
+            action for action in plan.actions
+            if action.path == ".codex/config.toml" and action.kind == "merge"
         )
+        result = next(
+            item for item in plan.target_results if item.path == ".codex/config.toml"
+        )
+        self.assertEqual(merge.after_hash, result.digest)
+        self.assertNotEqual(merge.before_hash, result.digest)
+
+    def test_uninstall_managed_block_result_uses_changing_merge_digest(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        target = self.repo / "AGENTS.md"
+        target.write_bytes(b"# Project instructions\n\n" + target.read_bytes())
+
+        # Act
+        plan = plan_operation("uninstall", self.repo, PLUGIN)
+
+        # Assert
+        merge = next(
+            action for action in plan.actions
+            if action.path == "AGENTS.md" and action.kind == "merge"
+        )
+        result = next(item for item in plan.target_results if item.path == "AGENTS.md")
+        self.assertEqual(merge.after_hash, result.digest)
+        self.assertNotEqual(merge.before_hash, result.digest)
 
     def test_plan_digest_changes_when_target_changes(self):
         # Arrange
@@ -458,8 +526,8 @@ class ManagerPlanningTests(unittest.TestCase):
         )
 
         # Assert
-        self.assertEqual(2, completed.returncode)
-        self.assertIn("UNSAFE_PATH", completed.stderr)
+        self.assertEqual(1, completed.returncode)
+        self.assertEqual("UNSAFE_PATH", json.loads(completed.stdout)["status"])
         self.assertEqual(before, snapshot_tree(self.repo))
 
     def test_plan_is_deterministic_and_binds_ordered_actions(self):
@@ -471,7 +539,7 @@ class ManagerPlanningTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertRegex(first.digest, r"^[0-9a-f]{64}$")
 
-    def test_uninstall_orders_child_removals_before_parent_directories(self):
+    def test_uninstall_removes_owned_files_and_empty_directory_containers(self):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
 
@@ -479,11 +547,58 @@ class ManagerPlanningTests(unittest.TestCase):
         plan = plan_operation("uninstall", self.repo, PLUGIN)
 
         # Assert
-        removals = [action.path for action in plan.actions if action.kind == "remove"]
-        self.assertLess(
-            removals.index(".agents/skills/start/SKILL.md"),
-            removals.index(".agents/skills/start"),
+        kinds = {(action.path, action.kind) for action in plan.actions}
+        self.assertIn((".agents/skills/start/SKILL.md", "remove"), kinds)
+        self.assertIn((".agents/skills/start", "remove"), kinds)
+
+    def test_uninstall_preserves_directory_with_unrelated_child(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        unrelated = self.repo / ".agents/skills/start/project.txt"
+        unrelated.write_text("mine\n", encoding="utf-8")
+
+        # Act
+        plan = plan_operation("uninstall", self.repo, PLUGIN)
+
+        # Assert
+        kinds = {(action.path, action.kind) for action in plan.actions}
+        self.assertIn((".agents/skills/start", "preserve"), kinds)
+        self.assertNotIn((".agents/skills/start", "remove"), kinds)
+
+    def test_uninstall_customized_toml_is_nonblocking_and_malformed_bytes_are_stable(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        target = self.repo / ".codex/config.toml"
+        target.write_bytes(b"\xff\n")
+
+        # Act
+        plan = plan_operation("uninstall", self.repo, PLUGIN)
+
+        # Assert
+        self.assertFalse(plan.conflicts)
+        action = next(item for item in plan.actions if item.path == ".codex/config.toml")
+        self.assertEqual("preserve", action.kind)
+
+    def test_uninstall_customized_legal_notice_retains_complete_legal_pair(self):
+        # Arrange
+        write_installed_fixture(self.repo, PLUGIN)
+        attribution = self.repo / ".codex/codex-game-studios/legal/ATTRIBUTION.md"
+        attribution.write_bytes(attribution.read_bytes() + b"\ncustom note\n")
+
+        # Act
+        plan = plan_operation("uninstall", self.repo, PLUGIN)
+
+        # Assert
+        legal_actions = {
+            item.path: item.kind for item in plan.actions
+            if item.path.startswith(".codex/codex-game-studios/legal/")
+            and item.kind != "backup"
+        }
+        self.assertEqual("preserve", legal_actions[attribution.relative_to(self.repo).as_posix()])
+        self.assertEqual(
+            "preserve", legal_actions[".codex/codex-game-studios/legal/LICENSE"]
         )
+        self.assertFalse(plan.conflicts)
 
     def test_verify_reports_embedded_payload_staleness(self):
         # Arrange

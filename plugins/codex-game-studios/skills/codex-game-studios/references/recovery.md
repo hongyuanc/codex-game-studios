@@ -7,7 +7,9 @@ known-good recovery material.
 
 1. Stop all repository writes, including IDE formatters and Git operations.
 2. Preserve the complete JSON error response. Record the operation, affected
-   relative paths, write status, and reported journal state without exposing
+   relative paths, write status, and every field of the trusted relative-path
+   `recovery` object (`generation`, `journal`, `snapshots`, `phase`, and
+   `status`) without exposing
    file contents or machine-specific absolute paths in public logs.
 3. Back up the repository and the retained recovery directory as-is.
 4. Escalate for project-owner review of the journal and snapshot before any
@@ -17,3 +19,8 @@ known-good recovery material.
 
 Never claim that rollback or recovery succeeded until the manager or an
 authorized recovery procedure verifies the restored bytes.
+
+If `recovery` is absent, stop writes and escalate with the complete redacted
+response; never guess a generation or construct a journal path. The manager
+reports this object only after independently loading and validating the retained
+recovery authority, snapshot inventory, and terminal journal.

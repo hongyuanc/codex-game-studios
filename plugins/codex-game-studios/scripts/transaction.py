@@ -819,12 +819,14 @@ class AtomicMutation:
         filesystem: AnchoredFilesystem,
         action: Action,
         expected: object,
+        expected_result: object,
         transaction_id: str,
         on_quarantined: Callable[[], None] | None = None,
     ):
         self._filesystem = filesystem
         self._action = action
         self._expected = expected
+        self._expected_result = expected_result
         self._transaction_id = transaction_id
         self._active = True
         self._on_quarantined = on_quarantined if on_quarantined is not None else lambda: None
@@ -914,6 +916,37 @@ class AtomicMutation:
         """Remove one approved directory only when it is empty."""
 
         relative = self._require_allowed(relative, frozenset({"remove"}))
+        expected = self._expected
+        if self._action.detail == "conditionally remove empty managed directory":
+            expected = self._filesystem.observe(relative)
+            if (
+                self._expected.entry_type != "directory"
+                or expected.entry_type != "directory"
+                or self._filesystem.list_immediate(relative)
+            ):
+                raise ManagerError(
+                    "STALE_PLAN", "conditional directory removal target is not empty"
+                )
+        else:
+            self._begin_mutation()
+        try:
+            self._filesystem.remove(
+                relative, expected, self._mark_destructive, self._on_quarantined
+            )
+        except PayloadError as error:
+            raise ManagerError("STALE_PLAN", str(error)) from error
+
+    def remove_state_file(self, relative: str) -> None:
+        """Remove one post-validation state file whose approved result is missing."""
+
+        relative = self._require_allowed(relative, frozenset({"state-write"}))
+        if (
+            self._expected.entry_type != "file"
+            or self._expected_result.entry_type != "missing"
+        ):
+            raise ManagerError(
+                "UNSAFE_PATH", "state removal requires approved file-to-missing transition"
+            )
         self._begin_mutation()
         try:
             self._filesystem.remove(
@@ -945,7 +978,7 @@ def _snapshot_paths(plan: OperationPlan) -> tuple[str, ...]:
         }:
             raise ManagerError("UNSAFE_PATH", "operation plan targets transaction control data")
         paths.add(normalized)
-    return tuple(sorted(paths))
+    return tuple(sorted(paths, key=lambda path: (len(PurePosixPath(path).parts), path)))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1184,7 +1217,14 @@ def _quarantine_authority_records(
         before = observations[action.path]
         after = results[action.path]
         if before.entry_type != "missing":
-            storage_role = "removed" if action.kind == "remove" else "before"
+            storage_role = (
+                "removed"
+                if action.kind == "remove" or after.entry_type == "missing"
+                else "before"
+            )
+            quarantine_digest = before.digest or ""
+            if action.detail == "conditionally remove empty managed directory":
+                quarantine_digest = hashlib.sha256(b'{"entries":[]}\n').hexdigest()
             records.append(
                 QuarantineRecord(
                     f"{generation}/quarantine/{storage_role}-{path_digest}-0000",
@@ -1192,7 +1232,7 @@ def _quarantine_authority_records(
                     "approved-before",
                     before.entry_type,
                     before.mode or 0,
-                    before.digest or "",
+                    quarantine_digest,
                 )
             )
         if after.entry_type != "missing":
@@ -1236,7 +1276,14 @@ def _write_authority_anchored(
 def _verify_action_result_anchored(
     filesystem: AnchoredFilesystem, action: Action, approved: object
 ) -> SecureEntry:
-    observed = filesystem.observe(action.path)
+    observed = _logical_plan_state(filesystem, action.path)
+    if (
+        action.kind == "create"
+        and action.path in {".codex", ".codex/codex-game-studios"}
+        and approved.entry_type == "directory"
+        and filesystem.observe(action.path).entry_type == "directory"
+    ):
+        return approved
     if (
         observed.entry_type != approved.entry_type
         or observed.mode != approved.mode
@@ -1390,6 +1437,13 @@ def _verify_complete_generation(
                 record.action_path in executed
                 and record.role == "rollback-after"
                 and (journal.phase == "rolled-back" or rollback_complete)
+                and not (
+                    record.action_path in {".codex", ".codex/codex-game-studios"}
+                    and next(
+                        item for item in authority.snapshots
+                        if item.path == record.action_path
+                    ).entry_type == "missing"
+                )
             )
         )
     )
@@ -1582,6 +1636,7 @@ def apply_transaction(
     persist_state: Callable[[Action, AtomicMutation], object] | None = None,
     failpoint: Callable[[str], None] | None = None,
     lock_timeout: float = 5.0,
+    transaction_id: str | None = None,
 ) -> TransactionResult:
     """Apply one approved plan atomically or restore its exact logical state."""
 
@@ -1596,7 +1651,15 @@ def apply_transaction(
         raise ManagerError("UNSUPPORTED_ENVIRONMENT", "verify operations are read-only")
     target_root = Path(root)
     trigger = failpoint if failpoint is not None else lambda _phase: None
-    transaction_id = str(uuid.uuid4())
+    if transaction_id is None:
+        transaction_id = str(uuid.uuid4())
+    else:
+        try:
+            parsed_transaction_id = uuid.UUID(transaction_id)
+        except (AttributeError, TypeError, ValueError) as error:
+            raise ManagerError("STALE_PLAN", "approved transaction identifier is malformed") from error
+        if str(parsed_transaction_id) != transaction_id or parsed_transaction_id.version != 4:
+            raise ManagerError("STALE_PLAN", "approved transaction identifier is malformed")
     generation = f"{RECOVERY_RELATIVE_PATH}/{transaction_id}"
     journal_path = f"{generation}/journal.json"
     state_actions = tuple(action for action in plan.actions if action.kind == "state-write")
@@ -1621,6 +1684,10 @@ def apply_transaction(
         if after_snapshots != plan or after_snapshots.digest != plan.digest:
             raise ManagerError("STALE_PLAN", "repository changed during snapshot acquisition")
         approved_scaffold = _capture_control_scaffold(filesystem)
+        if filesystem.observe(generation).entry_type != "missing":
+            raise ManagerError(
+                "STALE_PLAN", "approved transaction recovery generation already exists"
+            )
         persisted = _persist_snapshot_set(filesystem, generation, acquired, transaction_id)
         snapshots = tuple(item.record for item in persisted)
         changing_actions = tuple(
@@ -1676,9 +1743,24 @@ def apply_transaction(
             )
             for action in ordinary_actions:
                 repository_lock.verify()
-                expected = expected_by_path.get(action.path, filesystem.observe(action.path))
-                if action.kind in _CHANGING_ACTIONS and not filesystem.matches(
-                    filesystem.observe(action.path), expected
+                expected = expected_by_path.get(
+                    action.path, _logical_plan_state(filesystem, action.path)
+                )
+                internal_scaffold_create = (
+                    action.kind == "create"
+                    and action.path in {".codex", ".codex/codex-game-studios"}
+                    and expected.entry_type == "missing"
+                    and filesystem.observe(action.path).entry_type == "directory"
+                )
+                conditional_empty_directory = (
+                    action.kind == "remove"
+                    and action.detail == "conditionally remove empty managed directory"
+                    and expected.entry_type == "directory"
+                    and filesystem.observe(action.path).entry_type == "directory"
+                    and not filesystem.list_immediate(action.path)
+                )
+                if action.kind in _CHANGING_ACTIONS and not internal_scaffold_create and not conditional_empty_directory and not filesystem.matches(
+                    _logical_plan_state(filesystem, action.path), expected
                 ):
                     raise ManagerError("STALE_PLAN", "action target changed before durable start")
                 if action.kind in _CHANGING_ACTIONS:
@@ -1704,7 +1786,12 @@ def apply_transaction(
                     )
 
                 capability = AtomicMutation(
-                    filesystem, action, expected, transaction_id, mark_active_quarantined
+                    filesystem,
+                    action,
+                    expected,
+                    approved_results.get(action.path, expected),
+                    transaction_id,
+                    mark_active_quarantined,
                 )
                 try:
                     try:
@@ -1752,6 +1839,8 @@ def apply_transaction(
             trigger("validation-started")
             try:
                 findings = tuple(validate(target_root))
+            except ManagerError:
+                raise
             except BaseException as error:
                 raise ManagerError(
                     "VALIDATION_FAILED", "installed-mode validation could not complete"
@@ -1784,7 +1873,12 @@ def apply_transaction(
                     )
 
                 capability = AtomicMutation(
-                    filesystem, state_action, expected, transaction_id, mark_state_quarantined
+                    filesystem,
+                    state_action,
+                    expected,
+                    approved_results[state_action.path],
+                    transaction_id,
+                    mark_state_quarantined,
                 )
                 try:
                     try:
@@ -1886,6 +1980,7 @@ def apply_transaction(
                     dataclasses.replace(journal, phase="rolled-back", checksum=""),
                 )
             except BaseException as rollback_error:
+                recovery: dict[str, str] | None = None
                 try:
                     _verify_recovery_snapshots(filesystem, persisted)
                     try:
@@ -1900,10 +1995,31 @@ def apply_transaction(
                         journal_path,
                         dataclasses.replace(journal, phase="ROLLBACK_FAILED", checksum=""),
                     )
+                    journal = RecoveryJournal.load(
+                        target_root / journal_path,
+                        authority=authority,
+                        allowed_phases=frozenset({"ROLLBACK_FAILED"}),
+                    )
+                    recovery = {
+                        "generation": generation,
+                        "journal": journal_path,
+                        "snapshots": f"{generation}/snapshots",
+                        "phase": journal.phase,
+                        "status": "retained",
+                    }
                 except BaseException:
                     pass
                 raise ManagerError(
                     "ROLLBACK_FAILED",
                     "automatic rollback failed; preserve recovery generation and stop writes",
+                    wrote=True,
+                    recovery=recovery,
                 ) from rollback_error
+            if isinstance(original_error, ManagerError):
+                original_error.wrote = bool(touched)
+                raise original_error
+            try:
+                original_error.wrote = bool(touched)
+            except (AttributeError, TypeError):
+                pass
             raise original_error

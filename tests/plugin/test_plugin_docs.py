@@ -102,9 +102,10 @@ class PluginDocumentationTests(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --format json",
+            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --approval-context <context> --format json",
             skill,
         )
+        self.assertIn("approval_context", skill)
         self.assertIn("full action list", skill)
         self.assertIn("exact digest", skill)
         self.assertIn("never invent", skill)
