@@ -1013,13 +1013,24 @@ def _logical_plan_state(filesystem: AnchoredFilesystem, relative: str) -> Secure
         )
     if relative == ".codex" and observed.entry_type == "directory":
         entries = filesystem.list_immediate(relative)
-        if (
-            len(entries) == 1
-            and entries[0].name == "codex-game-studios"
-            and entries[0].entry_type == "directory"
-        ):
-            if _logical_plan_state(filesystem, control).entry_type == "missing":
+        projected = tuple(
+            item
+            for item in entries
+            if not (
+                item.name == "codex-game-studios"
+                and item.entry_type == "directory"
+                and _logical_plan_state(filesystem, control).entry_type == "missing"
+            )
+        )
+        if projected != entries:
+            if not projected:
                 return SecureEntry("missing", None, None, None)
+            return dataclasses.replace(
+                observed,
+                digest=digest_document({
+                    "entries": [dataclasses.asdict(item) for item in projected]
+                }),
+            )
     return observed
 
 
@@ -1516,6 +1527,12 @@ class _ControlScaffold:
     control: tuple[tuple[str, str, int | None, str | None, object | None], ...]
     prior_recovery: tuple[tuple[str, str], ...]
     recovery_existed: bool
+    control_identity: object | None
+    recovery_identity: object | None
+
+
+class _TransactionScaffoldChanged(ManagerError):
+    """Internal marker for an identity break before any payload mutation."""
 
 
 def _capture_control_scaffold(filesystem: AnchoredFilesystem) -> _ControlScaffold:
@@ -1560,6 +1577,8 @@ def _capture_control_scaffold(filesystem: AnchoredFilesystem) -> _ControlScaffol
         entries(".codex/codex-game-studios"),
         prior,
         recovery_existed,
+        filesystem.observe(".codex/codex-game-studios").identity,
+        filesystem.observe(RECOVERY_RELATIVE_PATH).identity,
     )
 
 
@@ -1567,10 +1586,13 @@ def _verify_control_scaffold(
     filesystem: AnchoredFilesystem,
     approved: _ControlScaffold,
     generation: str,
+    generation_identity: object,
 ) -> None:
     current = _capture_control_scaffold(filesystem)
     if current.codex != approved.codex:
         raise ManagerError("STALE_PLAN", "approved .codex scaffold changed")
+    if current.control_identity != approved.control_identity:
+        raise ManagerError("STALE_PLAN", "approved manager directory identity changed")
     expected_control = approved.control
     if not approved.recovery_existed:
         expected_control = tuple(
@@ -1578,6 +1600,10 @@ def _verify_control_scaffold(
         )
     if current.control != expected_control:
         raise ManagerError("STALE_PLAN", "approved manager scaffold changed")
+    if current.recovery_identity != approved.recovery_identity:
+        raise ManagerError("STALE_PLAN", "approved recovery directory identity changed")
+    if filesystem.observe(generation).identity != generation_identity:
+        raise ManagerError("STALE_PLAN", "current recovery generation identity changed")
     current_name = PurePosixPath(generation).name
     current_prior = tuple(item for item in current.prior_recovery if item[0] != current_name)
     if current_prior != approved.prior_recovery:
@@ -1672,23 +1698,57 @@ def apply_transaction(
     with RepositoryLock(target_root, timeout=lock_timeout) as repository_lock:
         filesystem = AnchoredFilesystem(repository_lock.pinned, repository_lock.verify)
         repository_lock.verify()
+        approved_scaffold = _capture_control_scaffold(filesystem)
         replanned = replan()
         if replanned != plan or replanned.digest != plan.digest:
             raise ManagerError("STALE_PLAN", "repository changed after plan approval")
+        if _capture_control_scaffold(filesystem) != approved_scaffold:
+            raise ManagerError("STALE_PLAN", "transaction scaffold changed during replanning")
         try:
             acquired = _acquire_snapshot_set(filesystem, plan)
         except PayloadError as error:
             raise ManagerError("UNSAFE_PATH", str(error)) from error
         repository_lock.verify()
+        if _capture_control_scaffold(filesystem) != approved_scaffold:
+            raise ManagerError("STALE_PLAN", "transaction scaffold changed during snapshot acquisition")
         after_snapshots = replan()
         if after_snapshots != plan or after_snapshots.digest != plan.digest:
             raise ManagerError("STALE_PLAN", "repository changed during snapshot acquisition")
-        approved_scaffold = _capture_control_scaffold(filesystem)
+        if _capture_control_scaffold(filesystem) != approved_scaffold:
+            raise ManagerError("STALE_PLAN", "transaction scaffold changed after snapshot replanning")
         if filesystem.observe(generation).entry_type != "missing":
             raise ManagerError(
                 "STALE_PLAN", "approved transaction recovery generation already exists"
             )
         persisted = _persist_snapshot_set(filesystem, generation, acquired, transaction_id)
+        if not approved_scaffold.recovery_existed:
+            approved_scaffold = dataclasses.replace(
+                approved_scaffold,
+                recovery_identity=filesystem.observe(RECOVERY_RELATIVE_PATH).identity,
+            )
+        generation_identity = filesystem.observe(generation).identity
+
+        def verify_transaction_scaffold() -> None:
+            current_control = filesystem.observe(".codex/codex-game-studios")
+            if current_control.identity != approved_scaffold.control_identity:
+                raise _TransactionScaffoldChanged(
+                    "STALE_PLAN", "approved manager directory identity changed"
+                )
+            current_recovery = filesystem.observe(RECOVERY_RELATIVE_PATH)
+            if current_recovery.identity != approved_scaffold.recovery_identity:
+                raise _TransactionScaffoldChanged(
+                    "STALE_PLAN", "approved recovery directory identity changed"
+                )
+            if filesystem.observe(generation).identity != generation_identity:
+                raise _TransactionScaffoldChanged(
+                    "STALE_PLAN", "current recovery generation identity changed"
+                )
+
+        def write_journal_checked(document: RecoveryJournal) -> RecoveryJournal:
+            verify_transaction_scaffold()
+            written = _write_journal_anchored(filesystem, journal_path, document)
+            verify_transaction_scaffold()
+            return written
         snapshots = tuple(item.record for item in persisted)
         changing_actions = tuple(
             action
@@ -1724,20 +1784,22 @@ def apply_transaction(
             (),
             "",
         )
-        journal = _write_journal_anchored(filesystem, journal_path, journal)
+        journal = write_journal_checked(journal)
         expected_by_path = {item.record.path: item.state for item in persisted}
         approved_results = {item.path: item for item in plan.target_results}
         touched: list[tuple[str, SecureEntry]] = []
         try:
             repository_lock.verify()
             trigger("snapshot-created")
-            journal = _write_journal_anchored(
-                filesystem,
-                journal_path,
+            verify_transaction_scaffold()
+            journal = write_journal_checked(
                 dataclasses.replace(journal, phase="journal-written", checksum=""),
             )
             trigger("journal-written")
-            _verify_control_scaffold(filesystem, approved_scaffold, generation)
+            verify_transaction_scaffold()
+            _verify_control_scaffold(
+                filesystem, approved_scaffold, generation, generation_identity
+            )
             ordinary_actions = tuple(
                 action for action in plan.actions if action.kind != "state-write"
             )
@@ -1764,9 +1826,7 @@ def apply_transaction(
                 ):
                     raise ManagerError("STALE_PLAN", "action target changed before durable start")
                 if action.kind in _CHANGING_ACTIONS:
-                    journal = _write_journal_anchored(
-                        filesystem,
-                        journal_path,
+                    journal = write_journal_checked(
                         dataclasses.replace(
                             journal,
                             phase="action-started",
@@ -1777,9 +1837,7 @@ def apply_transaction(
                     )
                 def mark_active_quarantined() -> None:
                     nonlocal journal
-                    journal = _write_journal_anchored(
-                        filesystem,
-                        journal_path,
+                    journal = write_journal_checked(
                         dataclasses.replace(
                             journal, active_quarantined=True, checksum=""
                         ),
@@ -1795,7 +1853,9 @@ def apply_transaction(
                 )
                 try:
                     try:
+                        verify_transaction_scaffold()
                         apply_action(action, capability)
+                        verify_transaction_scaffold()
                     except BaseException:
                         if capability.did_mutate:
                             guard = _failed_mutation_rollback_guard(
@@ -1813,9 +1873,7 @@ def apply_transaction(
                     if capability.did_mutate:
                         touched.append((action.path, after))
                 if action.kind in _CHANGING_ACTIONS:
-                    journal = _write_journal_anchored(
-                        filesystem,
-                        journal_path,
+                    journal = write_journal_checked(
                         dataclasses.replace(
                             journal,
                             phase="action-applied",
@@ -1829,14 +1887,14 @@ def apply_transaction(
                         ),
                     )
                     trigger("action-applied")
+                    verify_transaction_scaffold()
             repository_lock.verify()
             _verify_complete_generation(filesystem, authority, journal_path, journal)
-            journal = _write_journal_anchored(
-                filesystem,
-                journal_path,
+            journal = write_journal_checked(
                 dataclasses.replace(journal, phase="validation-started", checksum=""),
             )
             trigger("validation-started")
+            verify_transaction_scaffold()
             try:
                 findings = tuple(validate(target_root))
             except ManagerError:
@@ -1850,9 +1908,7 @@ def apply_transaction(
                 raise ManagerError("VALIDATION_FAILED", "installed-mode validation reported findings")
             if state_actions:
                 state_action = state_actions[0]
-                journal = _write_journal_anchored(
-                    filesystem,
-                    journal_path,
+                journal = write_journal_checked(
                     dataclasses.replace(
                         journal,
                         phase="action-started",
@@ -1864,9 +1920,7 @@ def apply_transaction(
                 expected = expected_by_path[state_action.path]
                 def mark_state_quarantined() -> None:
                     nonlocal journal
-                    journal = _write_journal_anchored(
-                        filesystem,
-                        journal_path,
+                    journal = write_journal_checked(
                         dataclasses.replace(
                             journal, active_quarantined=True, checksum=""
                         ),
@@ -1883,7 +1937,9 @@ def apply_transaction(
                 try:
                     try:
                         assert persist_state is not None
+                        verify_transaction_scaffold()
                         persist_state(state_action, capability)
+                        verify_transaction_scaffold()
                     except BaseException:
                         if capability.did_mutate:
                             guard = _failed_mutation_rollback_guard(
@@ -1899,9 +1955,7 @@ def apply_transaction(
                 )
                 if capability.did_mutate:
                     touched.append((state_action.path, after))
-                journal = _write_journal_anchored(
-                    filesystem,
-                    journal_path,
+                journal = write_journal_checked(
                     dataclasses.replace(
                         journal,
                         phase="state-written",
@@ -1915,17 +1969,19 @@ def apply_transaction(
                     ),
                 )
                 trigger("state-written")
+                verify_transaction_scaffold()
             repository_lock.verify()
             _verify_complete_generation(filesystem, authority, journal_path, journal)
-            journal = _write_journal_anchored(
-                filesystem,
-                journal_path,
+            journal = write_journal_checked(
                 dataclasses.replace(journal, phase="committed", checksum=""),
             )
             trigger("journal-committed")
+            verify_transaction_scaffold()
             repository_lock.verify()
             return TransactionResult(transaction_id, "committed", len(plan.actions))
         except BaseException as original_error:
+            if isinstance(original_error, _TransactionScaffoldChanged) and not touched:
+                raise original_error
             try:
                 _verify_complete_generation(filesystem, authority, journal_path, journal)
                 if (
@@ -1946,14 +2002,13 @@ def apply_transaction(
                         active_record is not None
                         and filesystem.observe(active_record.path).entry_type != "missing"
                     ):
-                        journal = _write_journal_anchored(
-                            filesystem,
-                            journal_path,
+                        journal = write_journal_checked(
                             dataclasses.replace(
                                 journal, active_quarantined=True, checksum=""
                             ),
                         )
                 trigger("before-restore-read")
+                verify_transaction_scaffold()
                 acquired_by_path = {item.record.path: item for item in persisted}
                 for path, expected_after in reversed(touched):
                     _restore_acquired_snapshot(
@@ -1974,9 +2029,7 @@ def apply_transaction(
                 _verify_complete_generation(
                     filesystem, authority, journal_path, journal, rollback_complete=True
                 )
-                journal = _write_journal_anchored(
-                    filesystem,
-                    journal_path,
+                journal = write_journal_checked(
                     dataclasses.replace(journal, phase="rolled-back", checksum=""),
                 )
             except BaseException as rollback_error:

@@ -520,8 +520,12 @@ def _project_transaction_control_children(
             for item in children
             if _TRANSACTION_INTERNAL_CHILD_TYPES.get(item[0]) != item[1]
         )
-    if relative == ".codex" and children == (("codex-game-studios", "directory"),):
-        return () if _transaction_control_only(root) else children
+    if relative == ".codex" and ("codex-game-studios", "directory") in children:
+        if _transaction_control_only(root):
+            return tuple(
+                item for item in children
+                if item != ("codex-game-studios", "directory")
+            )
     return children
 
 
@@ -1143,6 +1147,23 @@ def _plan_operation_at_root(
     }
     actions: list[Action] = []
     conflicts: list[Conflict] = []
+    valid_engine_activation = False
+
+    studio_path = ".codex/studio.toml"
+    studio_record = records.get(studio_path)
+    studio_observed = observed.get(studio_path)
+    if (
+        state is not None
+        and operation in {"update", "verify", "repair"}
+        and studio_record is not None
+        and studio_record.installed_hash is not None
+        and studio_observed is not None
+        and studio_observed.kind == "file"
+        and studio_observed.digest != studio_record.installed_hash
+    ):
+        valid_engine_activation = not validate_installed_read_only(
+            target_root, plugin
+        )
 
     if state is None and operation != "install":
         conflicts.append(Conflict("NOT_INSTALLED", STATE_RELATIVE_PATH, "installation state is absent"))
@@ -1258,6 +1279,15 @@ def _plan_operation_at_root(
                 path_actions, path_conflicts = _classify_fresh(
                     entry, observed[path], desired
                 )
+        elif path == studio_path and valid_engine_activation:
+            path_actions = [_action(
+                "preserve",
+                path,
+                observed[path].digest,
+                observed[path].digest,
+                "validated engine-pack activation remains configured",
+            )]
+            path_conflicts = []
         elif record.ownership == "shared":
             path_actions, path_conflicts = _classify_shared(
                 operation, entry, record, observed[path], desired, state

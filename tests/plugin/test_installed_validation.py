@@ -17,6 +17,7 @@ from unittest import mock
 
 from tests.plugin.helpers import init_git_repo, snapshot_tree, write_installed_fixture
 from tools.codex_studio.validate import _SecureInstalledRoot, validate_installed_repository
+import tools.codex_studio.validate as validator_module
 from tools.codex_studio.engine_pack import apply_activation, plan_activation
 
 
@@ -65,6 +66,21 @@ class InstalledValidationTests(unittest.TestCase):
 
         # Act
         issues = validate_installed_repository(self.repo)
+
+        # Assert
+        self.assertEqual([], issues)
+
+    def test_installed_validator_never_invokes_unanchored_studio_loader(self):
+        # Arrange
+        apply_activation(self.repo, plan_activation(self.repo, "godot", version="4.6", language="gdscript"))
+
+        # Act
+        with mock.patch.object(
+            validator_module,
+            "load_studio_config",
+            side_effect=AssertionError("unanchored loader invoked"),
+        ):
+            issues = validate_installed_repository(self.repo)
 
         # Assert
         self.assertEqual([], issues)

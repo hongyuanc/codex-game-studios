@@ -23,18 +23,22 @@ sys.path.insert(0, str(PLUGIN / "scripts"))
 
 from tests.plugin.helpers import (  # noqa: E402
     init_git_repo,
+    run_manager,
     snapshot_tree,
     write_installed_fixture,
 )
+from tools.codex_studio.engine_pack import apply_activation, plan_activation  # noqa: E402
 from models import canonical_json  # noqa: E402
 from studio_manager import (  # noqa: E402
     ApprovalContext,
     ManagerError,
     load_installation_state,
+    new_approval_context,
     plan_operation,
     state_with_checksum,
     write_state_document,
 )
+from transaction import apply_transaction  # noqa: E402
 
 
 class ManagerPlanningTests(unittest.TestCase):
@@ -59,6 +63,90 @@ class ManagerPlanningTests(unittest.TestCase):
         document["checksum"] = hashlib.sha256(canonical_json(body)).hexdigest()
         state_path.write_bytes(canonical_json(document))
         return document
+
+    def _activate_godot_fixture(self) -> None:
+        """Create the same valid installed activation baseline for each adversary."""
+
+        write_installed_fixture(self.repo, PLUGIN)
+        apply_activation(
+            self.repo,
+            plan_activation(
+                self.repo, "godot", version="4.6", language="gdscript"
+            ),
+        )
+
+    def _assert_update_and_repair_block_invalid_activation(self) -> None:
+        """Require both planning APIs to reject an invalid activation authority."""
+
+        for operation in ("update", "repair"):
+            with self.subTest(operation=operation):
+                plan = plan_operation(operation, self.repo, PLUGIN)
+                self.assertEqual(
+                    ["CUSTOMIZED_MANAGED_FILE"],
+                    sorted({conflict.code for conflict in plan.conflicts}),
+                )
+                completed = run_manager(operation, self.repo)
+                self.assertEqual(1, completed.returncode, completed.stderr)
+                document = json.loads(completed.stdout)
+                self.assertEqual("CUSTOMIZED_MANAGED_FILE", document["status"])
+                self.assertFalse(document["wrote"])
+
+    def _assert_install_projection_race_is_stale(
+        self,
+        mutate,
+        *,
+        boundary: str,
+        expected_detail: str | None = None,
+    ) -> None:
+        """Exercise manager replanning and transaction scaffold capture together."""
+
+        config = self.repo / ".codex/config.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_bytes(b'[user]\nfixture = "unchanged"\n')
+        context = new_approval_context("install")
+        approved = plan_operation("install", self.repo, PLUGIN, context)
+        calls = 0
+        payload_called = False
+
+        if boundary == "lock":
+            mutate()
+
+        def replan():
+            nonlocal calls
+            calls += 1
+            current = plan_operation("install", self.repo, PLUGIN, context)
+            if (boundary == "replan" and calls == 1) or (
+                boundary == "snapshot" and calls == 2
+            ):
+                mutate()
+            return current
+
+        def apply_payload(_action, _mutation):
+            nonlocal payload_called
+            payload_called = True
+
+        def failpoint(phase: str) -> None:
+            if boundary == "action" and phase == "journal-written":
+                mutate()
+
+        with self.assertRaisesRegex(ManagerError, "STALE_PLAN") as caught:
+            apply_transaction(
+                approved,
+                self.repo,
+                replan,
+                apply_payload,
+                lambda _root: [],
+                persist_state=lambda _action, _mutation: None,
+                failpoint=failpoint,
+                transaction_id=context.transaction_id,
+            )
+        if expected_detail is not None:
+            self.assertIn(expected_detail, caught.exception.detail)
+        self.assertFalse(payload_called)
+        self.assertEqual(
+            b'[user]\nfixture = "unchanged"\n',
+            config.read_bytes(),
+        )
 
     def test_install_plan_classifies_create_adopt_and_collision(self):
         # Arrange / Act
@@ -449,6 +537,100 @@ class ManagerPlanningTests(unittest.TestCase):
         # Assert
         self.assertNotEqual(approved.digest, malformed.digest)
 
+    def test_install_projection_rejects_unknown_control_sibling_at_lock_boundary(self):
+        # Arrange
+        sibling = self.repo / ".codex/codex-game-studios/unexpected.txt"
+
+        def mutate() -> None:
+            sibling.parent.mkdir(parents=True, exist_ok=True)
+            sibling.write_bytes(b"unknown\n")
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(mutate, boundary="lock")
+
+    def test_install_projection_rejects_wrong_typed_internal_at_replan_boundary(self):
+        # Arrange
+        recovery = self.repo / ".codex/codex-game-studios/recovery"
+
+        def mutate() -> None:
+            recovery.write_bytes(b"not-a-directory\n")
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(mutate, boundary="replan")
+
+    def test_install_projection_rejects_prior_recovery_byte_race_at_snapshot_boundary(self):
+        # Arrange
+        nested = self.repo / ".codex/codex-game-studios/recovery/prior/snapshots/000000.bin"
+        nested.parent.mkdir(parents=True)
+        nested.write_bytes(b"approved\n")
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(
+            lambda: nested.write_bytes(b"raced\n"), boundary="snapshot"
+        )
+
+    def test_install_projection_rejects_prior_recovery_type_race_at_snapshot_boundary(self):
+        # Arrange
+        nested = self.repo / ".codex/codex-game-studios/recovery/prior/snapshots/000000.bin"
+        nested.parent.mkdir(parents=True)
+        nested.write_bytes(b"approved\n")
+
+        def mutate() -> None:
+            nested.unlink()
+            nested.mkdir()
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(mutate, boundary="snapshot")
+
+    def test_install_projection_rejects_prior_recovery_type_race_at_action_boundary(self):
+        # Arrange
+        nested = self.repo / ".codex/codex-game-studios/recovery/prior/snapshots/000000.bin"
+        nested.parent.mkdir(parents=True)
+        nested.write_bytes(b"approved\n")
+
+        def mutate() -> None:
+            nested.unlink()
+            nested.mkdir()
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(mutate, boundary="action")
+
+    def test_install_projection_rejects_whole_control_replacement_at_action_boundary(self):
+        # Arrange
+        control = self.repo / ".codex/codex-game-studios"
+
+        def mutate() -> None:
+            replacement = self.repo / ".codex/replacement-control"
+            shutil.copytree(control, replacement)
+            displaced = self.repo / "displaced-control"
+            control.rename(displaced)
+            replacement.rename(control)
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(
+            mutate,
+            boundary="action",
+            expected_detail="manager directory identity changed",
+        )
+
+    def test_install_projection_rejects_whole_recovery_replacement_at_action_boundary(self):
+        # Arrange
+        recovery = self.repo / ".codex/codex-game-studios/recovery"
+
+        def mutate() -> None:
+            replacement = recovery.with_name("replacement-recovery")
+            shutil.copytree(recovery, replacement)
+            displaced = self.repo / "displaced-recovery"
+            recovery.rename(displaced)
+            replacement.rename(recovery)
+
+        # Act / Assert
+        self._assert_install_projection_race_is_stale(
+            mutate,
+            boundary="action",
+            expected_detail="recovery directory identity changed",
+        )
+
     def test_installed_control_directory_with_state_and_legal_is_not_projected_away(self):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
@@ -465,6 +647,57 @@ class ManagerPlanningTests(unittest.TestCase):
             (".codex/codex-game-studios/legal", "preserve"),
             {(action.path, action.kind) for action in after.actions},
         )
+
+    def test_update_and_repair_reject_activated_studio_non_engine_authority_change(self):
+        # Arrange
+        self._activate_godot_fixture()
+        studio = self.repo / ".codex/studio.toml"
+        studio.write_text(
+            studio.read_text(encoding="utf-8").replace(
+                'review_mode = "phase-gated"', 'review_mode = "solo"'
+            ),
+            encoding="utf-8",
+        )
+
+        # Act / Assert
+        self._assert_update_and_repair_block_invalid_activation()
+
+    def test_update_and_repair_reject_altered_active_profile(self):
+        # Arrange
+        self._activate_godot_fixture()
+        profile = self.repo / ".codex/agents/godot-specialist.toml"
+        profile.write_bytes(profile.read_bytes() + b"# forged\n")
+
+        # Act / Assert
+        self._assert_update_and_repair_block_invalid_activation()
+
+    def test_update_and_repair_reject_missing_active_profile(self):
+        # Arrange
+        self._activate_godot_fixture()
+        (self.repo / ".codex/agents/godot-specialist.toml").unlink()
+
+        # Act / Assert
+        self._assert_update_and_repair_block_invalid_activation()
+
+    def test_update_and_repair_reject_forged_active_manifest(self):
+        # Arrange
+        self._activate_godot_fixture()
+        manifest = self.repo / ".codex/active-engine.json"
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+        document["generated"]["godot-specialist.toml"] = "f" * 64
+        manifest.write_bytes(canonical_json(document))
+
+        # Act / Assert
+        self._assert_update_and_repair_block_invalid_activation()
+
+    def test_update_and_repair_reject_damaged_inactive_source_pack(self):
+        # Arrange
+        self._activate_godot_fixture()
+        source = self.repo / ".codex/agent-packs/unity/unity-specialist.toml"
+        source.write_bytes(source.read_bytes() + b"# damaged\n")
+
+        # Act / Assert
+        self._assert_update_and_repair_block_invalid_activation()
 
     def test_plan_digest_changes_when_user_child_is_added_to_managed_directory(self):
         # Arrange

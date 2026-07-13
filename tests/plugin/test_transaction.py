@@ -14,6 +14,7 @@ import types
 import unittest
 from unittest import mock
 import uuid
+import shutil
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -367,6 +368,58 @@ class TransactionTests(unittest.TestCase):
             )
 
         self.assertTrue(injected)
+
+    def _assert_action_started_directory_replacement_is_stale(
+        self, target: str
+    ) -> None:
+        """Replace an identity-bound transaction directory after action-started."""
+
+        import transaction
+
+        original_write = transaction._write_journal_anchored
+        replaced = False
+        payload_called = False
+
+        def replace_after_write(filesystem, relative, journal):
+            nonlocal replaced
+            written = original_write(filesystem, relative, journal)
+            if journal.phase == "action-started" and not replaced:
+                replaced = True
+                generation = self.repo / ".codex/codex-game-studios/recovery" / written.transaction_id
+                victim = generation if target == "generation" else generation.parent
+                replacement = self.repo / f"replacement-{target}"
+                displaced = self.repo / f"displaced-{target}"
+                shutil.copytree(victim, replacement)
+                victim.rename(displaced)
+                replacement.rename(victim)
+            return written
+
+        def apply_payload(_action, _mutation):
+            nonlocal payload_called
+            payload_called = True
+
+        with mock.patch.object(
+            transaction, "_write_journal_anchored", side_effect=replace_after_write
+        ):
+            with self.assertRaisesRegex(ManagerError, "STALE_PLAN"):
+                apply_transaction(
+                    self._approved,
+                    self.repo,
+                    self._replan,
+                    apply_payload,
+                    self._validate,
+                )
+        self.assertTrue(replaced)
+        self.assertFalse(payload_called)
+        self.assertEqual(b"before\n", (self.repo / "managed.txt").read_bytes())
+
+    def test_transaction_rejects_generation_replacement_after_action_started(self):
+        # Arrange / Act / Assert
+        self._assert_action_started_directory_replacement_is_stale("generation")
+
+    def test_transaction_rejects_recovery_replacement_after_action_started(self):
+        # Arrange / Act / Assert
+        self._assert_action_started_directory_replacement_is_stale("recovery")
 
     def test_transaction_validation_failure_rolls_back_every_byte_and_mode(self):
         # Arrange

@@ -600,6 +600,37 @@ class RepositoryValidationTests(unittest.TestCase):
             )
         )
 
+    def test_source_counts_ignore_only_agents_below_tests_plugin_boundary(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            shutil.copytree(
+                ROOT,
+                project,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".superpowers", "superpowers", "__pycache__"
+                ),
+            )
+            ignored = project / "tests/plugin/adversarial/nested/AGENTS.md"
+            ignored.parent.mkdir(parents=True)
+            ignored.write_text("fixture-only instructions\n", encoding="utf-8")
+
+            # Act / Assert
+            self.assertEqual([], validate_repository_counts(project))
+
+            outside = project / "tests/plugin-sibling/AGENTS.md"
+            outside.parent.mkdir(parents=True)
+            outside.write_text("unexpected instructions\n", encoding="utf-8")
+            issues = validate_repository_counts(project)
+
+        self.assertTrue(
+            any(
+                issue.path == "AGENTS.md"
+                and "tests/plugin-sibling/AGENTS.md" in issue.message
+                for issue in issues
+            )
+        )
+
     def test_pre_cleanup_gate_accepts_covered_legacy_sources(self):
         legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]  # enforcement-literal
         legacy += list(ROOT.rglob("CLAUDE.md"))  # enforcement-literal

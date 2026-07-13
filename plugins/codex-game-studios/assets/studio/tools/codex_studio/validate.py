@@ -559,6 +559,23 @@ def _profile_name(path: pathlib.Path) -> str | None:
     return name if isinstance(name, str) else None
 
 
+def _expected_active_agents_for_pack(active_engine_pack: str) -> set[str]:
+    """Return the exact active routing set for one already-parsed pack value."""
+
+    names = set(EXPECTED_CORE_NAMES)
+    if active_engine_pack != "none":
+        if active_engine_pack not in EXPECTED_PACK_NAMES:
+            raise ValueError("active engine pack is unsupported")
+        names.update(EXPECTED_PACK_NAMES[active_engine_pack])
+    return names
+
+
+def expected_active_agents(root: pathlib.Path) -> set[str]:
+    """Return the exact configured 34- or 39-profile active routing set."""
+
+    return _expected_active_agents_for_pack(load_studio_config(root).active_engine_pack)
+
+
 def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     for relative in (".codex", ".codex/agents", ".codex/agent-packs", ".agents", ".agents/skills"):
@@ -588,10 +605,10 @@ def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
                 f"invalid studio configuration: {error}",
             )
         )
-    active_names = (
-        EXPECTED_PACK_NAMES.get(studio.engine, set()) if studio is not None else set()
+    expected_active_names = (
+        _expected_active_agents_for_pack(studio.active_engine_pack)
+        if studio is not None else set(EXPECTED_CORE_NAMES)
     )
-    expected_active_names = EXPECTED_CORE_NAMES | active_names
 
     require_count(".codex/agents", core, len(expected_active_names))
     require_count(".codex/agent-packs", packed, 15)
@@ -664,6 +681,7 @@ def validate_repository_counts(root: pathlib.Path) -> list[ValidationIssue]:
         for path in root.rglob("AGENTS.md")
         if path != root / "AGENTS.md"
         and path.relative_to(root).parts[:1] != ("plugins",)
+        and path.relative_to(root).parts[:2] != ("tests", "plugin")
         and "Codex Studio Testing Framework" not in path.parts
     }
     if instructions != EXPECTED_INSTRUCTION_PATHS:
@@ -1367,6 +1385,9 @@ def _validate_installed_repository_secure(root: pathlib.Path) -> tuple[list[Vali
                     raise ValueError("studio config fields are not exact strings")
                 if studio["review_mode"] != "phase-gated" or studio["model_policy"] != "balanced":
                     raise ValueError("non-engine studio authority differs from installed baseline")
+                expected_active_names = _expected_active_agents_for_pack(
+                    studio["active_engine_pack"]
+                )
                 engine = studio.get("engine")
                 active_pack = studio.get("active_engine_pack")
                 if engine == "unconfigured" and active_pack != "none":
@@ -1387,7 +1408,10 @@ def _validate_installed_repository_secure(root: pathlib.Path) -> tuple[list[Vali
                         raise ValueError("configured engine language is invalid")
                     active = json.loads(secure.read(".codex/active-engine.json").decode("utf-8"))
                     generated = active.get("generated") if isinstance(active, dict) and active.get("engine") == engine else None
-                    expected_names = {f"{name}.toml" for name in EXPECTED_PACK_NAMES[engine]}
+                    expected_names = {
+                        f"{name}.toml"
+                        for name in expected_active_names - EXPECTED_CORE_NAMES
+                    }
                     if not isinstance(generated, dict) or set(generated) != expected_names:
                         raise ValueError("active engine manifest does not declare exactly five profiles")
                     for name, expected_hash in generated.items():
