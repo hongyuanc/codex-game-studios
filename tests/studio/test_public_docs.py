@@ -108,6 +108,20 @@ def readme_upstream_attribution(text: str) -> tuple[str, str]:
 
 
 class PublicDocumentationTests(unittest.TestCase):
+    def test_security_policy_uses_this_repository_private_advisory_route(self):
+        # Arrange / Act
+        text = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn(
+            "https://github.com/hongyuanc/codex-game-studios/security/advisories/new",
+            text,
+        )
+        self.assertNotIn(
+            "https://github.com/Donchitos/Codex-Code-Game-Studios/security/advisories/new",
+            text,
+        )
+
     def test_readme_documents_primary_and_prerelease_plugin_flows(self):
         # Arrange / Act
         text = (ROOT / "README.md").read_text(encoding="utf-8")

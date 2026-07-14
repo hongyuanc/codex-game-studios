@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,19 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
 WORKFLOW = ROOT / ".github/workflows/plugin-ci.yml"
+
+
+def release_tag_matches_version(tag: str, version: str) -> bool:
+    """Return whether a stable or prerelease tag belongs to the plugin version."""
+
+    version_pattern = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    if re.fullmatch(version_pattern, version) is None:
+        return False
+    identifier = r"(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+    return re.fullmatch(
+        rf"v{re.escape(version)}(?:-{identifier}(?:\.{identifier})*)?",
+        tag,
+    ) is not None
 
 
 class ReleaseContractTests(unittest.TestCase):
@@ -102,7 +116,63 @@ class ReleaseContractTests(unittest.TestCase):
         # Assert
         self.assertEqual(plugin["version"], payload["version"])
         if tag and tag.startswith("v"):
-            self.assertEqual(f"v{plugin['version']}", tag)
+            self.assertTrue(release_tag_matches_version(tag, plugin["version"]))
+
+    def test_release_tag_contract_accepts_stable_and_semver_prerelease_tags(self):
+        # Arrange
+        version = "1.0.0"
+        accepted = (
+            "v1.0.0",
+            "v1.0.0-rc.1",
+            "v1.0.0-alpha",
+            "v1.0.0-alpha.1",
+            "v1.0.0-0A-0",
+            "v1.0.0--rc.1",
+        )
+        rejected = (
+            "v1.0.1",
+            "v2.0.0-rc.1",
+            "v1.0.0-rc.01",
+            "v1.0.0-rc.",
+            "v1.0.0-rc..1",
+            "v1.0.0+build.1",
+            "v1.0.0-rc.1+build.1",
+            "1.0.0-rc.1",
+        )
+
+        # Act
+        accepted_results = [release_tag_matches_version(tag, version) for tag in accepted]
+        rejected_results = [release_tag_matches_version(tag, version) for tag in rejected]
+
+        # Assert
+        self.assertEqual([True] * len(accepted), accepted_results)
+        self.assertEqual([False] * len(rejected), rejected_results)
+
+    def test_documented_prerelease_tags_match_declared_plugin_version(self):
+        # Arrange
+        plugin = json.loads(
+            (PLUGIN / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
+        )
+        documents = (ROOT / "README.md", PLUGIN / "README.md")
+
+        # Act
+        documented_tags = [
+            match.group(1)
+            for document in documents
+            for match in re.finditer(
+                r"codex plugin marketplace add hongyuanc/codex-game-studios --ref (v\S+)",
+                document.read_text(encoding="utf-8"),
+            )
+        ]
+
+        # Assert
+        self.assertEqual(["v1.0.0-rc.1", "v1.0.0-rc.1"], documented_tags)
+        self.assertTrue(
+            all(
+                release_tag_matches_version(tag, plugin["version"])
+                for tag in documented_tags
+            )
+        )
 
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange
