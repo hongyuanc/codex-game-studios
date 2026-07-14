@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import contextlib
 import ctypes
 import hashlib
 import json
@@ -494,13 +495,28 @@ class TransactionTests(unittest.TestCase):
                     pass
 
     def test_lock_inode_replacement_is_detected_before_release(self):
-        # Arrange / Act / Assert
+        # Arrange
         lock_path = self.repo / ".codex/codex-game-studios/manager.lock"
-        with self.assertRaisesRegex(ManagerError, "LOCKED"):
+
+        # Act / Assert
+        if os.name == "nt":
             with RepositoryLock(self.repo, timeout=0.1) as repository_lock:
-                lock_path.unlink()
-                lock_path.write_bytes(b"replacement")
-                repository_lock.verify()
+                try:
+                    lock_path.unlink()
+                except PermissionError as error:
+                    self.assertEqual(32, getattr(error, "winerror", None))
+                    repository_lock.verify()
+                    self.assertTrue(lock_path.is_file())
+                else:
+                    lock_path.write_bytes(b"replacement")
+                    with self.assertRaisesRegex(ManagerError, "LOCKED"):
+                        repository_lock.verify()
+        else:
+            with self.assertRaisesRegex(ManagerError, "LOCKED"):
+                with RepositoryLock(self.repo, timeout=0.1) as repository_lock:
+                    lock_path.unlink()
+                    lock_path.write_bytes(b"replacement")
+                    repository_lock.verify()
 
     @unittest.skipUnless(os.name == "posix", "POSIX root-directory flock")
     def test_root_flock_blocks_second_lock_after_manager_lock_replacement(self):
@@ -712,15 +728,18 @@ class TransactionTests(unittest.TestCase):
         # Arrange
         one_action = self._plan_with_actions((self._approved.actions[0],))
         moved = self.repo.with_name("moved-repository")
+        replacement_attempted = False
 
         def replace_root_then_mutate(action: Action, mutation) -> None:
+            nonlocal replacement_attempted
+            replacement_attempted = True
             self.repo.rename(moved)
             self.repo.mkdir()
             (self.repo / "managed.txt").write_bytes(b"replacement-root\n")
             mutation.replace_file(action.path, b"after\n", 0o640)
 
         # Act / Assert
-        with self.assertRaisesRegex(ManagerError, "ROLLBACK_FAILED"):
+        with self.assertRaises((ManagerError, PermissionError)) as caught:
             apply_transaction(
                 one_action,
                 self.repo,
@@ -728,8 +747,20 @@ class TransactionTests(unittest.TestCase):
                 replace_root_then_mutate,
                 self._validate,
             )
-        self.assertEqual(b"replacement-root\n", (self.repo / "managed.txt").read_bytes())
-        self.repo = moved
+        self.assertTrue(replacement_attempted)
+        if isinstance(caught.exception, PermissionError):
+            self.assertEqual("nt", os.name)
+            self.assertEqual(32, getattr(caught.exception, "winerror", None))
+            self.assertFalse(moved.exists())
+            self.assertEqual(
+                b"before\n", (self.repo / "managed.txt").read_bytes()
+            )
+        else:
+            self.assertRegex(str(caught.exception), "ROLLBACK_FAILED")
+            self.assertEqual(
+                b"replacement-root\n", (self.repo / "managed.txt").read_bytes()
+            )
+            self.repo = moved
 
     def test_transaction_existing_uuid_generation_fails_without_reuse(self):
         # Arrange
@@ -1411,6 +1442,110 @@ class TransactionTests(unittest.TestCase):
 
         self.assertEqual(b"snapshot\n", content)
         closed_call.assert_called_once_with(55)
+
+    def test_windows_verified_snapshot_compares_logical_writable_mode(self):
+        # Arrange
+        import safe_fs
+
+        content = b"snapshot\n"
+        digest = hashlib.sha256(content).hexdigest()
+        cases = (
+            (safe_fs.FILE_ATTRIBUTE_NORMAL, 0o644, True),
+            (safe_fs.FILE_ATTRIBUTE_READONLY, 0o444, True),
+            (safe_fs.FILE_ATTRIBUTE_NORMAL, 0o444, False),
+            (safe_fs.FILE_ATTRIBUTE_READONLY, 0o644, False),
+        )
+
+        # Act / Assert
+        for attributes, expected_mode, accepted in cases:
+            with self.subTest(
+                attributes=attributes,
+                expected_mode=oct(expected_mode),
+            ):
+                api = mock.Mock()
+                api.identity.return_value = (7, 41)
+                api.basic_info.return_value = safe_fs._FileBasicInfo(
+                    0, 0, 0, 0, attributes
+                )
+                opened = safe_fs._WindowsOpenedHandles(api, 41, (), False)
+                fake_msvcrt = types.SimpleNamespace(
+                    open_osfhandle=lambda _handle, _flags: 55,
+                    get_osfhandle=lambda _descriptor: 41,
+                )
+                pinned = types.SimpleNamespace(
+                    root=self.repo,
+                    verify=lambda: None,
+                    _descriptor=None,
+                )
+                filesystem = safe_fs.AnchoredFilesystem(pinned)
+                patches = (
+                    mock.patch.object(safe_fs.os, "name", "nt"),
+                    mock.patch.object(
+                        safe_fs, "_windows_open_verified", return_value=opened
+                    ),
+                    mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}),
+                    mock.patch.object(
+                        safe_fs.os, "read", side_effect=(content, b"")
+                    ),
+                    mock.patch.object(safe_fs.os, "close"),
+                )
+                with contextlib.ExitStack() as stack:
+                    for patcher in patches:
+                        stack.enter_context(patcher)
+                    if accepted:
+                        self.assertEqual(
+                            content,
+                            filesystem.read_file_verified(
+                                "snapshot.bin",
+                                expected_digest=digest,
+                                expected_mode=expected_mode,
+                            ),
+                        )
+                    else:
+                        with self.assertRaisesRegex(PayloadError, "mode"):
+                            filesystem.read_file_verified(
+                                "snapshot.bin",
+                                expected_digest=digest,
+                                expected_mode=expected_mode,
+                            )
+
+    def test_windows_live_state_matching_uses_logical_writable_mode(self):
+        # Arrange
+        import safe_fs
+
+        digest = "a" * 64
+        writable = safe_fs.SecureEntry("file", digest, 0o600, "identity")
+        writable_authority = safe_fs.SecureEntry(
+            "file", digest, 0o644, "identity"
+        )
+        readonly = safe_fs.SecureEntry("file", digest, 0o400, "identity")
+        readonly_authority = safe_fs.SecureEntry(
+            "file", digest, 0o444, "identity"
+        )
+
+        # Act / Assert
+        with mock.patch.object(safe_fs.os, "name", "nt"):
+            self.assertTrue(
+                safe_fs.AnchoredFilesystem.matches(
+                    writable, writable_authority
+                )
+            )
+            self.assertTrue(
+                safe_fs.AnchoredFilesystem.matches(
+                    readonly, readonly_authority
+                )
+            )
+            self.assertFalse(
+                safe_fs.AnchoredFilesystem.matches(
+                    writable, readonly_authority
+                )
+            )
+        with mock.patch.object(safe_fs.os, "name", "posix"):
+            self.assertFalse(
+                safe_fs.AnchoredFilesystem.matches(
+                    writable, writable_authority
+                )
+            )
 
     def test_windows_internal_journal_write_loops_on_short_writes_and_rejects_zero(self):
         import safe_fs

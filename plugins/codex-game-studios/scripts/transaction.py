@@ -38,6 +38,7 @@ from safe_fs import (
     _parent_fd,
     _windows_descriptor_from_verified,
     _windows_open_verified,
+    modes_match,
     pin_root,
     read_file_secure,
     SecureEntry,
@@ -1071,7 +1072,7 @@ def _acquire_snapshot_set(
         approved = approved_observations[relative]
         if (
             state.entry_type != approved.entry_type
-            or state.mode != approved.mode
+            or not modes_match(state.mode, approved.mode)
             or state.digest != approved.digest
         ):
             raise ManagerError("STALE_PLAN", "snapshot state differs from approved observation")
@@ -1297,7 +1298,7 @@ def _verify_action_result_anchored(
         return approved
     if (
         observed.entry_type != approved.entry_type
-        or observed.mode != approved.mode
+        or not modes_match(observed.mode, approved.mode)
         or observed.digest != approved.digest
     ):
         raise ManagerError("VALIDATION_FAILED", "action result differs from approved digest")
@@ -1408,7 +1409,7 @@ def _verify_complete_generation(
             if (
                 observed.entry_type != "file"
                 or observed.digest != record.sha256
-                or observed.mode != 0o600
+                or not modes_match(observed.mode, 0o600)
             ):
                 raise ManagerError("ROLLBACK_FAILED", "snapshot authority verification failed")
         elif record.snapshot_path is not None:
@@ -1466,7 +1467,7 @@ def _verify_complete_generation(
         observed = filesystem.observe(record.path)
         if (
             observed.entry_type != record.entry_type
-            or observed.mode != record.mode
+            or not modes_match(observed.mode, record.mode)
             or observed.digest != record.sha256
         ):
             raise ManagerError("ROLLBACK_FAILED", "quarantine content does not match authority")
@@ -1479,7 +1480,7 @@ def _verify_complete_generation(
                     raise ManagerError("ROLLBACK_FAILED", "pre-marker quarantine transition is ambiguous")
             elif (
                 target.entry_type != before.entry_type
-                or target.mode != before.mode
+                or not modes_match(target.mode, before.mode)
                 or target.digest != before.sha256
             ):
                 raise ManagerError(
@@ -1498,12 +1499,12 @@ def _verify_complete_generation(
             )
             authorized_after = after is not None and (
                 target.entry_type == after.entry_type
-                and target.mode == after.mode
+                and modes_match(target.mode, after.mode)
                 and target.digest == after.sha256
             )
             authorized_restored = rollback_complete and (
                 target.entry_type == before.entry_type
-                and target.mode == before.mode
+                and modes_match(target.mode, before.mode)
                 and target.digest == before.sha256
             )
             if target.entry_type != "missing" and not authorized_after and not authorized_restored:

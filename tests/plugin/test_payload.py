@@ -776,6 +776,43 @@ class PayloadGenerationTests(unittest.TestCase):
         self.assertTrue(mode_matches(writable_directory, 0o755, is_windows=True))
         self.assertFalse(mode_matches(readonly_directory, 0o755, is_windows=True))
 
+    def test_windows_inspection_maps_only_missing_path_to_logical_missing_error(self):
+        # Arrange
+        import safe_fs
+
+        # Act / Assert
+        for error, expected in (
+            (FileNotFoundError(2, "missing"), PayloadError),
+            (PermissionError(13, "denied"), PermissionError),
+        ):
+            with self.subTest(error=type(error).__name__), mock.patch.object(
+                safe_fs.os, "name", "nt"
+            ), mock.patch.object(
+                safe_fs, "_windows_open_verified", side_effect=error
+            ):
+                with self.assertRaises(expected) as caught:
+                    safe_fs.inspect_secure(Path("D:/repo"), "missing.txt")
+                if isinstance(error, FileNotFoundError):
+                    self.assertIn("cannot inspect payload path", str(caught.exception))
+                else:
+                    self.assertIs(caught.exception, error)
+
+        pinned = types.SimpleNamespace(
+            root=Path("D:/repo"), verify=lambda: None, _descriptor=None
+        )
+        filesystem = safe_fs.AnchoredFilesystem(pinned)
+        with mock.patch.object(
+            safe_fs.os, "name", "nt"
+        ), mock.patch.object(
+            safe_fs,
+            "_windows_open_verified",
+            side_effect=FileNotFoundError(2, "missing"),
+        ):
+            self.assertEqual(
+                safe_fs.SecureEntry("missing", None, None, None),
+                filesystem.observe("missing.txt"),
+            )
+
     def test_windows_secure_open_contract_pins_handles_and_rejects_reparse_points(self):
         import safe_fs
 

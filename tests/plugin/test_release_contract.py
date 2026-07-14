@@ -728,7 +728,11 @@ class ReleaseContractTests(unittest.TestCase):
                     if not destination_path.is_absolute():
                         destination_path = output / destination_path
                         used_directory_handle = True
-                    if destination_path == attacked_final and not attacked:
+                    same_output = (
+                        destination_path.name == attacked_final.name
+                        and os.path.samefile(destination_path.parent, output)
+                    )
+                    if same_output and not attacked:
                         approved = output / "approved-temporary-stash"
                         attack_attempted = True
                         try:
@@ -852,7 +856,7 @@ class ReleaseContractTests(unittest.TestCase):
                 contents = real_replace_temporary(*args, **kwargs)
                 final = Path(args[1])
                 if final.name == checksum.name and not attacked:
-                    (final.parent / archive.name).write_bytes(
+                    archive.write_bytes(
                         b"post-verification attacker archive"
                     )
                     attacked = True
@@ -1041,9 +1045,14 @@ class ReleaseContractTests(unittest.TestCase):
             failing_descriptor = None
             victims = {}
             substituted = False
+            substitution_blocked = False
+            blocked_error = None
+            blocked_descriptor_closed = False
 
             def create_then_substitute(destination, label, *args, **kwargs):
-                nonlocal failing_descriptor, substituted, victims
+                nonlocal blocked_descriptor_closed, blocked_error
+                nonlocal failing_descriptor, substituted, substitution_blocked
+                nonlocal victims
                 descriptor, temporary = real_new_temporary(
                     destination, label, *args, **kwargs
                 )
@@ -1053,7 +1062,14 @@ class ReleaseContractTests(unittest.TestCase):
                     target == "checksum" and label.endswith(".zip.sha256")
                 )
                 if is_target and not substituted:
-                    output.rename(retained)
+                    try:
+                        output.rename(retained)
+                    except PermissionError as error:
+                        substitution_blocked = True
+                        blocked_error = error
+                        os.close(descriptor)
+                        blocked_descriptor_closed = True
+                        raise
                     output.mkdir()
                     victims = {
                         output / temporary.name: b"attacker temp victim",
@@ -1102,7 +1118,7 @@ class ReleaseContractTests(unittest.TestCase):
                         "_read_plugin_file",
                         side_effect=OSError("injected archive read failure"),
                     ):
-                        with self.assertRaises(OSError):
+                        with self.assertRaises(OSError) as caught:
                             packager.package_plugin(ROOT, output)
                 else:
                     with mock.patch.object(
@@ -1110,8 +1126,26 @@ class ReleaseContractTests(unittest.TestCase):
                         "fdopen",
                         side_effect=fail_selected_fdopen,
                     ):
-                        with self.assertRaises(OSError):
+                        with self.assertRaises(OSError) as caught:
                             packager.package_plugin(ROOT, output)
+            if substitution_blocked:
+                self.assertEqual("nt", os.name)
+                self.assertIs(caught.exception, blocked_error)
+                self.assertTrue(blocked_descriptor_closed)
+                self.assertFalse(substituted)
+                self.assertFalse(retained.exists())
+                self.assertEqual(
+                    b"retained unrelated", retained_note.read_bytes()
+                )
+                self.assertEqual(
+                    [],
+                    [
+                        path.name
+                        for path in output.iterdir()
+                        if packager._is_package_output_name(path.name)
+                    ],
+                )
+                return
             self.assertTrue(substituted)
             self.assertEqual(
                 [],

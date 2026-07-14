@@ -810,11 +810,20 @@ def inspect_secure(root: pathlib.Path, relative: str, *, expect: str | None = No
 
     relative = normalize_relative_path(relative)
     if os.name == "nt":
-        opened = _windows_open_verified(
-            root, relative, access=GENERIC_READ, share=FILE_SHARE_READ,
-            disposition=OPEN_EXISTING, create_parents=False,
-            final_directory=None if expect is None else expect == "directory",
-        )
+        try:
+            opened = _windows_open_verified(
+                root,
+                relative,
+                access=GENERIC_READ,
+                share=FILE_SHARE_READ,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=None if expect is None else expect == "directory",
+            )
+        except FileNotFoundError as error:
+            raise PayloadError(
+                f"cannot inspect payload path: {relative}: {error}"
+            ) from error
         with opened as handles:
             entry_kind = "directory" if handles.final_is_directory else "file"
             if expect is not None and entry_kind != expect:
@@ -1016,15 +1025,28 @@ def write_file_secure(root: pathlib.Path, relative: str, data: bytes, mode: int 
         raise PayloadError(f"payload destination changed during secure write: {relative}")
 
 
+def modes_match(
+    actual: int | None,
+    expected: int | None,
+    *,
+    is_windows: bool | None = None,
+) -> bool:
+    """Compare exact POSIX modes or the representable Windows writable bit."""
+
+    if actual is None or expected is None:
+        return actual == expected
+    windows = os.name == "nt" if is_windows is None else is_windows
+    if windows:
+        return bool(actual & stat.S_IWRITE) == bool(expected & 0o222)
+    return actual == expected
+
+
 def mode_matches(file_stat: os.stat_result, expected: int, *, is_windows: bool | None = None) -> bool:
     """Check exact POSIX modes or the representable Windows writable bit."""
 
-    windows = os.name == "nt" if is_windows is None else is_windows
-    if windows:
-        expected_writable = bool(expected & 0o222)
-        actual_writable = bool(file_stat.st_mode & stat.S_IWRITE)
-        return expected_writable == actual_writable
-    return stat.S_IMODE(file_stat.st_mode) == expected
+    return modes_match(
+        stat.S_IMODE(file_stat.st_mode), expected, is_windows=is_windows
+    )
 
 
 def set_directory_mode_secure(root: pathlib.Path, relative: str, mode: int) -> None:
@@ -1478,7 +1500,7 @@ class AnchoredFilesystem:
         return (
             observed.entry_type == expected.entry_type
             and observed.digest == expected.digest
-            and observed.mode == expected.mode
+            and modes_match(observed.mode, expected.mode)
             and (expected.identity is None or observed.identity == expected.identity)
         )
 
@@ -1572,7 +1594,10 @@ class AnchoredFilesystem:
                     content = b"".join(chunks)
                 finally:
                     os.close(descriptor)
-        if mode != expected_mode or hashlib.sha256(content).hexdigest() != expected_digest:
+        if (
+            not modes_match(mode, expected_mode)
+            or hashlib.sha256(content).hexdigest() != expected_digest
+        ):
             raise PayloadError("verified file bytes or mode do not match authority")
         return content
 

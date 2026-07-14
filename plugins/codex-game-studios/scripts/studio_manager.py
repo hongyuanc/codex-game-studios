@@ -43,6 +43,7 @@ from safe_fs import (
     inspect_secure,
     is_reparse_point,
     list_immediate_secure,
+    modes_match,
     pin_root,
     read_file_secure,
     recovery_tree_digest_secure,
@@ -1613,7 +1614,7 @@ def _validate_uninstall_read_only(
                 expected = result_by_path[path]
                 if (
                     observed.kind != expected.entry_type
-                    or observed.mode != expected.mode
+                    or not modes_match(observed.mode, expected.mode)
                     or observed.digest != expected.digest
                 ):
                     findings.append(f"approved uninstall result mismatch: {path}")

@@ -176,7 +176,11 @@ def _secure_read(path: Path, label: str) -> bytes:
     assert before is not None
     if not stat.S_ISREG(before.st_mode):
         raise ValueError(f"{label} is not a regular file: {path}")
-    flags = os.O_RDONLY | int(getattr(os, "O_NOFOLLOW", 0))
+    flags = (
+        os.O_RDONLY
+        | int(getattr(os, "O_BINARY", 0))
+        | int(getattr(os, "O_NOFOLLOW", 0))
+    )
     descriptor = os.open(path, flags)
     try:
         opened = os.fstat(descriptor)
@@ -814,7 +818,13 @@ def rollback_activation(root: Path) -> None:
 def _exclusive_profile_write(agents: Path, name: str, content: bytes) -> None:
     _safe_filename(name)
     _require_directory(agents, "active agents directory")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | int(getattr(os, "O_NOFOLLOW", 0))
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | int(getattr(os, "O_BINARY", 0))
+        | int(getattr(os, "O_NOFOLLOW", 0))
+    )
     directory_flags = os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0))
     before_parent = _require_directory(agents, "active agents directory")
     directory_descriptor = -1

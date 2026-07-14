@@ -185,24 +185,55 @@ class InstalledValidationTests(unittest.TestCase):
 
     def test_installed_validator_rejects_root_replacement_during_state_read(self):
         # Arrange
-        original = os.read
         swapped = False
+        blocked = False
 
-        def replace_root(descriptor, size):
-            nonlocal swapped
-            if not swapped:
+        def attempt_replacement():
+            nonlocal blocked, swapped
+            if not swapped and not blocked:
                 displaced = self.repo.with_name("displaced")
-                self.repo.rename(displaced)
+                try:
+                    self.repo.rename(displaced)
+                except PermissionError:
+                    blocked = True
+                    return
                 shutil.copytree(displaced, self.repo)
                 swapped = True
-            return original(descriptor, size)
+
+        original_read = os.read
+
+        def replace_root_posix(descriptor, size):
+            attempt_replacement()
+            return original_read(descriptor, size)
+
+        original_windows_read = validator_module._NativeWindowsApi.read
+
+        def replace_root_windows(api, handle):
+            attempt_replacement()
+            return original_windows_read(api, handle)
+
+        hook = (
+            mock.patch.object(
+                validator_module._NativeWindowsApi,
+                "read",
+                new=replace_root_windows,
+            )
+            if os.name == "nt"
+            else mock.patch("os.read", side_effect=replace_root_posix)
+        )
 
         # Act
-        with mock.patch("os.read", side_effect=replace_root):
+        with hook:
             issues = validate_installed_repository(self.repo)
 
         # Assert
-        self.assertTrue(issues)
+        self.assertTrue(swapped or blocked)
+        if blocked:
+            self.assertEqual("nt", os.name)
+            self.assertFalse(self.repo.with_name("displaced").exists())
+            self.assertEqual([], issues)
+        else:
+            self.assertTrue(issues)
 
     @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFO requires POSIX")
     def test_installed_validator_rejects_special_file_without_blocking(self):
