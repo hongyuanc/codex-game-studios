@@ -380,7 +380,7 @@ class ManagerPlanningTests(unittest.TestCase):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
         user_file = self.repo / "src/player-owned.txt"
-        user_file.write_text("mine\n", encoding="utf-8")
+        user_file.write_bytes(b"mine\n")
 
         # Act
         plan = plan_operation("uninstall", self.repo, PLUGIN)
@@ -398,7 +398,7 @@ class ManagerPlanningTests(unittest.TestCase):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
         user_file = self.repo / ".agents/skills/start/user-notes.md"
-        user_file.write_text("mine\n", encoding="utf-8")
+        user_file.write_bytes(b"mine\n")
 
         # Act
         plan = plan_operation("uninstall", self.repo, PLUGIN)
@@ -866,7 +866,7 @@ class ManagerPlanningTests(unittest.TestCase):
         # Arrange
         write_installed_fixture(self.repo, PLUGIN)
         forged = self.repo / "zz-historical-remnant.txt"
-        forged.write_text("historical\n", encoding="utf-8")
+        forged.write_bytes(b"historical\n")
 
         def historical(document):
             document["payload_digest"] = "1" * 64

@@ -227,6 +227,162 @@ class InstalledValidationTests(unittest.TestCase):
         # Act / Assert
         self.assertTrue(_SecureInstalledRoot._unsafe(metadata))
 
+    def test_installed_validator_windows_pins_root_ancestors_with_secure_flags(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\games": windows_directory(2),
+            "C:\\games\\repo": windows_directory(3),
+        })
+
+        # Act
+        with _SecureInstalledRoot(Path("C:/games/repo"), windows_api=api):
+            pass
+
+        # Assert
+        self.assertEqual(["C:\\", "C:\\games", "C:\\games\\repo", "C:\\games\\repo"], [call[0] for call in api.open_calls])
+        self.assertTrue(all(call[1] & api.FILE_FLAG_OPEN_REPARSE_POINT for call in api.open_calls))
+        self.assertTrue(all(call[1] & api.FILE_FLAG_BACKUP_SEMANTICS for call in api.open_calls))
+        self.assertTrue(all(call[2] == api.FILE_SHARE_READ for call in api.open_calls))
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_shares_write_only_for_exact_manager_lock(self):
+        # Arrange
+        manager_lock = "C:\\repo\\.codex\\codex-game-studios\\manager.lock"
+        similarly_named = "C:\\repo\\ordinary\\manager.lock"
+        api = FakeWindowsApi(
+            {
+                "C:\\": windows_directory(1),
+                "C:\\repo": windows_directory(2),
+                "C:\\repo\\.codex": windows_directory(3),
+                "C:\\repo\\.codex\\codex-game-studios": windows_directory(4),
+                manager_lock: windows_file(5, b"manager"),
+                "C:\\repo\\ordinary": windows_directory(6),
+                similarly_named: windows_file(7, b"ordinary"),
+            }
+        )
+
+        # Act
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            secure.kind(".codex/codex-game-studios/manager.lock")
+            secure.kind("ordinary/manager.lock")
+
+        # Assert
+        shares_by_path = {path: share for path, _, share in api.open_calls}
+        self.assertEqual(
+            api.FILE_SHARE_READ | api.FILE_SHARE_WRITE,
+            shares_by_path[manager_lock],
+        )
+        self.assertEqual(api.FILE_SHARE_READ, shares_by_path[similarly_named])
+        self.assertTrue(
+            all(not (share & api.FILE_SHARE_DELETE) for _, _, share in api.open_calls)
+        )
+        self.assertTrue(
+            all(
+                share == api.FILE_SHARE_READ
+                for path, _, share in api.open_calls
+                if path != manager_lock
+            )
+        )
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_rejects_reparse_component_and_closes_handles(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\games": windows_directory(2, reparse=True),
+        })
+
+        # Act / Assert
+        with self.assertRaisesRegex(OSError, "reparse"):
+            with _SecureInstalledRoot(Path("C:/games/repo"), windows_api=api):
+                pass
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_rejects_final_path_or_identity_discontinuity(self):
+        # Arrange / Act / Assert
+        for mutation, message in (("final_path", "final path"), ("identity", "changed")):
+            with self.subTest(mutation=mutation):
+                api = FakeWindowsApi({
+                    "C:\\": windows_directory(1),
+                    "C:\\repo": windows_directory(2),
+                    "C:\\repo\\state.bin": windows_file(3, b"\x00\xffpayload"),
+                })
+                with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+                    if mutation == "final_path":
+                        api.final_paths["C:\\repo\\state.bin"] = "C:\\outside\\state.bin"
+                    else:
+                        api.mutate_identity_after_read.add("C:\\repo\\state.bin")
+                    with self.assertRaisesRegex(OSError, message):
+                        secure.read("state.bin")
+                self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_accepts_canonical_alias_chain_but_rejects_escape(self):
+        # Arrange
+        requested_root = "D:\\profiles\\RUNNER~1\\repo"
+        canonical_root = "D:\\profiles\\runneradmin\\repo"
+        state_path = f"{canonical_root}\\state.bin"
+        api = FakeWindowsApi(
+            {
+                "D:\\": windows_directory(1),
+                "D:\\profiles": windows_directory(2),
+                "D:\\profiles\\RUNNER~1": windows_directory(3),
+                requested_root: windows_directory(4),
+                state_path: windows_file(5, b"canonical"),
+            }
+        )
+        api.final_paths["D:\\profiles\\RUNNER~1"] = "D:\\profiles\\runneradmin"
+        api.final_paths[requested_root] = canonical_root
+
+        # Act / Assert
+        with _SecureInstalledRoot(
+            Path("D:/profiles/RUNNER~1/repo"), windows_api=api
+        ) as secure:
+            self.assertEqual(b"canonical", secure.read("state.bin"))
+            api.final_paths[state_path] = "C:\\escape\\state.bin"
+            with self.assertRaisesRegex(OSError, "chain"):
+                secure.read("state.bin")
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_reads_binary_bytes_exactly_and_rejects_special_files(self):
+        # Arrange
+        content = b"\x00\xff\x80binary\r\n"
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2),
+            "C:\\repo\\state.bin": windows_file(3, content),
+            "C:\\repo\\device": windows_file(4, b"", disk=False),
+        })
+
+        # Act
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            actual = secure.read("state.bin")
+            with self.assertRaisesRegex(OSError, "special"):
+                secure.kind("device")
+
+        # Assert
+        self.assertEqual(content, actual)
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_walk_retains_directory_handles_until_recursion_finishes(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2, children=("dir", "top.bin")),
+            "C:\\repo\\dir": windows_directory(3, children=("nested.bin",)),
+            "C:\\repo\\dir\\nested.bin": windows_file(4, b"nested"),
+            "C:\\repo\\top.bin": windows_file(5, b"top"),
+        })
+
+        # Act
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            walked = secure.walk_files(".")
+
+        # Assert
+        self.assertEqual({"dir/nested.bin", "top.bin"}, walked)
+        self.assertTrue(api.directory_handle_retained_during_list)
+        self.assertCountEqual(api.opened_handles, api.closed)
+
     def test_installed_mode_reports_shared_block_and_owned_toml_tampering(self):
         # Arrange
         agents = self.repo / "AGENTS.md"
@@ -290,3 +446,72 @@ class InstalledValidationTests(unittest.TestCase):
 
 def canonical_json_with_checksum(document: dict[str, object]) -> bytes:
     return (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+
+
+def windows_directory(identity: int, *, reparse: bool = False, children: tuple[str, ...] = ()) -> dict[str, object]:
+    return {"identity": (7, identity), "kind": "directory", "reparse": reparse, "disk": True, "content": b"", "children": children}
+
+
+def windows_file(identity: int, content: bytes, *, disk: bool = True) -> dict[str, object]:
+    return {"identity": (7, identity), "kind": "file", "reparse": False, "disk": disk, "content": content, "children": ()}
+
+
+class FakeWindowsApi:
+    """Deterministic handle API used to exercise the native-Windows validator path."""
+
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    FILE_SHARE_READ = 0x1
+    FILE_SHARE_WRITE = 0x2
+    FILE_SHARE_DELETE = 0x4
+
+    def __init__(self, entries: dict[str, dict[str, object]]):
+        self.entries = entries
+        self.final_paths = {path: path for path in entries}
+        self.open_calls: list[tuple[str, int, int]] = []
+        self.opened_handles: list[int] = []
+        self.closed: list[int] = []
+        self.handles: dict[int, str] = {}
+        self.mutate_identity_after_read: set[str] = set()
+        self.directory_handle_retained_during_list = True
+
+    def open(self, path: str, *, flags: int, share: int) -> int:
+        if path not in self.entries:
+            raise OSError(f"missing fake path: {path}")
+        handle = len(self.opened_handles) + 100
+        self.open_calls.append((path, flags, share))
+        self.opened_handles.append(handle)
+        self.handles[handle] = path
+        return handle
+
+    def close(self, handle: int) -> None:
+        self.closed.append(handle)
+        self.handles.pop(handle, None)
+
+    def info(self, handle: int):
+        path = self.handles[handle]
+        entry = self.entries[path]
+        return types.SimpleNamespace(
+            identity=entry["identity"],
+            kind=entry["kind"],
+            reparse=entry["reparse"],
+            disk=entry["disk"],
+            size=len(entry["content"]),
+            write_time=11,
+        )
+
+    def final_path(self, handle: int) -> str:
+        return self.final_paths[self.handles[handle]]
+
+    def read(self, handle: int) -> bytes:
+        path = self.handles[handle]
+        content = self.entries[path]["content"]
+        if path in self.mutate_identity_after_read:
+            volume, identity = self.entries[path]["identity"]
+            self.entries[path]["identity"] = (volume, identity + 1000)
+        return content
+
+    def listdir(self, handle: int) -> list[str]:
+        path = self.handles[handle]
+        self.directory_handle_retained_during_list &= handle not in self.closed
+        return list(self.entries[path]["children"])

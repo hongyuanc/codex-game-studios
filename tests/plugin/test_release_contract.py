@@ -349,21 +349,34 @@ class ReleaseContractTests(unittest.TestCase):
             backup = target.with_name("README.original")
             original_lstat = Path.lstat
             swapped = False
+            blocked = False
 
             def lstat_then_swap(path, *args, **kwargs):
-                nonlocal swapped
+                nonlocal blocked, swapped
                 observed = original_lstat(path, *args, **kwargs)
                 if Path(path) == target and not swapped:
-                    target.rename(backup)
+                    try:
+                        target.rename(backup)
+                    except PermissionError:
+                        blocked = True
+                        raise
                     target.symlink_to(backup.name)
                     swapped = True
                 return observed
 
             # Act / Assert
             with mock.patch.object(Path, "lstat", new=lstat_then_swap):
-                with self.assertRaisesRegex(ValueError, "link|changed|identity"):
+                with self.assertRaises((ValueError, PermissionError)) as caught:
                     packager.package_plugin(root, root / "dist")
-            self.assertTrue(swapped)
+            if isinstance(caught.exception, PermissionError):
+                self.assertEqual("nt", os.name)
+                self.assertTrue(blocked)
+                self.assertFalse(swapped)
+                self.assertTrue(target.is_file())
+                self.assertFalse(backup.exists())
+            else:
+                self.assertRegex(str(caught.exception), "link|changed|identity")
+                self.assertTrue(swapped)
 
     def assert_regular_swap_rejected(self, target_relative, attacker_bytes):
         import tools.codex_studio.package_plugin as packager
@@ -382,9 +395,15 @@ class ReleaseContractTests(unittest.TestCase):
             api = original_manager_api(root / "plugins/codex-game-studios")
             filesystem_type = api[3]
             attacked = False
+            blocked = False
 
             def swap_in_attacker():
-                target.rename(approved_stash)
+                nonlocal blocked
+                try:
+                    target.rename(approved_stash)
+                except PermissionError:
+                    blocked = True
+                    raise
                 attacker.rename(target)
 
             def restore_approved():
@@ -442,9 +461,17 @@ class ReleaseContractTests(unittest.TestCase):
             with mock.patch.object(
                 packager, "_manager_api", return_value=adversarial_api
             ):
-                with self.assertRaisesRegex(ValueError, "bytes|mode|changed"):
+                with self.assertRaises((ValueError, PermissionError)) as caught:
                     packager.package_plugin(root, output)
-            self.assertTrue(attacked)
+            if isinstance(caught.exception, PermissionError):
+                self.assertEqual("nt", os.name)
+                self.assertTrue(blocked)
+                self.assertFalse(attacked)
+                self.assertTrue(target.is_file())
+                self.assertTrue(attacker.is_file())
+            else:
+                self.assertRegex(str(caught.exception), "bytes|mode|changed")
+                self.assertTrue(attacked)
             self.assertFalse(archive.exists())
             self.assertFalse(checksum.exists())
 
@@ -615,16 +642,23 @@ class ReleaseContractTests(unittest.TestCase):
 
             def replace_once(path, *args, dir_fd=None, **kwargs):
                 nonlocal raced
-                if path == archive.name and dir_fd is not None and not raced:
+                matches_posix = path == archive.name and dir_fd is not None
+                matches_windows = (
+                    os.name == "nt" and Path(path).resolve() == archive.resolve()
+                )
+                if (matches_posix or matches_windows) and not raced:
                     real_unlink(path, dir_fd=dir_fd)
-                    descriptor = os.open(
-                        path,
-                        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                        0o600,
-                        dir_fd=dir_fd,
-                    )
-                    os.write(descriptor, b"replacement")
-                    os.close(descriptor)
+                    if dir_fd is None:
+                        archive.write_bytes(b"replacement")
+                    else:
+                        descriptor = os.open(
+                            path,
+                            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                            0o600,
+                            dir_fd=dir_fd,
+                        )
+                        os.write(descriptor, b"replacement")
+                        os.close(descriptor)
                     raced = True
                     raise FileNotFoundError(path)
                 return real_unlink(path, *args, dir_fd=dir_fd, **kwargs)
@@ -676,13 +710,16 @@ class ReleaseContractTests(unittest.TestCase):
                 unrelated.write_bytes(b"preserve me")
                 real_replace = os.replace
                 attacked = False
-
+                attack_attempted = False
+                attack_blocked = False
+                blocked_error = None
                 used_directory_handle = False
 
                 def install_attacker_after_identity_check(
                     source, destination, *args, **kwargs
                 ):
-                    nonlocal attacked, used_directory_handle
+                    nonlocal attack_attempted, attacked, attack_blocked
+                    nonlocal blocked_error, used_directory_handle
                     source_path = Path(source)
                     destination_path = Path(destination)
                     if not source_path.is_absolute():
@@ -693,7 +730,13 @@ class ReleaseContractTests(unittest.TestCase):
                         used_directory_handle = True
                     if destination_path == attacked_final and not attacked:
                         approved = output / "approved-temporary-stash"
-                        real_replace(source_path, approved)
+                        attack_attempted = True
+                        try:
+                            real_replace(source_path, approved)
+                        except PermissionError as error:
+                            attack_blocked = True
+                            blocked_error = error
+                            raise
                         source_path.write_bytes(
                             f"attacker {target}\n".encode("ascii")
                         )
@@ -709,13 +752,27 @@ class ReleaseContractTests(unittest.TestCase):
                     "replace",
                     side_effect=install_attacker_after_identity_check,
                 ):
-                    with self.assertRaisesRegex(
-                        ValueError, "final|identity|bytes|changed"
-                    ):
+                    with self.assertRaises(
+                        (ValueError, PermissionError)
+                    ) as caught:
                         packager.package_plugin(ROOT, output)
-                self.assertTrue(attacked)
-                if os.name != "nt":
-                    self.assertTrue(used_directory_handle)
+                self.assertTrue(attack_attempted)
+                if isinstance(caught.exception, PermissionError):
+                    self.assertEqual("nt", os.name)
+                    self.assertTrue(attack_blocked)
+                    self.assertIs(caught.exception, blocked_error)
+                    self.assertFalse(attacked)
+                    self.assertFalse(
+                        (output / "approved-temporary-stash").exists()
+                    )
+                else:
+                    self.assertRegex(
+                        str(caught.exception), "final|identity|bytes|changed"
+                    )
+                    self.assertTrue(attacked)
+                    self.assertFalse(attack_blocked)
+                    if os.name != "nt":
+                        self.assertTrue(used_directory_handle)
                 self.assertFalse(archive.exists())
                 self.assertFalse(checksum.exists())
                 self.assertEqual([], list(output.glob(".*.tmp")))
@@ -829,17 +886,25 @@ class ReleaseContractTests(unittest.TestCase):
             substitute_note = output / "substitute-notes.txt"
             real_new_temporary = packager._new_temporary
             substituted = False
+            substitution_blocked = False
+            blocked_error = None
             escaped_creation = False
 
             def substitute_then_create(destination, label, *args, **kwargs):
-                nonlocal substituted, escaped_creation
+                nonlocal blocked_error, escaped_creation
+                nonlocal substituted, substitution_blocked
                 is_target = (
                     target == "archive" and label.endswith(".zip")
                 ) or (
                     target == "checksum" and label.endswith(".zip.sha256")
                 )
                 if is_target and not substituted:
-                    output.rename(retained)
+                    try:
+                        output.rename(retained)
+                    except PermissionError as error:
+                        substitution_blocked = True
+                        blocked_error = error
+                        raise
                     output.mkdir()
                     substitute_note.write_bytes(b"substitute unrelated")
                     substituted = True
@@ -860,9 +925,27 @@ class ReleaseContractTests(unittest.TestCase):
                 "_new_temporary",
                 side_effect=substitute_then_create,
             ):
-                with self.assertRaises((OSError, ValueError)):
+                with self.assertRaises((OSError, ValueError)) as caught:
                     packager.package_plugin(ROOT, output)
-            self.assertTrue(substituted)
+            if isinstance(caught.exception, PermissionError):
+                self.assertEqual("nt", os.name)
+                self.assertTrue(substitution_blocked)
+                self.assertIs(caught.exception, blocked_error)
+                self.assertFalse(substituted)
+                self.assertFalse(retained.exists())
+                self.assertEqual(b"retained unrelated", retained_note.read_bytes())
+                self.assertEqual(
+                    [],
+                    [
+                        path.name
+                        for path in output.iterdir()
+                        if packager._is_package_output_name(path.name)
+                    ],
+                )
+                return
+            self.assertTrue(
+                substituted, (repr(caught.exception), substitution_blocked)
+            )
             self.assertFalse(escaped_creation)
             for directory_path in (output, retained):
                 self.assertEqual(

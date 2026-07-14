@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import ntpath
 import os
 from pathlib import Path
 import shutil
@@ -192,6 +193,118 @@ class PayloadGenerationTests(unittest.TestCase):
         self.assertEqual((safe_fs.ImmediateEntry("child", "directory", None),), entries)
         self.assertEqual(1, scandir.call_count)
         self.assertEqual(set(api.paths), set(api.closed))
+
+    def test_windows_manager_lock_listing_allows_only_required_write_sharing(self):
+        # Arrange
+        import safe_fs
+
+        class FakeApi:
+            def __init__(self):
+                self.calls = []
+                self.paths = {}
+
+            def create_file(self, path, access, share, disposition, flags):
+                handle = len(self.calls) + 1
+                self.calls.append((handle, path, access, share, disposition, flags))
+                self.paths[handle] = path
+                return handle
+
+            def attributes(self, handle):
+                name = ntpath.basename(self.paths[handle])
+                if name in {"manager.lock", "unknown.txt"}:
+                    return 0, 0
+                return safe_fs.FILE_ATTRIBUTE_DIRECTORY, 0
+
+            def final_path(self, handle):
+                return self.paths[handle]
+
+            def close(self, handle):
+                return None
+
+        class Scan:
+            def __enter__(self):
+                return iter(
+                    (
+                        types.SimpleNamespace(name="manager.lock"),
+                        types.SimpleNamespace(name="unknown.txt"),
+                    )
+                )
+
+            def __exit__(self, exc_type, exc, traceback):
+                return None
+
+        api = FakeApi()
+
+        # Act
+        with mock.patch("safe_fs._is_windows", return_value=True), mock.patch(
+            "safe_fs._WindowsApi", return_value=api
+        ), mock.patch("safe_fs.os.scandir", return_value=Scan()), mock.patch(
+            "safe_fs._windows_descriptor_from_verified", return_value=91
+        ) as descriptor, mock.patch(
+            "safe_fs.os.fstat", return_value=types.SimpleNamespace()
+        ), mock.patch(
+            "safe_fs._hash_descriptor", return_value="a" * 64
+        ), mock.patch("safe_fs.os.close"):
+            entries = list_immediate_secure(
+                Path(r"C:\repo"), ".codex/codex-game-studios"
+            )
+
+        # Assert
+        child_calls = {ntpath.basename(call[1]): call for call in api.calls[1:]}
+        self.assertEqual(
+            safe_fs.FILE_SHARE_READ | safe_fs.FILE_SHARE_WRITE,
+            child_calls["manager.lock"][3],
+        )
+        self.assertEqual(safe_fs.FILE_SHARE_READ, child_calls["unknown.txt"][3])
+        self.assertFalse(
+            any(call[3] & safe_fs.FILE_SHARE_DELETE for call in child_calls.values())
+        )
+        self.assertEqual(1, descriptor.call_count)
+        self.assertEqual(
+            (
+                safe_fs.ImmediateEntry("manager.lock", "file", None),
+                safe_fs.ImmediateEntry("unknown.txt", "file", "a" * 64),
+            ),
+            entries,
+        )
+
+    @unittest.skipIf(os.name == "nt", "POSIX descriptor behavior")
+    def test_posix_manager_lock_listing_skips_hash_only_for_exact_path(self):
+        # Arrange
+        import safe_fs
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manager = root / ".codex/codex-game-studios"
+            ordinary = root / "ordinary"
+            manager.mkdir(parents=True)
+            ordinary.mkdir()
+            (manager / "manager.lock").write_bytes(b"manager")
+            (manager / "unknown.txt").write_bytes(b"unknown")
+            (ordinary / "manager.lock").write_bytes(b"ordinary")
+
+            # Act
+            with mock.patch(
+                "safe_fs._hash_descriptor", return_value="a" * 64
+            ) as hash_descriptor:
+                manager_entries = list_immediate_secure(
+                    root, ".codex/codex-game-studios"
+                )
+                ordinary_entries = list_immediate_secure(root, "ordinary")
+
+        # Assert
+        self.assertEqual(2, hash_descriptor.call_count)
+        self.assertEqual(
+            (
+                safe_fs.ImmediateEntry("manager.lock", "file", None),
+                safe_fs.ImmediateEntry("unknown.txt", "file", "a" * 64),
+            ),
+            manager_entries,
+        )
+        self.assertEqual(
+            (safe_fs.ImmediateEntry("manager.lock", "file", "a" * 64),),
+            ordinary_entries,
+        )
 
     def test_payload_build_is_deterministic_and_source_identical(self):
         # Arrange
@@ -477,29 +590,77 @@ class PayloadGenerationTests(unittest.TestCase):
                 (source_root / "file.txt").write_bytes(b"approved\n")
                 replacement = root / "replacement.txt"
                 replacement.write_bytes(b"replacement\n")
+                source_backup = source_root / "file-original.txt"
+                destination_backup = destination_root / "file-original.txt"
+                rename_attempted = False
+                rename_blocked = False
 
                 import safe_fs
                 original_copy_stream = safe_fs._copy_stream
 
                 def swap_then_copy(source_fd, destination_fd):
+                    nonlocal rename_attempted, rename_blocked
                     if swap_target == "source":
                         original = source_root / "file.txt"
-                        original.rename(source_root / "file-original.txt")
+                        backup = source_backup
+                    else:
+                        original = destination_root / "file.txt"
+                        backup = destination_backup
+                    rename_attempted = True
+                    try:
+                        original.rename(backup)
+                    except PermissionError:
+                        rename_blocked = True
+                        raise
+                    if swap_target == "source":
                         original.symlink_to(replacement)
                     else:
-                        destination = destination_root / "file.txt"
-                        destination.rename(destination_root / "file-original.txt")
-                        destination.symlink_to(replacement)
+                        original.symlink_to(replacement)
                     return original_copy_stream(source_fd, destination_fd)
 
                 with mock.patch("safe_fs._copy_stream", side_effect=swap_then_copy):
-                    with self.assertRaisesRegex(PayloadError, "changed during secure copy"):
+                    with self.assertRaises((PayloadError, PermissionError)) as caught:
                         copy_file_secure(
                             source_root,
                             "file.txt",
                             destination_root,
                             "file.txt",
                             0o644,
+                        )
+                self.assertTrue(rename_attempted)
+                self.assertEqual(b"replacement\n", replacement.read_bytes())
+                destination_path = destination_root / "file.txt"
+                if isinstance(caught.exception, PermissionError):
+                    self.assertEqual("nt", os.name)
+                    self.assertTrue(rename_blocked)
+                    self.assertEqual(
+                        b"approved\n", (source_root / "file.txt").read_bytes()
+                    )
+                    self.assertFalse(source_backup.exists())
+                    self.assertFalse(destination_backup.exists())
+                    self.assertTrue(destination_path.is_file())
+                    self.assertFalse(destination_path.is_symlink())
+                    self.assertEqual(b"", destination_path.read_bytes())
+                else:
+                    self.assertFalse(rename_blocked)
+                    self.assertRegex(
+                        str(caught.exception), "changed during secure copy"
+                    )
+                    if swap_target == "source":
+                        self.assertTrue((source_root / "file.txt").is_symlink())
+                        self.assertEqual(b"approved\n", source_backup.read_bytes())
+                        self.assertFalse(destination_backup.exists())
+                        self.assertFalse(destination_path.is_symlink())
+                        self.assertEqual(b"approved\n", destination_path.read_bytes())
+                    else:
+                        self.assertEqual(
+                            b"approved\n", (source_root / "file.txt").read_bytes()
+                        )
+                        self.assertFalse(source_backup.exists())
+                        self.assertTrue(destination_backup.exists())
+                        self.assertTrue(destination_path.is_symlink())
+                        self.assertEqual(
+                            b"approved\n", destination_backup.read_bytes()
                         )
 
     def test_payload_policy_rejects_rogue_and_missing_root_inventory(self):
@@ -699,6 +860,64 @@ class PayloadGenerationTests(unittest.TestCase):
                 api=reparse_api,
             ):
                 self.fail("reparse handle must fail before yielding")
+
+    def test_windows_secure_open_accepts_an_existing_verified_parent(self):
+        # Arrange
+        import safe_fs
+
+        class ExistingParentApi:
+            def __init__(self):
+                self.calls = []
+                self.created = []
+                self.closed = []
+
+            def create_directory(self, path):
+                self.created.append(path)
+                raise FileExistsError(183, "already exists")
+
+            def create_file(self, path, access, share, disposition, flags):
+                handle = len(self.calls) + 1
+                self.calls.append((handle, path, access, share, disposition, flags))
+                return handle
+
+            def attributes(self, handle):
+                if handle < 3:
+                    return safe_fs.FILE_ATTRIBUTE_DIRECTORY, 0
+                return 0, 0
+
+            def final_path(self, handle):
+                return {
+                    1: r"\\?\C:\repo",
+                    2: r"\\?\C:\repo\directory",
+                    3: r"\\?\C:\repo\directory\file.txt",
+                }[handle]
+
+            def close(self, handle):
+                self.closed.append(handle)
+
+        api = ExistingParentApi()
+
+        # Act
+        try:
+            opened = safe_fs._windows_open_verified(
+                Path(r"C:\repo"),
+                "directory/file.txt",
+                access=safe_fs.GENERIC_READ,
+                share=safe_fs.FILE_SHARE_READ,
+                disposition=safe_fs.OPEN_EXISTING,
+                create_parents=True,
+                final_directory=False,
+                api=api,
+            )
+        except FileExistsError as error:
+            self.fail(f"existing parent was not reopened for verification: {error}")
+
+        # Assert
+        with opened as handles:
+            self.assertEqual(3, handles.final_handle)
+            self.assertEqual((1, 2), handles.ancestor_handles)
+            self.assertEqual([r"C:\repo\directory"], api.created)
+        self.assertEqual([3, 2, 1], api.closed)
 
     def test_windows_handle_contract_uses_verified_descriptor_attributes_and_directories(self):
         import safe_fs

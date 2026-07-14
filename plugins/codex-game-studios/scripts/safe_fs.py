@@ -54,7 +54,9 @@ _FILE_BASIC_INFO_CLASS = 0
 _FILE_RENAME_INFO_CLASS = 3
 _FILE_DISPOSITION_INFO_CLASS = 4
 _VOLUME_NAME_DOS = 0
+_ERROR_ALREADY_EXISTS = 183
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+_MANAGER_LOCK_RELATIVE = ".codex/codex-game-studios/manager.lock"
 
 
 class _FileAttributeTagInfo(ctypes.Structure):
@@ -312,7 +314,14 @@ def _windows_open_verified(
         for index in range(len(parts)):
             directory_path = ntpath.join(root_text, *parts[:index])
             if index and create_parents:
-                api.create_directory(directory_path)
+                try:
+                    api.create_directory(directory_path)
+                except OSError as error:
+                    error_code = getattr(error, "winerror", None)
+                    if error_code is None:
+                        error_code = error.errno
+                    if error_code != _ERROR_ALREADY_EXISTS:
+                        raise
             handle = api.create_file(
                 directory_path, GENERIC_READ, share, OPEN_EXISTING, directory_flags
             )
@@ -582,11 +591,15 @@ def list_immediate_secure(
                 names = sorted(entry.name for entry in iterator)
             for name in names:
                 child_relative = normalize_relative_path(f"{relative}/{name}")
+                is_manager_lock = child_relative == _MANAGER_LOCK_RELATIVE
+                child_share = FILE_SHARE_READ
+                if is_manager_lock:
+                    child_share |= FILE_SHARE_WRITE
                 child = _windows_open_verified(
                     root,
                     child_relative,
                     access=GENERIC_READ,
-                    share=FILE_SHARE_READ,
+                    share=child_share,
                     disposition=OPEN_EXISTING,
                     create_parents=False,
                     final_directory=None,
@@ -597,7 +610,7 @@ def list_immediate_secure(
                         "directory" if handles.final_is_directory else "file"
                     )
                     child_hash = None
-                    if entry_type == "file":
+                    if entry_type == "file" and not is_manager_lock:
                         descriptor = _windows_descriptor_from_verified(
                             handles, _READ_FLAGS
                         )
@@ -621,7 +634,8 @@ def list_immediate_secure(
                 f"cannot list secure directory: {relative}: {error}"
             ) from error
         for name in names:
-            normalize_relative_path(f"{relative}/{name}")
+            child_relative = normalize_relative_path(f"{relative}/{name}")
+            is_manager_lock = child_relative == _MANAGER_LOCK_RELATIVE
             try:
                 descriptor = os.open(
                     name,
@@ -637,7 +651,7 @@ def list_immediate_secure(
                 entry_type = _kind(before)
                 child_hash = (
                     _hash_descriptor(descriptor, before)
-                    if entry_type == "file"
+                    if entry_type == "file" and not is_manager_lock
                     else None
                 )
                 current = os.stat(

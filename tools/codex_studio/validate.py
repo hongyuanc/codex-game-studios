@@ -8,6 +8,7 @@ import dataclasses
 from datetime import datetime
 import hashlib
 import json
+import ntpath
 import os
 import pathlib
 import re
@@ -1077,6 +1078,7 @@ def validate_repository(root: pathlib.Path, phase: str) -> list[ValidationIssue]
 
 
 _INSTALLATION_STATE = ".codex/codex-game-studios/installation.json"
+_MANAGER_LOCK = ".codex/codex-game-studios/manager.lock"
 _MANAGER_ALLOWED_CHILDREN = {"installation.json", "manager.lock", "recovery", "legal"}
 _INSTALLED_STATE_KEYS = {
     "schema_version", "plugin_version", "payload_digest", "transaction_id",
@@ -1095,10 +1097,24 @@ _HASH = re.compile(r"[0-9a-f]{64}\Z")
 class _SecureInstalledRoot:
     """Pinned, component-wise no-follow read boundary for installed validation."""
 
-    def __init__(self, root: pathlib.Path):
-        self.root = pathlib.Path(root).absolute()
+    def __init__(self, root: pathlib.Path, *, windows_api=None):
+        self._windows_api = windows_api
+        if self._windows_api is None and os.name == "nt":
+            self._windows_api = _NativeWindowsApi()
+        if self._windows_api is not None:
+            native_root = pathlib.Path(root).absolute() if os.name == "nt" else root
+            self._windows_root = pathlib.PureWindowsPath(str(native_root))
+            if not self._windows_root.is_absolute():
+                raise ValueError("Windows repository root must be absolute")
+            self.root = root
+        else:
+            self.root = pathlib.Path(root).absolute()
+            self._windows_root = None
         self.fd: int | None = None
         self.identity: tuple[int, int] | None = None
+        self._windows_handles: list[int] = []
+        self._windows_identity: tuple[int, int] | None = None
+        self._windows_canonical_root: pathlib.PureWindowsPath | None = None
 
     @staticmethod
     def _unsafe(metadata: os.stat_result) -> bool:
@@ -1107,6 +1123,8 @@ class _SecureInstalledRoot:
         return stat.S_ISLNK(metadata.st_mode) or bool(attributes & reparse) or bool(getattr(metadata, "st_reparse_tag", 0))
 
     def __enter__(self) -> "_SecureInstalledRoot":
+        if self._windows_api is not None:
+            return self._windows_enter()
         current = pathlib.Path(self.root.anchor)
         for part in self.root.parts[1:]:
             current = current / part
@@ -1123,6 +1141,9 @@ class _SecureInstalledRoot:
         return self
 
     def verify(self) -> None:
+        if self._windows_api is not None:
+            self._windows_verify()
+            return
         assert self.fd is not None and self.identity is not None
         opened = os.fstat(self.fd)
         current = os.lstat(self.root)
@@ -1130,6 +1151,15 @@ class _SecureInstalledRoot:
             raise OSError("repository root changed during validation")
 
     def __exit__(self, exc_type, exc, traceback) -> None:
+        if self._windows_api is not None:
+            try:
+                if exc_type is None:
+                    self._windows_verify()
+            finally:
+                for handle in reversed(self._windows_handles):
+                    self._windows_api.close(handle)
+                self._windows_handles.clear()
+            return
         try:
             if exc_type is None:
                 self.verify()
@@ -1139,6 +1169,10 @@ class _SecureInstalledRoot:
 
     @contextlib.contextmanager
     def _open(self, relative: str, *, directory: bool | None = None):
+        if self._windows_api is not None:
+            with self._windows_open(relative, directory=directory) as opened:
+                yield opened
+            return
         assert self.fd is not None
         parts = pathlib.PurePosixPath(relative).parts
         descriptor = os.dup(self.fd)
@@ -1165,6 +1199,14 @@ class _SecureInstalledRoot:
             os.close(descriptor)
 
     def read(self, relative: str) -> bytes:
+        if self._windows_api is not None:
+            with self._windows_open(relative, directory=False) as (handle, before):
+                content = self._windows_api.read(handle)
+                after = self._windows_api.info(handle)
+                if self._windows_signature(before) != self._windows_signature(after):
+                    raise OSError(f"file changed during secure read: {relative}")
+                self._windows_verify()
+                return content
         with self._open(relative, directory=False) as (descriptor, before):
             chunks: list[bytes] = []
             while chunk := os.read(descriptor, 1024 * 1024):
@@ -1176,6 +1218,11 @@ class _SecureInstalledRoot:
             return b"".join(chunks)
 
     def kind(self, relative: str) -> str:
+        if self._windows_api is not None:
+            with self._windows_open(relative) as (_, metadata):
+                if not metadata.disk or metadata.kind not in {"file", "directory"}:
+                    raise OSError(f"special file is forbidden: {relative}")
+                return metadata.kind
         with self._open(relative) as (_, metadata):
             if stat.S_ISREG(metadata.st_mode):
                 return "file"
@@ -1184,6 +1231,18 @@ class _SecureInstalledRoot:
             raise OSError(f"special file is forbidden: {relative}")
 
     def walk_files(self, relative: str) -> set[str]:
+        if self._windows_api is not None:
+            result: set[str] = set()
+            with self._windows_open(relative, directory=True) as (handle, _):
+                path = self._windows_canonical_path(
+                    self._windows_api.final_path(handle)
+                )
+                prefix = pathlib.PurePosixPath(relative)
+                if relative == ".":
+                    prefix = pathlib.PurePosixPath()
+                self._windows_walk(handle, path, prefix, result)
+            self._windows_verify()
+            return result
         result: set[str] = set()
         with self._open(relative, directory=True) as (descriptor, _):
             self._walk_descriptor(descriptor, pathlib.PurePosixPath(relative), result)
@@ -1210,6 +1269,314 @@ class _SecureInstalledRoot:
                     raise OSError(f"special file is forbidden: {relative}")
             finally:
                 os.close(child)
+
+    @staticmethod
+    def _windows_signature(metadata) -> tuple[object, ...]:
+        return (
+            metadata.identity,
+            metadata.kind,
+            metadata.reparse,
+            metadata.disk,
+            metadata.size,
+            metadata.write_time,
+        )
+
+    @staticmethod
+    def _windows_normalize(path: str) -> str:
+        if path.startswith("\\\\?\\UNC\\"):
+            path = "\\\\" + path[8:]
+        elif path.startswith("\\\\?\\"):
+            path = path[4:]
+        return ntpath.normcase(ntpath.normpath(path))
+
+    @staticmethod
+    def _windows_canonical_path(path: str) -> pathlib.PureWindowsPath:
+        if path.startswith("\\\\?\\UNC\\"):
+            path = "\\\\" + path[8:]
+        elif path.startswith("\\\\?\\"):
+            path = path[4:]
+        return pathlib.PureWindowsPath(ntpath.normpath(path))
+
+    def _windows_paths(self) -> list[pathlib.PureWindowsPath]:
+        assert self._windows_root is not None
+        current = pathlib.PureWindowsPath(self._windows_root.anchor)
+        paths = [current]
+        for part in self._windows_root.parts[1:]:
+            current = current / part
+            paths.append(current)
+        return paths
+
+    def _windows_open_checked(
+        self,
+        path: pathlib.PureWindowsPath,
+        *,
+        directory: bool | None = None,
+        expected_parent: pathlib.PureWindowsPath | None = None,
+        expected_final: pathlib.PureWindowsPath | None = None,
+        manager_lock: bool = False,
+    ):
+        assert self._windows_api is not None and self._windows_root is not None
+        flags = self._windows_api.FILE_FLAG_OPEN_REPARSE_POINT | self._windows_api.FILE_FLAG_BACKUP_SEMANTICS
+        share = self._windows_api.FILE_SHARE_READ
+        if manager_lock:
+            share |= self._windows_api.FILE_SHARE_WRITE
+        handle = self._windows_api.open(str(path), flags=flags, share=share)
+        try:
+            metadata = self._windows_api.info(handle)
+            if metadata.reparse:
+                raise OSError(f"reparse point is forbidden: {path}")
+            if not metadata.disk or metadata.kind not in {"file", "directory"}:
+                raise OSError(f"special file is forbidden: {path}")
+            if directory is True and metadata.kind != "directory":
+                raise OSError(f"expected directory: {path}")
+            if directory is False and metadata.kind != "file":
+                raise OSError(f"expected regular file: {path}")
+            final_path = self._windows_canonical_path(
+                self._windows_api.final_path(handle)
+            )
+            if expected_parent is not None and self._windows_normalize(
+                str(final_path.parent)
+            ) != self._windows_normalize(str(expected_parent)):
+                raise OSError(
+                    f"opened handle final path escapes pinned directory chain: {path}"
+                )
+            if expected_final is not None and self._windows_normalize(
+                str(final_path)
+            ) != self._windows_normalize(str(expected_final)):
+                raise OSError(
+                    f"repository root canonical final path changed: {path}"
+                )
+            return handle, metadata, final_path
+        except BaseException:
+            self._windows_api.close(handle)
+            raise
+
+    def _windows_enter(self) -> "_SecureInstalledRoot":
+        try:
+            canonical_parent = None
+            for path in self._windows_paths():
+                handle, metadata, canonical_path = self._windows_open_checked(
+                    path,
+                    directory=True,
+                    expected_parent=canonical_parent,
+                )
+                self._windows_handles.append(handle)
+                canonical_parent = canonical_path
+            self._windows_identity = metadata.identity
+            self._windows_canonical_root = canonical_path
+            return self
+        except BaseException:
+            for handle in reversed(self._windows_handles):
+                self._windows_api.close(handle)
+            self._windows_handles.clear()
+            raise
+
+    def _windows_verify(self) -> None:
+        assert (
+            self._windows_root is not None
+            and self._windows_identity is not None
+            and self._windows_canonical_root is not None
+        )
+        handle, metadata, _ = self._windows_open_checked(
+            self._windows_root,
+            directory=True,
+            expected_final=self._windows_canonical_root,
+        )
+        try:
+            if metadata.identity != self._windows_identity:
+                raise OSError("repository root changed during validation")
+        finally:
+            self._windows_api.close(handle)
+
+    @contextlib.contextmanager
+    def _windows_open(self, relative: str, *, directory: bool | None = None):
+        assert (
+            self._windows_api is not None
+            and self._windows_root is not None
+            and self._windows_canonical_root is not None
+        )
+        pure = pathlib.PurePosixPath(relative)
+        if pure.is_absolute() or any(part in {".."} or "\\" in part for part in pure.parts):
+            raise OSError(f"unsafe relative path: {relative}")
+        if not pure.parts or pure.parts == (".",):
+            handle = self._windows_handles[-1]
+            metadata = self._windows_api.info(handle)
+            if directory is False:
+                raise OSError(f"expected regular file: {relative}")
+            yield handle, metadata
+            return
+        opened: list[int] = []
+        current = self._windows_canonical_root
+        canonical_parent = self._windows_canonical_root
+        try:
+            parts = [part for part in pure.parts if part not in {"", "."}]
+            for index, part in enumerate(parts):
+                current /= part
+                expected = directory if index == len(parts) - 1 else True
+                logical_path = pathlib.PurePosixPath(*parts[: index + 1]).as_posix()
+                handle, metadata, canonical_path = self._windows_open_checked(
+                    current,
+                    directory=expected,
+                    expected_parent=canonical_parent,
+                    manager_lock=(logical_path == _MANAGER_LOCK),
+                )
+                opened.append(handle)
+                current = canonical_path
+                canonical_parent = canonical_path
+            yield opened[-1], metadata
+        finally:
+            for handle in reversed(opened):
+                self._windows_api.close(handle)
+
+    def _windows_walk(
+        self,
+        descriptor: int,
+        directory: pathlib.PureWindowsPath,
+        prefix: pathlib.PurePosixPath,
+        result: set[str],
+    ) -> None:
+        assert self._windows_api is not None
+        for name in sorted(self._windows_api.listdir(descriptor)):
+            if not name or name in {".", ".."} or "/" in name or "\\" in name:
+                raise OSError(f"unsafe directory entry: {name!r}")
+            path = directory / name
+            relative = prefix / name
+            handle, metadata, canonical_path = self._windows_open_checked(
+                path,
+                expected_parent=directory,
+                manager_lock=(relative.as_posix() == _MANAGER_LOCK),
+            )
+            try:
+                if metadata.kind == "directory":
+                    self._windows_walk(
+                        handle, canonical_path, relative, result
+                    )
+                elif metadata.kind == "file":
+                    result.add(relative.as_posix())
+                else:
+                    raise OSError(f"special file is forbidden: {relative.as_posix()}")
+            finally:
+                self._windows_api.close(handle)
+
+
+@dataclasses.dataclass(frozen=True)
+class _WindowsHandleInfo:
+    identity: tuple[int, int]
+    kind: str
+    reparse: bool
+    disk: bool
+    size: int
+    write_time: int
+
+
+class _NativeWindowsApi:
+    """Minimal ctypes Win32 surface for handle-pinned installed validation."""
+
+    FILE_SHARE_READ = 0x1
+    FILE_SHARE_WRITE = 0x2
+    FILE_SHARE_DELETE = 0x4
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes
+
+        self.ctypes = ctypes
+        self.wintypes = wintypes
+
+        class ByHandleFileInformation(ctypes.Structure):
+            _fields_ = [
+                ("dwFileAttributes", wintypes.DWORD),
+                ("ftCreationTime", wintypes.FILETIME),
+                ("ftLastAccessTime", wintypes.FILETIME),
+                ("ftLastWriteTime", wintypes.FILETIME),
+                ("dwVolumeSerialNumber", wintypes.DWORD),
+                ("nFileSizeHigh", wintypes.DWORD),
+                ("nFileSizeLow", wintypes.DWORD),
+                ("nNumberOfLinks", wintypes.DWORD),
+                ("nFileIndexHigh", wintypes.DWORD),
+                ("nFileIndexLow", wintypes.DWORD),
+            ]
+
+        self.ByHandleFileInformation = ByHandleFileInformation
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel32.CreateFileW.argtypes = [
+            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        ]
+        self.kernel32.CreateFileW.restype = wintypes.HANDLE
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+        self.kernel32.GetFileInformationByHandle.argtypes = [wintypes.HANDLE, ctypes.POINTER(ByHandleFileInformation)]
+        self.kernel32.GetFileInformationByHandle.restype = wintypes.BOOL
+        self.kernel32.GetFileType.argtypes = [wintypes.HANDLE]
+        self.kernel32.GetFileType.restype = wintypes.DWORD
+        self.kernel32.GetFinalPathNameByHandleW.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
+        self.kernel32.GetFinalPathNameByHandleW.restype = wintypes.DWORD
+        self.kernel32.SetFilePointerEx.argtypes = [wintypes.HANDLE, ctypes.c_longlong, ctypes.POINTER(ctypes.c_longlong), wintypes.DWORD]
+        self.kernel32.SetFilePointerEx.restype = wintypes.BOOL
+        self.kernel32.ReadFile.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID]
+        self.kernel32.ReadFile.restype = wintypes.BOOL
+
+    def _error(self, operation: str) -> OSError:
+        code = self.ctypes.get_last_error()
+        return OSError(code, f"{operation} failed: {self.ctypes.FormatError(code)}")
+
+    def open(self, path: str, *, flags: int, share: int) -> int:
+        access = 0x0001 | 0x0080  # FILE_READ_DATA/LIST_DIRECTORY | FILE_READ_ATTRIBUTES
+        handle = self.kernel32.CreateFileW(path, access, share, None, 3, flags, None)
+        invalid = self.ctypes.c_void_p(-1).value
+        if handle == invalid:
+            raise self._error("CreateFileW")
+        return int(handle)
+
+    def close(self, handle: int) -> None:
+        if not self.kernel32.CloseHandle(handle):
+            raise self._error("CloseHandle")
+
+    def info(self, handle: int) -> _WindowsHandleInfo:
+        data = self.ByHandleFileInformation()
+        if not self.kernel32.GetFileInformationByHandle(handle, self.ctypes.byref(data)):
+            raise self._error("GetFileInformationByHandle")
+        attributes = int(data.dwFileAttributes)
+        identity = (int(data.dwVolumeSerialNumber), (int(data.nFileIndexHigh) << 32) | int(data.nFileIndexLow))
+        size = (int(data.nFileSizeHigh) << 32) | int(data.nFileSizeLow)
+        write_time = (int(data.ftLastWriteTime.dwHighDateTime) << 32) | int(data.ftLastWriteTime.dwLowDateTime)
+        return _WindowsHandleInfo(
+            identity=identity,
+            kind="directory" if attributes & 0x10 else "file",
+            reparse=bool(attributes & 0x400),
+            disk=self.kernel32.GetFileType(handle) == 0x1,
+            size=size,
+            write_time=write_time,
+        )
+
+    def final_path(self, handle: int) -> str:
+        size = self.kernel32.GetFinalPathNameByHandleW(handle, None, 0, 0)
+        if not size:
+            raise self._error("GetFinalPathNameByHandleW")
+        buffer = self.ctypes.create_unicode_buffer(size + 1)
+        written = self.kernel32.GetFinalPathNameByHandleW(handle, buffer, len(buffer), 0)
+        if not written or written >= len(buffer):
+            raise self._error("GetFinalPathNameByHandleW")
+        return buffer.value
+
+    def read(self, handle: int) -> bytes:
+        if not self.kernel32.SetFilePointerEx(handle, 0, None, 0):
+            raise self._error("SetFilePointerEx")
+        chunks: list[bytes] = []
+        while True:
+            buffer = self.ctypes.create_string_buffer(1024 * 1024)
+            count = self.wintypes.DWORD()
+            if not self.kernel32.ReadFile(handle, buffer, len(buffer), self.ctypes.byref(count), None):
+                raise self._error("ReadFile")
+            if count.value == 0:
+                return b"".join(chunks)
+            chunks.append(buffer.raw[:count.value])
+
+    def listdir(self, handle: int) -> list[str]:
+        return os.listdir(self.final_path(handle))
 
 
 def _installed_issue(path: str, message: str) -> ValidationIssue:
