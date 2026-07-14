@@ -139,15 +139,15 @@ KNOWN_GIT_SUBCOMMANDS = {
     "describe", "diagnose", "diff", "diff-files", "diff-index", "diff-pairs", "diff-tree", "difftool",
     "fast-export", "fast-import", "fetch", "fetch-pack", "filter-branch", "fmt-merge-msg",
     "for-each-ref", "for-each-repo", "format-patch", "fsck", "fsck-objects", "fsmonitor--daemon",
-    "gc", "get-tar-commit-id", "grep", "hash-object", "hook",
-    "help", "index-pack", "init", "init-db", "interpret-trailers", "log", "ls-files", "ls-remote",
+    "gc", "get-tar-commit-id", "grep", "hash-object", "help", "history", "hook",
+    "index-pack", "init", "init-db", "interpret-trailers", "last-modified", "log", "ls-files", "ls-remote",
     "ls-tree", "mailinfo", "mailsplit", "maintenance", "merge", "merge-base", "merge-file",
     "merge-index", "merge-one-file", "merge-ours", "merge-recursive", "merge-recursive-ours",
     "merge-recursive-theirs", "merge-subtree", "merge-tree", "mergetool", "mktag", "mktree",
     "multi-pack-index", "mv",
     "name-rev", "notes", "pack-objects", "pack-redundant", "pack-refs", "patch-id", "pickaxe", "prune",
     "prune-packed", "pull", "push", "range-diff", "read-tree", "rebase", "reflog", "refs",
-    "remote", "remote-ext", "remote-fd", "repack", "replace", "request-pull", "rerere",
+    "remote", "remote-ext", "remote-fd", "repack", "replace", "repo", "request-pull", "rerere",
     "reset", "restore", "rev-list",
     "receive-pack", "rev-parse", "revert", "replay", "rm", "scalar", "send-pack", "shortlog",
     "show", "show-branch", "show-index", "show-ref",
@@ -779,7 +779,7 @@ def _recursive_invocations(
                 raise ValueError("shell -c is missing its command string")
             nested = tokens[command_index]
             if DYNAMIC_TOKEN_PREFIX in nested or "$" in nested:
-                if re.search(r"\b(?:reset|clean|push)\b", " ".join(tokens[command_index:])):
+                if re.search(r"\b(?:reset|clean|history|push)\b", " ".join(tokens[command_index:])):
                     invocations.append(GitInvocation("dynamic", (), True))
             else:
                 invocations.extend(
@@ -789,7 +789,7 @@ def _recursive_invocations(
         if executable == "eval":
             nested = " ".join(tokens[1:])
             if DYNAMIC_TOKEN_PREFIX in nested or "$" in nested:
-                if re.search(r"\b(?:reset|clean|push)\b", nested):
+                if re.search(r"\b(?:reset|clean|history|push)\b", nested):
                     invocations.append(GitInvocation("dynamic", (), True))
             elif nested:
                 invocations.extend(
@@ -1021,7 +1021,7 @@ def _help_requested(invocation: GitInvocation) -> bool:
 def _dynamic_destructive_intent(args: tuple[str, ...]) -> bool:
     return any(argument in {"commit", "push"} for argument in args) or any(
         _destructive(GitInvocation(subcommand, args))
-        for subcommand in ("reset", "clean", "push")
+        for subcommand in ("reset", "clean", "history", "push")
     )
 
 
@@ -1036,6 +1036,8 @@ def _destructive(invocation: GitInvocation) -> bool:
     if invocation.subcommand == "clean":
         forced = "--force" in options or _short_flag(options, "f")
         return forced and not _dry_run(invocation)
+    if invocation.subcommand == "history":
+        return not _dry_run(invocation)
     if invocation.subcommand == "push":
         forced = any(
             argument == "--force"
@@ -1332,7 +1334,7 @@ def _recognized_destructive_intent(command: str) -> bool:
         r'''[A-Za-z_][A-Za-z0-9_]*)["']?)'''
     )
     pattern = re.compile(
-        rf"(?is){executable}[^;&|\n]{{0,1024}}?\b(reset|clean|push)\b([^;&|\n)]*)"
+        rf"(?is){executable}[^;&|\n]{{0,1024}}?\b(reset|clean|history|push)\b([^;&|\n)]*)"
     )
     for match in pattern.finditer(command):
         subcommand, tail = match.groups()
