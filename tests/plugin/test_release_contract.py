@@ -118,6 +118,34 @@ class ReleaseContractTests(unittest.TestCase):
         if tag and tag.startswith("v"):
             self.assertTrue(release_tag_matches_version(tag, plugin["version"]))
 
+    def test_byte_exact_release_inputs_force_lf_checkouts(self):
+        # Arrange
+        paths = (
+            ".gitattributes",
+            "AGENTS.md",
+            ".codex/hooks/hook_runner.py",
+            "plugins/codex-game-studios/assets/payload-manifest.json",
+            "plugins/codex-game-studios/assets/payload-policy.json",
+            "plugins/codex-game-studios/assets/studio/AGENTS.md",
+            "plugins/codex-game-studios/scripts/payload.py",
+            "tests/plugin/fixtures/shared-files/agents-existing.md",
+        )
+
+        # Act
+        completed = subprocess.run(
+            ["git", "check-attr", "eol", "--", *paths],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        # Assert
+        self.assertEqual(
+            [f"{path}: eol: lf" for path in paths],
+            completed.stdout.splitlines(),
+        )
+
     def test_release_tag_contract_accepts_stable_and_semver_prerelease_tags(self):
         # Arrange
         version = "1.0.0"

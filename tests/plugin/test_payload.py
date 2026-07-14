@@ -279,9 +279,13 @@ class PayloadGenerationTests(unittest.TestCase):
             exact,
         )
         self.assertEqual(f"{other_relative}: whitespace: unspecified", other)
-        self.assertEqual(1, len(attribute_lines))
-        self.assertIn(generated_relative, attribute_lines[0])
-        self.assertTrue(attribute_lines[0].endswith(" whitespace=-trailing-space"))
+        self.assertEqual(
+            [
+                "* text=auto eol=lf",
+                f'"{generated_relative}" whitespace=-trailing-space',
+            ],
+            attribute_lines,
+        )
 
     def test_payload_policy_explicitly_denies_every_maintainer_scope(self):
         # Arrange
