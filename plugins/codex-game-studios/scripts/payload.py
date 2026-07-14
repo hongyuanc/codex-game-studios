@@ -413,7 +413,11 @@ def _discover_root_inventory(
     found_directories: set[str] = set()
     for child, (entry_type, _) in walk_tree_secure(source_directory).items():
         relative = f"{root}/{child}"
-        if _ignored(relative, policy):
+        if (
+            relative in policy["denied_exact_paths"]
+            or any(relative.startswith(prefix) for prefix in policy["denied_prefixes"])
+            or _ignored(relative, policy)
+        ):
             continue
         if entry_type == "directory":
             found_directories.add(relative)

@@ -9,6 +9,15 @@ operations use the embedded payload and make no network requests.
 - Codex with this plugin installed
 - Python 3.11 or newer
 - A Git repository in which you want to manage the studio
+- Godot, Unity, or Unreal installed separately before running or exporting a game
+
+Install the public release once from the Codex Plugins Directory. For a pinned
+prerelease marketplace build, use:
+
+```bash
+codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1
+codex plugin add codex-game-studios@codex-game-studios
+```
 
 ## Operations
 
@@ -30,7 +39,10 @@ stop mutation instead of being silently overwritten.
 
 See the manager skill's install contract, conflict policy, and recovery guide
 for the complete safety protocol. After a successful first installation,
-invoke `$start` to configure the studio.
+invoke `$start` to configure the studio, then use `$setup-engine` to select the
+installed Godot, Unity, or Unreal toolchain. The manager is retained after
+project installation, and every project operation continues to use its embedded
+payload with no network requests.
 
 ## License and attribution
 

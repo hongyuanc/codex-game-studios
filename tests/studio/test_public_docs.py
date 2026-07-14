@@ -108,6 +108,52 @@ def readme_upstream_attribution(text: str) -> tuple[str, str]:
 
 
 class PublicDocumentationTests(unittest.TestCase):
+    def test_readme_documents_primary_and_prerelease_plugin_flows(self):
+        # Arrange / Act
+        text = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        # Assert
+        self.assertIn("Codex Plugins Directory", text)
+        self.assertIn("$codex-game-studios install", text)
+        self.assertIn(
+            "codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1",
+            text,
+        )
+        self.assertIn(
+            "codex plugin add codex-game-studios@codex-game-studios",
+            text,
+        )
+        self.assertNotIn("codex plugin install", text)
+
+    def test_readmes_document_trust_lifecycle_and_engine_requirements(self):
+        # Arrange / Act
+        root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        plugin_readme = (
+            ROOT / "plugins/codex-game-studios/README.md"
+        ).read_text(encoding="utf-8")
+        combined = root_readme + "\n" + plugin_readme
+
+        # Assert
+        for required in (
+            "complete",
+            "digest-bound",
+            "explicitly approve",
+            "no network requests",
+            "retained",
+            "$start",
+            "$setup-engine",
+            "$codex-game-studios update",
+            "$codex-game-studios verify",
+            "$codex-game-studios repair",
+            "$codex-game-studios uninstall",
+            "Donchitos/Claude-Code-Game-Studios",  # enforcement-literal
+            "Godot",
+            "Unity",
+            "Unreal",
+            "installed separately",
+        ):
+            self.assertIn(required, combined)
+
     def test_root_entry_links_and_native_instruction_contract_resolve(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         local_links = [

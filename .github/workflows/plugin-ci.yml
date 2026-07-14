@@ -1,0 +1,74 @@
+{
+  "name": "Plugin CI",
+  "on": {
+    "pull_request": {},
+    "push": {
+      "branches": ["main"],
+      "tags": ["v*"]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "native-plugin": {
+      "name": "Plugin (${{ matrix.os }})",
+      "runs-on": "${{ matrix.os }}",
+      "strategy": {
+        "fail-fast": false,
+        "matrix": {
+          "os": ["ubuntu-latest", "macos-latest", "windows-latest"]
+        }
+      },
+      "steps": [
+        {"uses": "actions/checkout@v4"},
+        {
+          "uses": "actions/setup-python@v5",
+          "with": {"python-version": "3.11"}
+        },
+        {"run": "python -m unittest discover -s tests/plugin -v"},
+        {
+          "run": "python tools/codex_studio/build_plugin_payload.py --root . --check"
+        },
+        {
+          "run": "python -m tools.codex_studio.validate --root . --mode source --phase final"
+        }
+      ]
+    },
+    "studio": {
+      "name": "Complete studio suite",
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {"uses": "actions/checkout@v4"},
+        {
+          "uses": "actions/setup-python@v5",
+          "with": {"python-version": "3.11"}
+        },
+        {"run": "python -m unittest discover -s tests/studio -v"}
+      ]
+    },
+    "release": {
+      "name": "Build verified plugin artifacts",
+      "needs": ["native-plugin", "studio"],
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {"uses": "actions/checkout@v4"},
+        {
+          "uses": "actions/setup-python@v5",
+          "with": {"python-version": "3.11"}
+        },
+        {
+          "run": "python tools/codex_studio/package_plugin.py --root . --output dist"
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "with": {
+            "name": "codex-game-studios-plugin",
+            "path": "dist/codex-game-studios-*.zip\ndist/codex-game-studios-*.zip.sha256\n",
+            "if-no-files-found": "error"
+          }
+        }
+      ]
+    }
+  }
+}

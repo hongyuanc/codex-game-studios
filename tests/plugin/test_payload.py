@@ -314,6 +314,28 @@ class PayloadGenerationTests(unittest.TestCase):
             prefixes,
         )
 
+    def test_payload_policy_excludes_release_packager_but_keeps_runtime_tools(self):
+        # Arrange
+        policy = json.loads(
+            (PLUGIN / "assets/payload-policy.json").read_text(encoding="utf-8")
+        )
+
+        # Act
+        denied = set(policy["denied_exact_paths"])
+        approved = {item["source"] for item in policy["approved_sources"]}
+
+        # Assert
+        self.assertIn("tools/codex_studio/package_plugin.py", denied)
+        self.assertNotIn("tools/codex_studio/package_plugin.py", approved)
+        self.assertLessEqual(
+            {
+                "tools/codex_studio/build_plugin_payload.py",
+                "tools/codex_studio/engine_pack.py",
+                "tools/codex_studio/validate.py",
+            },
+            approved,
+        )
+
     def test_payload_manifest_has_actual_inventory_and_shared_strategies(self):
         # Arrange
         manifest = load_manifest(MANIFEST)
