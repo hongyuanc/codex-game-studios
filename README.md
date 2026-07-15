@@ -93,7 +93,7 @@ community, visit the
 
 ## Getting started
 
-1. Clone or use this repository as a template.
+1. Clone this repository.
 2. Open the project in Codex and trust the repository configuration and hooks after review.
 3. Invoke `$start`.
 4. Choose Godot, Unity, or Unreal when `$setup-engine` runs.

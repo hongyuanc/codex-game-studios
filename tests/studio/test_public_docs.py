@@ -223,14 +223,43 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("49 agents", text)
         self.assertIn("73 skills", text)
         expected = (
-            "1. Clone or use this repository as a template.\n"
+            "1. Clone this repository.\n"
             "2. Open the project in Codex and trust the repository configuration and hooks after review.\n"
             "3. Invoke `$start`.\n"
             "4. Choose Godot, Unity, or Unreal when `$setup-engine` runs."
         )
         self.assertIn(expected, text)
+        self.assertNotIn("use this repository as a template", text)
         for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):
             self.assertIn(required, text)
+
+    def test_security_reports_target_this_repository(self):
+        text = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "https://github.com/hongyuanc/codex-game-studios/security/advisories/new",
+            text,
+        )
+        self.assertNotIn("Donchitos/Codex-Code-Game-Studios", text)
+
+    def test_superpowers_plans_do_not_ship_machine_specific_paths(self):
+        internal_plans = ROOT / "docs/superpowers"
+        # enforcement-literal-start
+        machine_paths = re.compile(
+            r"(?:/Users/|/home/|/private/tmp/|[A-Za-z]:[\\/]Users[\\/])"
+        )
+        # enforcement-literal-end
+        unsafe_files = (
+            [
+                path.relative_to(ROOT)
+                for path in internal_plans.rglob("*")
+                if path.is_file()
+                and machine_paths.search(path.read_text(encoding="utf-8"))
+            ]
+            if internal_plans.exists()
+            else []
+        )
+        self.assertEqual([], unsafe_files)
 
     def test_readme_credits_upstream_and_defines_native_delta(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
