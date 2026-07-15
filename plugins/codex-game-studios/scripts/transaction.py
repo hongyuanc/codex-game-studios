@@ -1729,8 +1729,13 @@ def apply_transaction(
             )
         generation_identity = filesystem.observe(generation).identity
 
-        def verify_transaction_scaffold() -> None:
-            current_control = filesystem.observe(".codex/codex-game-studios")
+        def verify_transaction_scaffold(
+            *, cooperative_control_children: frozenset[str] = frozenset()
+        ) -> None:
+            current_control = filesystem.observe(
+                ".codex/codex-game-studios",
+                cooperative_children=cooperative_control_children,
+            )
             if current_control.identity != approved_scaffold.control_identity:
                 raise _TransactionScaffoldChanged(
                     "STALE_PLAN", "approved manager directory identity changed"
@@ -1745,10 +1750,18 @@ def apply_transaction(
                     "STALE_PLAN", "current recovery generation identity changed"
                 )
 
-        def write_journal_checked(document: RecoveryJournal) -> RecoveryJournal:
-            verify_transaction_scaffold()
+        def write_journal_checked(
+            document: RecoveryJournal,
+            *,
+            cooperative_control_children: frozenset[str] = frozenset(),
+        ) -> RecoveryJournal:
+            verify_transaction_scaffold(
+                cooperative_control_children=cooperative_control_children
+            )
             written = _write_journal_anchored(filesystem, journal_path, document)
-            verify_transaction_scaffold()
+            verify_transaction_scaffold(
+                cooperative_control_children=cooperative_control_children
+            )
             return written
         snapshots = tuple(item.record for item in persisted)
         changing_actions = tuple(
@@ -1919,12 +1932,21 @@ def apply_transaction(
                     ),
                 )
                 expected = expected_by_path[state_action.path]
+                state_path = PurePosixPath(state_action.path)
+                control_path = PurePosixPath(".codex/codex-game-studios")
+                cooperative_state_children = (
+                    frozenset({f".{state_path.name}.{transaction_id}.tmp"})
+                    if state_path.parent == control_path
+                    else frozenset()
+                )
+
                 def mark_state_quarantined() -> None:
                     nonlocal journal
                     journal = write_journal_checked(
                         dataclasses.replace(
                             journal, active_quarantined=True, checksum=""
                         ),
+                        cooperative_control_children=cooperative_state_children,
                     )
 
                 capability = AtomicMutation(

@@ -1232,6 +1232,109 @@ class TransactionTests(unittest.TestCase):
                 filesystem.atomic_replace("zero-progress.txt", b"payload", 0o600, expected, "zero")
         api.rename_no_replace.assert_not_called()
 
+    def test_windows_atomic_replace_closes_quarantined_target_before_callback(self):
+        # Arrange
+        import safe_fs
+
+        expected = safe_fs.SecureEntry("file", "d" * 64, 0o600, "windows:7:42")
+        pinned = types.SimpleNamespace(root=self.repo, verify=lambda: None, _descriptor=None)
+        filesystem = safe_fs.AnchoredFilesystem(pinned)
+        installed = safe_fs.SecureEntry(
+            "file", hashlib.sha256(b"payload").hexdigest(), 0o600, "windows:7:41"
+        )
+        filesystem.observe = mock.Mock(side_effect=(expected, expected, installed))
+        filesystem._quarantine_relative = ".codex/quarantine"
+        api = mock.Mock()
+        api.identity.return_value = (7, 42)
+        temporary = safe_fs._WindowsOpenedHandles(api, 41, (), False)
+        target = safe_fs._WindowsOpenedHandles(api, 42, (), False)
+
+        def mark_quarantined():
+            self.assertIn(mock.call(42), api.close.mock_calls)
+
+        fake_msvcrt = types.SimpleNamespace(get_osfhandle=lambda descriptor: 41)
+
+        # Act
+        with mock.patch.object(safe_fs.os, "name", "nt"), mock.patch.object(
+            safe_fs, "_windows_open_verified", side_effect=(temporary, target)
+        ) as open_verified, mock.patch.object(
+            safe_fs, "_windows_descriptor_from_verified", return_value=55
+        ), mock.patch.dict(sys.modules, {"msvcrt": fake_msvcrt}), mock.patch.object(
+            safe_fs.os, "write", return_value=7
+        ), mock.patch.object(safe_fs.os, "fsync"), mock.patch.object(
+            safe_fs.os, "close"
+        ), mock.patch.object(safe_fs, "_windows_set_writable"):
+            filesystem.atomic_replace(
+                "state.json",
+                b"payload",
+                0o600,
+                expected,
+                "token",
+                on_quarantined=mark_quarantined,
+            )
+
+        # Assert
+        api.rename_no_replace.assert_called()
+        self.assertEqual(
+            safe_fs.FILE_SHARE_READ,
+            open_verified.call_args_list[0].kwargs["share"],
+        )
+
+    def test_state_journal_checks_cooperate_only_with_exact_transaction_temp(self):
+        # Arrange
+        import safe_fs
+
+        state_path = ".codex/codex-game-studios/installation.json"
+        old_state = b'{"state":"old"}\n'
+        new_state = b'{"state":"new"}\n'
+        (self.repo / state_path).write_bytes(old_state)
+        state_action = Action(
+            "state-write",
+            state_path,
+            hashlib.sha256(old_state).hexdigest(),
+            hashlib.sha256(new_state).hexdigest(),
+            "persist installation state",
+        )
+        plan = self._plan_with_actions((state_action,))
+        observed_cooperative_children: list[frozenset[str]] = []
+        original_observe = safe_fs.AnchoredFilesystem.observe
+
+        def observe(filesystem, relative, **kwargs):
+            if (
+                relative == ".codex/codex-game-studios"
+                and kwargs.get("cooperative_children")
+            ):
+                observed_cooperative_children.append(
+                    kwargs["cooperative_children"]
+                )
+            return original_observe(filesystem, relative, **kwargs)
+
+        # Act
+        with mock.patch.object(safe_fs.AnchoredFilesystem, "observe", new=observe):
+            result = apply_transaction(
+                plan,
+                self.repo,
+                lambda: plan,
+                lambda _action, _mutation: None,
+                self._validate,
+                persist_state=lambda action, mutation: mutation.replace_file(
+                    action.path, new_state, 0o600
+                ),
+            )
+
+        # Assert
+        self.assertEqual("committed", result.status)
+        self.assertEqual(2, len(observed_cooperative_children))
+        self.assertEqual(
+            observed_cooperative_children[0], observed_cooperative_children[1]
+        )
+        (temporary_name,) = observed_cooperative_children[0]
+        prefix = ".installation.json."
+        suffix = ".tmp"
+        self.assertTrue(temporary_name.startswith(prefix))
+        self.assertTrue(temporary_name.endswith(suffix))
+        uuid.UUID(temporary_name[len(prefix) : -len(suffix)])
+
     def test_transaction_state_written_failpoint_rolls_back_state_bytes(self):
         # Arrange
         state_bytes = b"state\n"

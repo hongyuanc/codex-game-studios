@@ -194,7 +194,7 @@ class PayloadGenerationTests(unittest.TestCase):
         self.assertEqual(1, scandir.call_count)
         self.assertEqual(set(api.paths), set(api.closed))
 
-    def test_windows_manager_lock_listing_allows_only_required_write_sharing(self):
+    def test_windows_listing_allows_exact_cooperative_child_sharing(self):
         # Arrange
         import safe_fs
 
@@ -211,7 +211,11 @@ class PayloadGenerationTests(unittest.TestCase):
 
             def attributes(self, handle):
                 name = ntpath.basename(self.paths[handle])
-                if name in {"manager.lock", "unknown.txt"}:
+                if name in {
+                    "manager.lock",
+                    ".installation.json.transaction.tmp",
+                    "unknown.txt",
+                }:
                     return 0, 0
                 return safe_fs.FILE_ATTRIBUTE_DIRECTORY, 0
 
@@ -226,6 +230,9 @@ class PayloadGenerationTests(unittest.TestCase):
                 return iter(
                     (
                         types.SimpleNamespace(name="manager.lock"),
+                        types.SimpleNamespace(
+                            name=".installation.json.transaction.tmp"
+                        ),
                         types.SimpleNamespace(name="unknown.txt"),
                     )
                 )
@@ -246,7 +253,9 @@ class PayloadGenerationTests(unittest.TestCase):
             "safe_fs._hash_descriptor", return_value="a" * 64
         ), mock.patch("safe_fs.os.close"):
             entries = list_immediate_secure(
-                Path(r"C:\repo"), ".codex/codex-game-studios"
+                Path(r"C:\repo"),
+                ".codex/codex-game-studios",
+                cooperative_children={".installation.json.transaction.tmp"},
             )
 
         # Assert
@@ -255,13 +264,19 @@ class PayloadGenerationTests(unittest.TestCase):
             safe_fs.FILE_SHARE_READ | safe_fs.FILE_SHARE_WRITE,
             child_calls["manager.lock"][3],
         )
-        self.assertEqual(safe_fs.FILE_SHARE_READ, child_calls["unknown.txt"][3])
-        self.assertFalse(
-            any(call[3] & safe_fs.FILE_SHARE_DELETE for call in child_calls.values())
+        self.assertEqual(
+            safe_fs.FILE_SHARE_READ
+            | safe_fs.FILE_SHARE_WRITE
+            | safe_fs.FILE_SHARE_DELETE,
+            child_calls[".installation.json.transaction.tmp"][3],
         )
-        self.assertEqual(1, descriptor.call_count)
+        self.assertEqual(safe_fs.FILE_SHARE_READ, child_calls["unknown.txt"][3])
+        self.assertEqual(2, descriptor.call_count)
         self.assertEqual(
             (
+                safe_fs.ImmediateEntry(
+                    ".installation.json.transaction.tmp", "file", "a" * 64
+                ),
                 safe_fs.ImmediateEntry("manager.lock", "file", None),
                 safe_fs.ImmediateEntry("unknown.txt", "file", "a" * 64),
             ),

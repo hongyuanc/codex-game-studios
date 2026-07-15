@@ -574,11 +574,20 @@ def _hash_descriptor(descriptor: int, before: os.stat_result) -> str:
 
 
 def list_immediate_secure(
-    root: pathlib.Path, relative: str
+    root: pathlib.Path,
+    relative: str,
+    *,
+    cooperative_children: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[ImmediateEntry, ...]:
     """Return sorted immediate children without traversing nested directories."""
 
     relative = normalize_relative_path(relative)
+    cooperative_children = frozenset(cooperative_children)
+    if any(
+        not name or pathlib.PurePosixPath(name).name != name
+        for name in cooperative_children
+    ):
+        raise PayloadError("cooperative directory child must be one exact name")
     if _is_windows():
         api = _WindowsApi()
         directory = _windows_open_verified(
@@ -602,7 +611,9 @@ def list_immediate_secure(
                 child_relative = normalize_relative_path(f"{relative}/{name}")
                 is_manager_lock = child_relative == _MANAGER_LOCK_RELATIVE
                 child_share = FILE_SHARE_READ
-                if is_manager_lock:
+                if name in cooperative_children:
+                    child_share |= FILE_SHARE_WRITE | FILE_SHARE_DELETE
+                elif is_manager_lock:
                     child_share |= FILE_SHARE_WRITE
                 child = _windows_open_verified(
                     root,
@@ -1346,7 +1357,12 @@ class AnchoredFilesystem:
             finally:
                 os.close(descriptor)
 
-    def observe(self, relative: str) -> SecureEntry:
+    def observe(
+        self,
+        relative: str,
+        *,
+        cooperative_children: frozenset[str] | set[str] = frozenset(),
+    ) -> SecureEntry:
         """Observe one path through the retained root without following links."""
 
         self.verify_boundary()
@@ -1363,7 +1379,14 @@ class AnchoredFilesystem:
         if entry_type == "file":
             digest = hashlib.sha256(read_file_secure(self.root, relative)).hexdigest()
         else:
-            entries = [dataclasses.asdict(item) for item in list_immediate_secure(self.root, relative)]
+            entries = [
+                dataclasses.asdict(item)
+                for item in list_immediate_secure(
+                    self.root,
+                    relative,
+                    cooperative_children=cooperative_children,
+                )
+            ]
             digest = digest_document({"entries": entries})
         opened = _windows_open_verified(
             self.root,
@@ -1699,7 +1722,7 @@ class AnchoredFilesystem:
                 self.root,
                 temporary_relative,
                 access=GENERIC_READ | GENERIC_WRITE | DELETE_ACCESS,
-                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                share=FILE_SHARE_READ,
                 disposition=CREATE_NEW,
                 create_parents=False,
                 final_directory=False,
@@ -1756,7 +1779,7 @@ class AnchoredFilesystem:
                                     / quarantine_name
                                 ),
                             )
-                            mark_quarantined()
+                        mark_quarantined()
                     else:
                         mark_destructive()
                     handles.api.rename_no_replace(
