@@ -8,7 +8,7 @@ supported.
 ## Report a vulnerability
 
 Do not open a public issue. Use
-[GitHub private vulnerability reporting](https://github.com/Donchitos/Codex-Code-Game-Studios/security/advisories/new)
+[GitHub private vulnerability reporting](https://github.com/hongyuanc/codex-game-studios/security/advisories/new)
 and include reproduction steps, impact, affected files, and mitigations.
 
 We aim to acknowledge reports within 48 hours, provide a status update within
