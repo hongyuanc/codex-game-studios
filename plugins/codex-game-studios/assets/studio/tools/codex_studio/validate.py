@@ -1441,11 +1441,16 @@ class _SecureInstalledRoot:
                 raise OSError(f"unsafe directory entry: {name!r}")
             path = directory / name
             relative = prefix / name
-            handle, metadata, canonical_path = self._windows_open_checked(
-                path,
-                expected_parent=directory,
-                manager_lock=(relative.as_posix() == _MANAGER_LOCK),
-            )
+            try:
+                handle, metadata, canonical_path = self._windows_open_checked(
+                    path,
+                    expected_parent=directory,
+                    manager_lock=(relative.as_posix() == _MANAGER_LOCK),
+                )
+            except OSError as error:
+                raise OSError(
+                    f"unsafe operational path {relative.as_posix()}: {error}"
+                ) from error
             try:
                 if metadata.kind == "directory":
                     self._windows_walk(

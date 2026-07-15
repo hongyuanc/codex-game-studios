@@ -1375,6 +1375,10 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(2, opened.call_count)
         self.assertFalse(opened.call_args_list[0].kwargs["create_parents"])
         self.assertTrue(opened.call_args_list[1].kwargs["final_directory"])
+        self.assertEqual(
+            safe_fs.GENERIC_READ | safe_fs.FILE_WRITE_ATTRIBUTES,
+            opened.call_args_list[1].kwargs["access"],
+        )
         api.create_directory.assert_called_once()
 
     def test_windows_directory_creation_rejects_create_time_already_exists_race(self):

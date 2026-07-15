@@ -1050,6 +1050,22 @@ class PayloadGenerationTests(unittest.TestCase):
         self.assertTrue(scandir.assertion)
         self.assertEqual([2, 1], listing_api.closed)
 
+    def test_windows_writable_update_skips_redundant_attribute_write(self):
+        # Arrange
+        import safe_fs
+
+        information = safe_fs._FileBasicInfo(
+            11, 22, 33, 44, safe_fs.FILE_ATTRIBUTE_DIRECTORY
+        )
+        api = mock.Mock()
+        api.basic_info.return_value = information
+
+        # Act
+        safe_fs._windows_set_writable(api, 17, writable=True)
+
+        # Assert
+        api.set_basic_info.assert_not_called()
+
     def test_payload_policy_enforces_exact_semantics_for_every_category(self):
         import payload
 

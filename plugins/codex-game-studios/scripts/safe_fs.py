@@ -355,6 +355,11 @@ def _windows_set_writable(api: object, handle: int, *, writable: bool) -> None:
     """Update only readonly state through the verified target handle."""
 
     information = api.basic_info(handle)
+    currently_writable = not bool(
+        information.FileAttributes & FILE_ATTRIBUTE_READONLY
+    )
+    if currently_writable == writable:
+        return
     if writable:
         information.FileAttributes &= ~FILE_ATTRIBUTE_READONLY
         if information.FileAttributes == 0:
@@ -1633,7 +1638,7 @@ class AnchoredFilesystem:
                 created = _windows_open_verified(
                     self.root,
                     relative,
-                    access=GENERIC_READ,
+                    access=GENERIC_READ | FILE_WRITE_ATTRIBUTES,
                     share=FILE_SHARE_READ | FILE_SHARE_WRITE,
                     disposition=OPEN_EXISTING,
                     create_parents=False,

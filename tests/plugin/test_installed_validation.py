@@ -414,6 +414,29 @@ class InstalledValidationTests(unittest.TestCase):
         self.assertTrue(api.directory_handle_retained_during_list)
         self.assertCountEqual(api.opened_handles, api.closed)
 
+    def test_installed_validator_windows_walk_reports_logical_reparse_path(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2),
+            "C:\\repo\\.agents": windows_directory(3),
+            "C:\\repo\\.agents\\skills": windows_directory(4),
+            "C:\\repo\\.agents\\skills\\start": windows_directory(
+                5, children=("escape",)
+            ),
+            "C:\\repo\\.agents\\skills\\start\\escape": windows_directory(
+                6, reparse=True
+            ),
+        })
+
+        # Act / Assert
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            with self.assertRaisesRegex(
+                OSError, r"\.agents/skills/start/escape"
+            ):
+                secure.walk_files(".agents/skills/start")
+        self.assertCountEqual(api.opened_handles, api.closed)
+
     def test_installed_mode_reports_shared_block_and_owned_toml_tampering(self):
         # Arrange
         agents = self.repo / "AGENTS.md"
