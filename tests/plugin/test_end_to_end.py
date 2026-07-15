@@ -119,6 +119,11 @@ class InstalledEngineWorkflowTests(unittest.TestCase):
         ]
         original = {path: (repo / path).read_bytes() for path in user_paths}
         installed = approved_install(repo, self.plugin)
+        self.assertEqual(
+            0,
+            installed.applied.returncode,
+            installed.applied.stdout + installed.applied.stderr,
+        )
         installed_document = json.loads(installed.planned.stdout)
         apply_activation(
             repo,

@@ -1084,7 +1084,7 @@ def _acquire_snapshot_set(
         record = SnapshotRecord(
             relative,
             state.entry_type,
-            state.mode,
+            approved.mode,
             state.digest if state.entry_type in {"file", "directory"} else None,
             None,
         )

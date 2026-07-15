@@ -35,6 +35,7 @@ from studio_manager import (  # noqa: E402
     load_installation_state,
     new_approval_context,
     plan_operation,
+    _prospective_shadow_ignore,
     state_with_checksum,
     write_state_document,
 )
@@ -487,6 +488,29 @@ class ManagerPlanningTests(unittest.TestCase):
         # Assert
         self.assertEqual(approved, replanned)
 
+    def test_prospective_shadow_ignores_only_exact_regular_manager_lock(self):
+        # Arrange
+        control = self.repo / ".codex/codex-game-studios"
+        control.mkdir(parents=True)
+        (control / "manager.lock").write_bytes(b"\0")
+        (control / "ordinary.txt").write_bytes(b"ordinary\n")
+        (control / "recovery").mkdir()
+        elsewhere = self.repo / "elsewhere"
+        elsewhere.mkdir()
+        ignore = _prospective_shadow_ignore(self.repo)
+
+        # Act / Assert
+        self.assertEqual(
+            ("manager.lock",),
+            ignore(control, ("manager.lock", "ordinary.txt", "recovery")),
+        )
+        self.assertEqual((), ignore(elsewhere, ("manager.lock",)))
+
+        (control / "manager.lock").unlink()
+        (control / "manager.lock").mkdir()
+        malformed_ignore = _prospective_shadow_ignore(self.repo)
+        self.assertEqual((), malformed_ignore(control, ("manager.lock",)))
+
     def test_fresh_install_replan_keeps_unknown_control_sibling_digest_bound(self):
         # Arrange
         approved = plan_operation("install", self.repo, PLUGIN)
@@ -601,9 +625,22 @@ class ManagerPlanningTests(unittest.TestCase):
 
         def mutate() -> None:
             replacement = self.repo / ".codex/replacement-control"
-            shutil.copytree(control, replacement)
+            shutil.copytree(
+                control,
+                replacement,
+                ignore=_prospective_shadow_ignore(self.repo),
+            )
             displaced = self.repo / "displaced-control"
-            control.rename(displaced)
+            try:
+                control.rename(displaced)
+            except PermissionError as error:
+                if os.name != "nt" or error.winerror != 32:
+                    raise
+                self.assertTrue(control.is_dir())
+                self.assertFalse(displaced.exists())
+                raise ManagerError(
+                    "STALE_PLAN", "manager directory identity changed"
+                ) from error
             replacement.rename(control)
 
         # Act / Assert

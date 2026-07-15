@@ -20,7 +20,7 @@ import tempfile
 import tomllib
 import types
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 
 from managed_blocks import MergeConflict, merge_block, merge_owned_toml, remove_block
 from models import (
@@ -1654,6 +1654,30 @@ def _validate_uninstall_read_only(
     return findings
 
 
+def _prospective_shadow_ignore(
+    root: Path,
+) -> Callable[[str, Sequence[str]], tuple[str, ...]]:
+    """Exclude only the exact live transaction lock from a validation shadow."""
+
+    control = root / PurePosixPath(_TRANSACTION_CONTROL_DIRECTORY)
+    try:
+        entries = list_immediate_secure(root, _TRANSACTION_CONTROL_DIRECTORY)
+    except PayloadError as error:
+        raise ManagerError("UNSAFE_PATH", str(error)) from error
+    regular_lock = any(
+        item.name == "manager.lock"
+        and item.entry_type == _TRANSACTION_INTERNAL_CHILD_TYPES["manager.lock"]
+        for item in entries
+    )
+
+    def ignore(directory: str, names: Sequence[str]) -> tuple[str, ...]:
+        if Path(directory) != control or not regular_lock:
+            return ()
+        return ("manager.lock",) if "manager.lock" in names else ()
+
+    return ignore
+
+
 def _validate_prospective(
     root: Path,
     plugin: Path,
@@ -1668,7 +1692,12 @@ def _validate_prospective(
     temporary_parent = Path(tempfile.gettempdir()).resolve()
     with tempfile.TemporaryDirectory(dir=temporary_parent) as temporary:
         shadow = Path(temporary) / "repository"
-        shutil.copytree(root, shadow, symlinks=True)
+        shutil.copytree(
+            root,
+            shadow,
+            symlinks=True,
+            ignore=_prospective_shadow_ignore(root),
+        )
         state_path = shadow / STATE_RELATIVE_PATH
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state_path.write_bytes(_prospective_state_bytes(

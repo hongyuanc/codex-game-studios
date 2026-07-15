@@ -1015,7 +1015,11 @@ class TransactionTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(b"owned state\n", state.read_bytes())
-        self.assertEqual(0o640, state.stat().st_mode & 0o777)
+        import safe_fs
+
+        self.assertTrue(
+            safe_fs.modes_match(state.stat().st_mode & 0o777, 0o640)
+        )
         self.assertEqual(["rolled-back"], self._terminal_phases())
 
     def test_transaction_state_removal_capability_is_revoked_and_path_bound(self):
@@ -1624,6 +1628,77 @@ class TransactionTests(unittest.TestCase):
                     writable, writable_authority
                 )
             )
+
+    def test_windows_snapshot_authority_records_approved_canonical_mode(self):
+        # Arrange
+        import safe_fs
+        import transaction
+
+        content = b"approved\n"
+        digest = hashlib.sha256(content).hexdigest()
+        action = Action("update", "managed.txt", digest, "b" * 64, "replace")
+        plan = plan_with_digest(OperationPlan(
+            operation="update",
+            plugin_version="1.0.0",
+            payload_digest="c" * 64,
+            state_digest=None,
+            actions=(action,),
+            conflicts=(),
+            digest="",
+            target_observations=(
+                TargetObservation("managed.txt", "file", 0o644, digest),
+            ),
+            target_results=(
+                TargetObservation("managed.txt", "file", 0o644, "b" * 64),
+            ),
+        ))
+        observed = safe_fs.SecureEntry("file", digest, 0o600, "identity")
+        filesystem = mock.Mock()
+        filesystem.observe.return_value = observed
+        filesystem.read_file.return_value = content
+
+        # Act
+        with mock.patch.object(safe_fs.os, "name", "nt"):
+            acquired = transaction._acquire_snapshot_set(filesystem, plan)
+
+        # Assert
+        self.assertEqual(0o644, acquired[0].record.mode)
+        self.assertEqual(0o600, acquired[0].state.mode)
+
+    def test_snapshot_acquisition_rejects_unrepresentable_mode_mismatch(self):
+        # Arrange
+        import safe_fs
+        import transaction
+
+        content = b"approved\n"
+        digest = hashlib.sha256(content).hexdigest()
+        action = Action("update", "managed.txt", digest, "b" * 64, "replace")
+        plan = plan_with_digest(OperationPlan(
+            operation="update",
+            plugin_version="1.0.0",
+            payload_digest="c" * 64,
+            state_digest=None,
+            actions=(action,),
+            conflicts=(),
+            digest="",
+            target_observations=(
+                TargetObservation("managed.txt", "file", 0o444, digest),
+            ),
+            target_results=(
+                TargetObservation("managed.txt", "file", 0o644, "b" * 64),
+            ),
+        ))
+        filesystem = mock.Mock()
+        filesystem.observe.return_value = safe_fs.SecureEntry(
+            "file", digest, 0o600, "identity"
+        )
+
+        # Act / Assert
+        for platform in ("nt", "posix"):
+            with self.subTest(platform=platform), mock.patch.object(
+                safe_fs.os, "name", platform
+            ), self.assertRaisesRegex(ManagerError, "snapshot state differs"):
+                transaction._acquire_snapshot_set(filesystem, plan)
 
     def test_windows_internal_journal_write_loops_on_short_writes_and_rejects_zero(self):
         import safe_fs
