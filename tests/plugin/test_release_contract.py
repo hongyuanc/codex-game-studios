@@ -45,9 +45,13 @@ class ReleaseContractTests(unittest.TestCase):
     def assert_release_workflow_contract(self, workflow):
         self.assertEqual({"contents": "read"}, workflow["permissions"])
         jobs = workflow["jobs"]
-        self.assertEqual({"native-plugin", "studio", "release"}, set(jobs))
+        self.assertEqual(
+            {"native-plugin", "studio", "windows-lifecycle-smoke", "release"},
+            set(jobs),
+        )
         native = jobs["native-plugin"]
         studio = jobs["studio"]
+        windows_smoke = jobs["windows-lifecycle-smoke"]
         release = jobs["release"]
         self.assertEqual(
             ["ubuntu-latest", "macos-latest", "windows-latest"],
@@ -75,7 +79,23 @@ class ReleaseContractTests(unittest.TestCase):
             ["actions/checkout@v4", "actions/setup-python@v5"],
             [step["uses"] for step in studio["steps"] if "uses" in step],
         )
-        self.assertEqual(["native-plugin", "studio"], release["needs"])
+        self.assertEqual("windows-latest", windows_smoke["runs-on"])
+        self.assertEqual(
+            [
+                "python -m unittest tests.plugin.test_lifecycle_integration."
+                "LifecycleIntegrationTests."
+                "test_windows_update_replaces_existing_installation_state -v"
+            ],
+            [step["run"] for step in windows_smoke["steps"] if "run" in step],
+        )
+        self.assertEqual(
+            ["actions/checkout@v4", "actions/setup-python@v5"],
+            [step["uses"] for step in windows_smoke["steps"] if "uses" in step],
+        )
+        self.assertEqual(
+            ["native-plugin", "studio", "windows-lifecycle-smoke"],
+            release["needs"],
+        )
         self.assertEqual(
             ["python tools/codex_studio/package_plugin.py --root . --output dist"],
             [step["run"] for step in release["steps"] if "run" in step],
