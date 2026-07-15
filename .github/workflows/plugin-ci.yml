@@ -47,9 +47,23 @@
         {"run": "python -m unittest discover -s tests/studio -v"}
       ]
     },
+    "windows-lifecycle-smoke": {
+      "name": "Windows lifecycle smoke",
+      "runs-on": "windows-latest",
+      "steps": [
+        {"uses": "actions/checkout@v4"},
+        {
+          "uses": "actions/setup-python@v5",
+          "with": {"python-version": "3.11"}
+        },
+        {
+          "run": "python -m unittest tests.plugin.test_lifecycle_integration.LifecycleIntegrationTests.test_windows_update_replaces_existing_installation_state -v"
+        }
+      ]
+    },
     "release": {
       "name": "Build verified plugin artifacts",
-      "needs": ["native-plugin", "studio"],
+      "needs": ["native-plugin", "studio", "windows-lifecycle-smoke"],
       "runs-on": "ubuntu-latest",
       "steps": [
         {"uses": "actions/checkout@v4"},

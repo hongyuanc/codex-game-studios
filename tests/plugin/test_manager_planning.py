@@ -634,7 +634,7 @@ class ManagerPlanningTests(unittest.TestCase):
             try:
                 control.rename(displaced)
             except PermissionError as error:
-                if os.name != "nt" or error.winerror != 32:
+                if os.name != "nt" or error.winerror != 5:
                     raise
                 self.assertTrue(control.is_dir())
                 self.assertFalse(displaced.exists())

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -36,6 +37,28 @@ class LifecycleIntegrationTests(unittest.TestCase):
             operation, self.repo, document["digest"],
             approval_context=document["approval_context"],
         )
+
+    @unittest.skipUnless(os.name == "nt", "native Windows lifecycle smoke")
+    def test_windows_update_replaces_existing_installation_state(self):
+        # Arrange
+        import studio_manager
+
+        write_installed_fixture(self.repo, PLUGIN)
+        context = studio_manager.new_approval_context("update")
+        plan = studio_manager.plan_operation(
+            "update", self.repo, PLUGIN, context
+        )
+
+        # Act
+        result = studio_manager.apply_operation(
+            plan,
+            self.repo,
+            PLUGIN,
+            approval_context=context,
+        )
+
+        # Assert
+        self.assertEqual("committed", result.status)
 
     def test_all_five_operations_dispatch_with_two_phase_mutations(self):
         installed = approved_install(self.repo)
