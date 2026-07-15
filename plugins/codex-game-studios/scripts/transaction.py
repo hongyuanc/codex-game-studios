@@ -1722,30 +1722,43 @@ def apply_transaction(
                 "STALE_PLAN", "approved transaction recovery generation already exists"
             )
         persisted = _persist_snapshot_set(filesystem, generation, acquired, transaction_id)
-        if not approved_scaffold.recovery_existed:
-            approved_scaffold = dataclasses.replace(
-                approved_scaffold,
-                recovery_identity=filesystem.observe(RECOVERY_RELATIVE_PATH).identity,
-            )
-        generation_identity = filesystem.observe(generation).identity
+        try:
+            if not approved_scaffold.recovery_existed:
+                approved_scaffold = dataclasses.replace(
+                    approved_scaffold,
+                    recovery_identity=filesystem.directory_identity(
+                        RECOVERY_RELATIVE_PATH
+                    ),
+                )
+            generation_identity = filesystem.directory_identity(generation)
+        except (OSError, PayloadError) as error:
+            raise _TransactionScaffoldChanged(
+                "STALE_PLAN", "transaction scaffold changed during snapshot persistence"
+            ) from error
 
         def verify_transaction_scaffold(
             *, cooperative_control_children: frozenset[str] = frozenset()
         ) -> None:
-            current_control = filesystem.observe(
-                ".codex/codex-game-studios",
-                cooperative_children=cooperative_control_children,
-            )
+            try:
+                current_control = filesystem.observe(
+                    ".codex/codex-game-studios",
+                    cooperative_children=cooperative_control_children,
+                )
+                current_recovery = filesystem.observe(RECOVERY_RELATIVE_PATH)
+                current_generation = filesystem.observe(generation)
+            except (OSError, PayloadError) as error:
+                raise _TransactionScaffoldChanged(
+                    "STALE_PLAN", "approved transaction scaffold changed"
+                ) from error
             if current_control.identity != approved_scaffold.control_identity:
                 raise _TransactionScaffoldChanged(
                     "STALE_PLAN", "approved manager directory identity changed"
                 )
-            current_recovery = filesystem.observe(RECOVERY_RELATIVE_PATH)
             if current_recovery.identity != approved_scaffold.recovery_identity:
                 raise _TransactionScaffoldChanged(
                     "STALE_PLAN", "approved recovery directory identity changed"
                 )
-            if filesystem.observe(generation).identity != generation_identity:
+            if current_generation.identity != generation_identity:
                 raise _TransactionScaffoldChanged(
                     "STALE_PLAN", "current recovery generation identity changed"
                 )

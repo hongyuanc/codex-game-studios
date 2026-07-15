@@ -1514,12 +1514,16 @@ def _action_content(
     root: Path,
     plugin: Path,
     state: InstallationState | None,
+    entries: Mapping[str, PayloadEntry],
 ) -> tuple[bytes, int] | None:
-    manifest = load_verified_manifest(plugin)
-    entry = next((item for item in manifest.entries if item.path == action.path), None)
+    entry = entries.get(action.path)
     if entry is None or entry.entry_type == "directory":
         return None
     desired = read_file_secure(plugin / "assets/studio", action.path)
+    if hashlib.sha256(desired).hexdigest() != entry.sha256:
+        raise ManagerError(
+            "INVALID_PAYLOAD", f"payload source hash changed: {action.path}"
+        )
     if entry.ownership == "dedicated":
         return desired, entry.mode
     existing = b"" if not (root / action.path).exists() else read_file_secure(root, action.path)
@@ -1547,6 +1551,7 @@ def _apply_lifecycle_action(
     root: Path,
     plugin: Path,
     state: InstallationState | None,
+    entries: Mapping[str, PayloadEntry],
 ) -> None:
     if action.kind in {"backup", "adopt", "preserve", "diagnostic"}:
         return
@@ -1558,10 +1563,14 @@ def _apply_lifecycle_action(
             mutation.remove_file(action.path)
         return
     if action.kind == "create" and action.after_hash is None:
-        entry = next(item for item in load_verified_manifest(plugin).entries if item.path == action.path)
+        entry = entries.get(action.path)
+        if entry is None or entry.entry_type != "directory":
+            raise ManagerError(
+                "INVALID_PAYLOAD", f"approved directory action has no payload entry: {action.path}"
+            )
         mutation.make_directory(action.path, entry.mode)
         return
-    rendered = _action_content(action, root, plugin, state)
+    rendered = _action_content(action, root, plugin, state, entries)
     if rendered is None:
         raise ManagerError("INVALID_PAYLOAD", "approved file action has no payload content")
     content, mode = rendered
@@ -1573,9 +1582,14 @@ def _prospective_state_bytes(
     plugin: Path,
     state: InstallationState | None,
     approval_context: ApprovalContext | None = None,
+    *,
+    manifest: PayloadManifest | None = None,
+    entries: Mapping[str, PayloadEntry] | None = None,
 ) -> bytes:
-    manifest = load_verified_manifest(plugin)
-    entries = {item.path: item for item in manifest.entries}
+    if manifest is None:
+        manifest = load_verified_manifest(plugin)
+    if entries is None:
+        entries = {item.path: item for item in manifest.entries}
     return write_state_document(_prospective_state(
         plan, manifest, entries, state, plugin, approval_context
     ))
@@ -1723,8 +1737,20 @@ def apply_operation(
     from transaction import apply_transaction
 
     state = _load_optional_state(root)
+    manifest = load_verified_manifest(plugin)
+    entries = {item.path: item for item in manifest.entries}
+    if (
+        manifest.version != plan.plugin_version
+        or manifest.digest != plan.payload_digest
+    ):
+        raise ManagerError("STALE_PLAN", "verified payload does not match approved plan")
     state_bytes = None if plan.operation == "uninstall" else _prospective_state_bytes(
-        plan, plugin, state, approval_context
+        plan,
+        plugin,
+        state,
+        approval_context,
+        manifest=manifest,
+        entries=entries,
     )
 
     def persist(action: Action, mutation: object) -> None:
@@ -1736,7 +1762,7 @@ def apply_operation(
 
     def apply_action(action: Action, mutation: object) -> None:
         try:
-            _apply_lifecycle_action(action, mutation, root, plugin, state)
+            _apply_lifecycle_action(action, mutation, root, plugin, state, entries)
         except _EXPECTED_MANAGER_FAILURES as error:
             raise _manager_error_from_expected(error) from error
 

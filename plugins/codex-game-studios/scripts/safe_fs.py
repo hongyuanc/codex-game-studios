@@ -1402,6 +1402,39 @@ class AnchoredFilesystem:
             identity = f"windows:{volume}:{index}"
         return SecureEntry(entry_type, digest, stat.S_IMODE(file_stat.st_mode), identity)
 
+    def directory_identity(self, relative: str) -> object:
+        """Return one anchored directory identity without enumerating its contents."""
+
+        self.verify_boundary()
+        relative = normalize_relative_path(relative)
+        if os.name == "nt":
+            opened = _windows_open_verified(
+                self.root,
+                relative,
+                access=GENERIC_READ,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
+                disposition=OPEN_EXISTING,
+                create_parents=False,
+                final_directory=True,
+            )
+            with opened as handles:
+                volume, index = handles.api.identity(handles.final_handle)
+                return f"windows:{volume}:{index}"
+        with self._posix_parent(relative) as parent:
+            assert parent is not None
+            parent_fd, name = parent
+            descriptor = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+            try:
+                opened = os.fstat(descriptor)
+                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if not _same_object(opened, current):
+                    raise PayloadError(
+                        f"anchored directory changed while opening: {relative}"
+                    )
+                return (opened.st_dev, opened.st_ino)
+            finally:
+                os.close(descriptor)
+
     def list_immediate(self, relative: str) -> tuple[ImmediateEntry, ...]:
         """List a directory through the retained root handle without recursion."""
 

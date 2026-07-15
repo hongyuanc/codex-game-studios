@@ -155,6 +155,110 @@ class ManagerCliTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_lifecycle_action_reuses_transaction_verified_payload_entries(self):
+        # Arrange
+        import studio_manager
+
+        manifest = studio_manager.load_verified_manifest(PLUGIN)
+        entries = {item.path: item for item in manifest.entries}
+        entry = entries[".agents/skills/adopt/SKILL.md"]
+        action = studio_manager.Action(
+            "create",
+            entry.path,
+            None,
+            entry.sha256,
+            "create managed payload file",
+        )
+        mutation = mock.Mock()
+        expected = studio_manager.read_file_secure(
+            PLUGIN / "assets/studio", entry.path
+        )
+
+        # Act
+        with mock.patch(
+            "studio_manager.load_verified_manifest",
+            side_effect=AssertionError("payload was reverified inside an action"),
+        ):
+            studio_manager._apply_lifecycle_action(
+                action,
+                mutation,
+                self.repo,
+                PLUGIN,
+                None,
+                entries,
+            )
+
+        # Assert
+        mutation.replace_file.assert_called_once_with(
+            entry.path, expected, entry.mode
+        )
+
+    def test_lifecycle_action_rejects_payload_changed_after_transaction_verification(self):
+        # Arrange
+        import studio_manager
+
+        plugin = Path(self.temporary.name) / "plugin"
+        plugin_helpers.copy_plugin_fixture(PLUGIN, plugin)
+        manifest = studio_manager.load_verified_manifest(plugin)
+        entries = {item.path: item for item in manifest.entries}
+        entry = entries[".agents/skills/adopt/SKILL.md"]
+        action = studio_manager.Action(
+            "create",
+            entry.path,
+            None,
+            entry.sha256,
+            "create managed payload file",
+        )
+        source = plugin / "assets/studio" / entry.path
+        source.write_bytes(source.read_bytes() + b"\ntampered\n")
+        mutation = mock.Mock()
+
+        # Act
+        with self.assertRaises(studio_manager.ManagerError) as caught:
+            studio_manager._apply_lifecycle_action(
+                action,
+                mutation,
+                self.repo,
+                plugin,
+                None,
+                entries,
+            )
+
+        # Assert
+        self.assertEqual("INVALID_PAYLOAD", caught.exception.code)
+        mutation.replace_file.assert_not_called()
+
+    def test_apply_operation_uses_one_verified_manifest_snapshot(self):
+        # Arrange
+        import studio_manager
+
+        planned = json.loads(run_manager("install", self.repo).stdout)
+        context = studio_manager.decode_approval_context(
+            planned["approval_context"], "install"
+        )
+        plan = studio_manager.plan_operation(
+            "install", self.repo, PLUGIN, context
+        )
+        transaction_result = object()
+        verified_load = studio_manager.load_verified_manifest
+
+        # Act
+        with mock.patch(
+            "studio_manager.load_verified_manifest", wraps=verified_load
+        ) as load_manifest, mock.patch(
+            "transaction.apply_transaction", return_value=transaction_result
+        ):
+            actual = studio_manager.apply_operation(
+                plan,
+                self.repo,
+                PLUGIN,
+                approval_context=context,
+            )
+
+        # Assert
+        self.assertIs(transaction_result, actual)
+        self.assertEqual(1, load_manifest.call_count)
+
     def test_install_plan_is_read_only_then_approved_apply_succeeds(self):
         before = snapshot_tree(self.repo)
 
@@ -549,12 +653,17 @@ class ManagerCliTests(unittest.TestCase):
         planned = json.loads(run_manager("install", self.repo, plugin_root=plugin).stdout)
         manager = plugin / "scripts/studio_manager.py"
         source = manager.read_text(encoding="utf-8")
-        marker = ") -> bytes:\n    manifest = load_verified_manifest(plugin)"
+        marker = (
+            ") -> bytes:\n"
+            "    if manifest is None:\n"
+            "        manifest = load_verified_manifest(plugin)"
+        )
         replacement = (
             ") -> bytes:\n"
             "    if '--approve-digest' in sys.argv:\n"
             "        raise OSError('/private/apply-secret')\n"
-            "    manifest = load_verified_manifest(plugin)"
+            "    if manifest is None:\n"
+            "        manifest = load_verified_manifest(plugin)"
         )
         self.assertIn(marker, source)
         manager.write_text(source.replace(marker, replacement, 1), encoding="utf-8")

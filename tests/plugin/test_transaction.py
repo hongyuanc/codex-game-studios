@@ -422,6 +422,84 @@ class TransactionTests(unittest.TestCase):
         # Arrange / Act / Assert
         self._assert_action_started_directory_replacement_is_stale("recovery")
 
+    def test_transaction_rejects_missing_generation_before_first_action(self):
+        # Arrange
+        import transaction
+
+        original_write = transaction._write_journal_anchored
+        displaced = self.repo / "displaced-generation"
+        removed = False
+        payload_called = False
+
+        def remove_after_write(filesystem, relative, journal):
+            nonlocal removed
+            written = original_write(filesystem, relative, journal)
+            if journal.phase == "action-started" and not removed:
+                removed = True
+                generation = (
+                    self.repo
+                    / ".codex/codex-game-studios/recovery"
+                    / written.transaction_id
+                )
+                generation.rename(displaced)
+            return written
+
+        def apply_payload(_action, _mutation):
+            nonlocal payload_called
+            payload_called = True
+
+        # Act
+        with mock.patch.object(
+            transaction, "_write_journal_anchored", side_effect=remove_after_write
+        ):
+            with self.assertRaisesRegex(ManagerError, "STALE_PLAN"):
+                apply_transaction(
+                    self._approved,
+                    self.repo,
+                    self._replan,
+                    apply_payload,
+                    self._validate,
+                )
+
+        # Assert
+        self.assertTrue(removed)
+        self.assertFalse(payload_called)
+        self.assertEqual(b"before\n", (self.repo / "managed.txt").read_bytes())
+
+    def test_transaction_rejects_generation_missing_before_identity_capture(self):
+        # Arrange
+        import transaction
+
+        original_persist = transaction._persist_snapshot_set
+        displaced = self.repo / "displaced-before-identity"
+        removed = False
+
+        def remove_after_persist(filesystem, generation, acquired, transaction_id):
+            nonlocal removed
+            persisted = original_persist(
+                filesystem, generation, acquired, transaction_id
+            )
+            (self.repo / generation).rename(displaced)
+            removed = True
+            return persisted
+
+        # Act
+        with mock.patch.object(
+            transaction, "_persist_snapshot_set", side_effect=remove_after_persist
+        ):
+            with self.assertRaisesRegex(ManagerError, "STALE_PLAN"):
+                apply_transaction(
+                    self._approved,
+                    self.repo,
+                    self._replan,
+                    self._apply_action,
+                    self._validate,
+                )
+
+        # Assert
+        self.assertTrue(removed)
+        self.assertEqual(b"before\n", (self.repo / "managed.txt").read_bytes())
+
     def test_transaction_validation_failure_rolls_back_every_byte_and_mode(self):
         # Arrange
         before = self._payload_snapshot()
@@ -1335,6 +1413,30 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(temporary_name.endswith(suffix))
         uuid.UUID(temporary_name[len(prefix) : -len(suffix)])
 
+    def test_directory_identity_does_not_enumerate_directory_contents(self):
+        # Arrange
+        import safe_fs
+
+        relative = ".codex/codex-game-studios"
+        with safe_fs.pin_root(self.repo) as pinned:
+            filesystem = safe_fs.AnchoredFilesystem(pinned)
+            expected = filesystem.observe(relative).identity
+
+            # Act
+            with mock.patch.object(
+                safe_fs,
+                "list_immediate_secure",
+                side_effect=AssertionError("identity lookup enumerated directory contents"),
+            ), mock.patch.object(
+                safe_fs.os,
+                "listdir",
+                side_effect=AssertionError("identity lookup enumerated directory contents"),
+            ):
+                actual = filesystem.directory_identity(relative)
+
+        # Assert
+        self.assertEqual(expected, actual)
+
     def test_transaction_state_written_failpoint_rolls_back_state_bytes(self):
         # Arrange
         state_bytes = b"state\n"
@@ -2165,7 +2267,10 @@ class TransactionTests(unittest.TestCase):
         outside = Path(self.temporary.name) / "outside.txt"
         outside.write_bytes(b"outside\n")
         (self.repo / "managed.txt").unlink()
-        (self.repo / "managed.txt").symlink_to(outside)
+        try:
+            (self.repo / "managed.txt").symlink_to(outside)
+        except (NotImplementedError, OSError) as error:
+            self.skipTest(f"symlink creation unavailable: {error}")
         approved = self._approved
 
         # Act / Assert
