@@ -1276,7 +1276,7 @@ class TransactionTests(unittest.TestCase):
         # Assert
         api.rename_no_replace.assert_called()
         self.assertEqual(
-            safe_fs.FILE_SHARE_READ,
+            safe_fs.FILE_SHARE_READ | safe_fs.FILE_SHARE_WRITE,
             open_verified.call_args_list[0].kwargs["share"],
         )
 

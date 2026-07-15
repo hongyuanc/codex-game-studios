@@ -1722,7 +1722,7 @@ class AnchoredFilesystem:
                 self.root,
                 temporary_relative,
                 access=GENERIC_READ | GENERIC_WRITE | DELETE_ACCESS,
-                share=FILE_SHARE_READ,
+                share=FILE_SHARE_READ | FILE_SHARE_WRITE,
                 disposition=CREATE_NEW,
                 create_parents=False,
                 final_directory=False,
