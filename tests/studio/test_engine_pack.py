@@ -82,6 +82,80 @@ class EnginePackTests(unittest.TestCase):
                     apply_activation(self.project, plan)
         return self.project / ".codex/engine-pack-recovery"
 
+    def test_engine_pack_content_descriptors_request_binary_mode(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        binary = 0x8000
+        file_metadata = type(
+            "FileMetadata",
+            (),
+            {"st_mode": stat.S_IFREG | 0o644, "st_dev": 7, "st_ino": 11},
+        )()
+        directory_metadata = type(
+            "DirectoryMetadata",
+            (),
+            {"st_mode": stat.S_IFDIR | 0o755, "st_dev": 7, "st_ino": 10},
+        )()
+
+        # Act
+        with mock.patch.object(
+            engine_pack.os, "O_BINARY", binary, create=True
+        ), mock.patch.object(
+            engine_pack, "_checked_lstat", return_value=file_metadata
+        ), mock.patch.object(
+            engine_pack.os, "open", return_value=51
+        ) as read_open, mock.patch.object(
+            engine_pack.os, "fstat", return_value=file_metadata
+        ), mock.patch.object(
+            engine_pack.os, "read", side_effect=(b"profile\n", b"")
+        ), mock.patch.object(engine_pack.os, "close"):
+            self.assertEqual(
+                b"profile\n",
+                engine_pack._secure_read(Path("profile.toml"), "profile"),
+            )
+
+        with mock.patch.object(
+            engine_pack.os, "O_BINARY", binary, create=True
+        ), mock.patch.object(
+            engine_pack, "_require_directory", return_value=directory_metadata
+        ), mock.patch.object(
+            engine_pack, "_checked_lstat", side_effect=(None, file_metadata)
+        ), mock.patch.object(
+            engine_pack.os, "supports_dir_fd", set()
+        ), mock.patch.object(
+            engine_pack.os, "open", return_value=52
+        ) as write_open, mock.patch.object(
+            engine_pack.os, "fstat", return_value=file_metadata
+        ), mock.patch.object(
+            engine_pack.os, "write", return_value=len(b"profile\n")
+        ), mock.patch.object(engine_pack.os, "fsync"), mock.patch.object(
+            engine_pack.os, "close"
+        ):
+            engine_pack._exclusive_profile_write(
+                Path("agents"), "profile.toml", b"profile\n"
+            )
+
+        # Assert
+        self.assertTrue(read_open.call_args.args[1] & binary)
+        self.assertTrue(write_open.call_args.args[1] & binary)
+
+    def test_engine_pack_profile_round_trip_preserves_raw_disk_bytes(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        agents = Path(self.temp.name) / "binary-agents"
+        agents.mkdir()
+        content = b"name = 'profile'\r\nnotes = 'line-feed:\n'\n"
+
+        # Act
+        engine_pack._exclusive_profile_write(agents, "profile.toml", content)
+        observed = engine_pack._secure_read(agents / "profile.toml", "profile")
+
+        # Assert
+        self.assertEqual(content, observed)
+        self.assertEqual(content, (agents / "profile.toml").read_bytes())
+
     def test_supported_packs_are_exactly_three_with_five_profiles_each(self):
         packs = self.project / ".codex/agent-packs"
         self.assertEqual(["godot", "unity", "unreal"], sorted(path.name for path in packs.iterdir()))

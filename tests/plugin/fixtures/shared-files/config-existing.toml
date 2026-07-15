@@ -1,0 +1,15 @@
+title = "project"
+# project setting
+[agents]
+# owned and project values share this table
+max_depth   = 4 # preserve spacing
+project_agent = "keeper"
+
+[project]
+between = "untouched"
+
+[features]
+web_search = true # preserve comment
+
+[after]
+value = "still untouched"

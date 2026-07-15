@@ -8,6 +8,42 @@ Directors protect product and technical direction, department leads coordinate
 work, and specialists implement and verify the game. Godot 4, Unity, and Unreal
 Engine 5 are supported through mutually exclusive engine packs.
 
+## Install the plugin
+
+Install **Codex Game Studios** once from the public Codex Plugins Directory.
+Then open each Git game repository where you want the studio and run:
+
+```text
+$codex-game-studios install
+```
+
+The retained manager presents a complete, digest-bound plan and changes the
+repository only after you explicitly approve that exact plan. Project
+operations use the verified embedded payload and make no network requests.
+After installation, invoke `$start`; use `$setup-engine` when you are ready to
+choose Godot, Unity, or Unreal. The selected engine itself must be installed
+separately to run or export a game.
+
+For prerelease testing, install the pinned GitHub marketplace release:
+
+```bash
+codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1
+codex plugin add codex-game-studios@codex-game-studios
+```
+
+The same retained manager remains available for repository lifecycle work:
+
+```text
+$codex-game-studios update
+$codex-game-studios verify
+$codex-game-studios repair
+$codex-game-studios uninstall
+```
+
+`verify` is read-only. Mutating operations retain plan, approval, ownership,
+recovery, and validation safeguards. Existing game content and unrelated Codex
+configuration stay project-owned.
+
 <!-- upstream-attribution-start -->
 ## Origins and attribution
 

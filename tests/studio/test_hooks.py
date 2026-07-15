@@ -630,6 +630,106 @@ class HookParserTests(unittest.TestCase):
                 set(inventory.stdout.split()) - HOOKS.KNOWN_GIT_SUBCOMMANDS,
             )
 
+    def test_git_254_builtins_distinguish_inspection_from_history_rewrites(self):
+        # Arrange
+        safe_commands = (
+            "git last-modified HEAD -- README.md",
+            "git repo info object.format",
+            "git history fixup HEAD --dry-run",
+        )
+        destructive_commands = (
+            "git history fixup HEAD",
+            "git history reword HEAD",
+            "git history split HEAD -- README.md",
+            "command='git history fixup HEAD'; $command",
+        )
+
+        # Act / Assert
+        for command in safe_commands:
+            with self.subTest(safe=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+        for command in destructive_commands:
+            with self.subTest(destructive=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+    def test_git_history_rewrites_are_blocked_through_shell_execution_paths(self):
+        destructive_commands = (
+            "git -c 'alias.rewrite=history fixup HEAD' rewrite",
+            "git -c 'alias.rewrite=!git history fixup HEAD' rewrite",
+            "tool=git; \"$tool\" history fixup HEAD",
+            "mode=history; git \"$mode\" fixup HEAD",
+            "action=fixup; git history \"$action\" HEAD",
+            '"${tool}" history fixup HEAD',
+            "bash -c 'git history fixup HEAD'",
+            'sh -c "git history reword HEAD"',
+            "eval 'git history split HEAD -- README.md'",
+        )
+        inert_commands = (
+            "echo 'git history fixup HEAD'",
+            "printf '%s' 'git history reword HEAD'",
+            "bash -c 'echo git history split HEAD'",
+            "eval 'echo git history fixup HEAD'",
+        )
+
+        for command in destructive_commands:
+            with self.subTest(destructive=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(2, result.exit_code)
+
+        for command in inert_commands:
+            with self.subTest(inert=command):
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                self.assertEqual(0, result.exit_code)
+
+    def test_git_history_rewrites_fail_closed_in_dynamic_and_raw_fallbacks(self):
+        self.assertTrue(
+            HOOKS._dynamic_destructive_intent(("history", "fixup", "HEAD"))
+        )
+        self.assertFalse(
+            HOOKS._dynamic_destructive_intent(
+                ("history", "fixup", "HEAD", "--dry-run")
+            )
+        )
+        self.assertTrue(HOOKS._recognized_destructive_intent("git history fixup HEAD"))
+        self.assertFalse(
+            HOOKS._recognized_destructive_intent(
+                "git history fixup HEAD --dry-run"
+            )
+        )
+
+        expected = {
+            "git history fixup HEAD": 2,
+            '"${tool}" history reword HEAD': 2,
+            "git history split HEAD -- README.md": 2,
+            "git history fixup HEAD --dry-run": 0,
+            "git history --help": 0,
+            "echo 'git history fixup HEAD'": 0,
+        }
+        with mock.patch.object(
+            HOOKS, "git_invocations", side_effect=RecursionError("primary failure")
+        ), mock.patch.object(
+            HOOKS, "_recursive_invocations", side_effect=RecursionError("fallback failure")
+        ):
+            for command, exit_code in expected.items():
+                with self.subTest(raw_fallback=command):
+                    result = HOOKS.handle(
+                        "validate-command",
+                        {"tool_input": {"command": command}},
+                        ROOT,
+                    )
+                    self.assertEqual(exit_code, result.exit_code)
+
     def test_variable_expansion_respects_shell_word_splitting_and_quotes(self):
         destructive = (
             "cmd='git reset'; $cmd --hard",

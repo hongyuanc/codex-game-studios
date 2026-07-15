@@ -16,6 +16,7 @@ from tools.codex_studio.validate import (
     validate_hooks,
     validate_agent,
     validate_skill,
+    main,
 )
 
 
@@ -37,6 +38,12 @@ def _minimal_runtime_tree(root: Path) -> None:
 
 
 class RepositoryValidationTests(unittest.TestCase):
+    def test_source_mode_remains_default_and_backward_compatible(self):
+        # Arrange / Act / Assert
+        self.assertEqual([], validate_repository(ROOT, "final"))
+        self.assertEqual(0, main(["--root", str(ROOT), "--phase", "final"]))
+        self.assertEqual(0, main(["--root", str(ROOT), "--mode", "source", "--phase", "final"]))
+
     def test_final_repository_validation_accepts_each_configured_engine_pack(self):
         targets = {
             "godot": ("4.6", "gdscript"),
@@ -566,6 +573,63 @@ class RepositoryValidationTests(unittest.TestCase):
 
     def test_repository_counts_are_exact(self):
         self.assertEqual([], validate_repository_counts(ROOT))
+
+    def test_source_counts_ignore_plugin_payload_instructions_but_require_root_instructions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            shutil.copytree(
+                ROOT,
+                project,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".superpowers", "superpowers", "__pycache__"
+                ),
+            )
+
+            self.assertEqual([], validate_repository_counts(project))
+
+            (project / "src/ui/AGENTS.md").unlink()
+            issues = validate_repository_counts(project)
+
+        self.assertTrue(
+            any(
+                issue.path == "AGENTS.md"
+                and "src/ui/AGENTS.md" in issue.message
+                and "plugins/codex-game-studios/assets/studio/src/ui/AGENTS.md"
+                not in issue.message
+                for issue in issues
+            )
+        )
+
+    def test_source_counts_ignore_only_agents_below_tests_plugin_boundary(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            shutil.copytree(
+                ROOT,
+                project,
+                ignore=shutil.ignore_patterns(
+                    ".git", ".superpowers", "superpowers", "__pycache__"
+                ),
+            )
+            ignored = project / "tests/plugin/adversarial/nested/AGENTS.md"
+            ignored.parent.mkdir(parents=True)
+            ignored.write_text("fixture-only instructions\n", encoding="utf-8")
+
+            # Act / Assert
+            self.assertEqual([], validate_repository_counts(project))
+
+            outside = project / "tests/plugin-sibling/AGENTS.md"
+            outside.parent.mkdir(parents=True)
+            outside.write_text("unexpected instructions\n", encoding="utf-8")
+            issues = validate_repository_counts(project)
+
+        self.assertTrue(
+            any(
+                issue.path == "AGENTS.md"
+                and "tests/plugin-sibling/AGENTS.md" in issue.message
+                for issue in issues
+            )
+        )
 
     def test_pre_cleanup_gate_accepts_covered_legacy_sources(self):
         legacy = [path for path in (ROOT / ".claude").rglob("*") if path.is_file()]  # enforcement-literal
