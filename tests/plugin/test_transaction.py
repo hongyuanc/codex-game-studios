@@ -1268,6 +1268,7 @@ class TransactionTests(unittest.TestCase):
 
         api = object.__new__(safe_fs._WindowsApi)
         calls: list[tuple[int, bytes]] = []
+        destination = r"C:\repo\managed.txt"
 
         def set_information(_handle, information_class, pointer, size):
             calls.append((information_class, ctypes.string_at(pointer, size)))
@@ -1277,13 +1278,86 @@ class TransactionTests(unittest.TestCase):
 
         # Act
         api.mark_delete(101)
-        api.rename_no_replace(202, r"C:\repo\managed.txt")
+        api.rename_no_replace(202, destination)
+        api.rename_replace(203, destination)
 
         # Assert
         self.assertEqual(4, calls[0][0])
         self.assertEqual(b"\x01", calls[0][1])
-        self.assertEqual(3, calls[1][0])
-        self.assertEqual(0, calls[1][1][0], "ReplaceIfExists must be FALSE")
+        encoded = destination.encode("utf-16-le")
+        alignment = ctypes.alignment(ctypes.c_void_p)
+        root_offset = (
+            ctypes.sizeof(ctypes.c_uint32) + alignment - 1
+        ) & ~(alignment - 1)
+        name_length_offset = root_offset + ctypes.sizeof(ctypes.c_void_p)
+        name_offset = name_length_offset + ctypes.sizeof(ctypes.c_uint32)
+        expected_size = name_offset + len(encoded) + ctypes.sizeof(ctypes.c_uint16)
+        for replace, (information_class, buffer) in zip(
+            (False, True), calls[1:], strict=True
+        ):
+            expected = bytearray(expected_size)
+            ctypes.c_uint32.from_buffer(expected, 0).value = int(replace)
+            ctypes.c_void_p.from_buffer(expected, root_offset).value = None
+            ctypes.c_uint32.from_buffer(
+                expected, name_length_offset
+            ).value = len(encoded)
+            expected[name_offset : name_offset + len(encoded)] = encoded
+            self.assertEqual(3, information_class)
+            self.assertEqual(bytes(expected), buffer)
+
+    @unittest.skipUnless(os.name == "nt", "native Windows rename ABI")
+    def test_windows_native_handle_rename_targets_exact_destination(self):
+        # Arrange
+        import safe_fs
+
+        api = safe_fs._WindowsApi()
+
+        def open_for_rename(path: Path) -> int:
+            return api.create_file(
+                str(path),
+                safe_fs.GENERIC_READ | safe_fs.DELETE_ACCESS,
+                safe_fs.FILE_SHARE_READ | safe_fs.FILE_SHARE_WRITE,
+                safe_fs.OPEN_EXISTING,
+                safe_fs.FILE_FLAG_OPEN_REPARSE_POINT,
+            )
+
+        source = self.repo / "source.tmp"
+        destination = self.repo / "destination.bin"
+        source.write_bytes(b"no-replace")
+
+        # Act
+        handle = open_for_rename(source)
+        try:
+            api.rename_no_replace(handle, str(destination))
+        finally:
+            api.close(handle)
+
+        # Assert
+        self.assertFalse(source.exists())
+        self.assertEqual(b"no-replace", destination.read_bytes())
+        self.assertEqual(
+            {".codex", ".git", "destination.bin", "managed.txt"},
+            {entry.name for entry in self.repo.iterdir()},
+        )
+
+        # Arrange
+        replacement = self.repo / "replacement.tmp"
+        replacement.write_bytes(b"replace")
+
+        # Act
+        handle = open_for_rename(replacement)
+        try:
+            api.rename_replace(handle, str(destination))
+        finally:
+            api.close(handle)
+
+        # Assert
+        self.assertFalse(replacement.exists())
+        self.assertEqual(b"replace", destination.read_bytes())
+        self.assertEqual(
+            {".codex", ".git", "destination.bin", "managed.txt"},
+            {entry.name for entry in self.repo.iterdir()},
+        )
 
     def test_windows_api_constructor_binds_ex_and_basic_identity_abis_separately(self):
         # Arrange

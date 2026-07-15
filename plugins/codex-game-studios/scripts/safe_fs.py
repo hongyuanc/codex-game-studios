@@ -186,11 +186,15 @@ class _WindowsApi:
     def _rename(self, handle: int, destination: str, *, replace: bool) -> None:
         encoded = destination.encode("utf-16-le")
         alignment = ctypes.alignment(ctypes.c_void_p)
-        root_offset = (ctypes.sizeof(ctypes.c_ubyte) + alignment - 1) & ~(alignment - 1)
+        root_offset = (
+            ctypes.sizeof(ctypes.c_uint32) + alignment - 1
+        ) & ~(alignment - 1)
         name_length_offset = root_offset + ctypes.sizeof(ctypes.c_void_p)
         name_offset = name_length_offset + ctypes.sizeof(ctypes.c_uint32)
-        buffer = ctypes.create_string_buffer(name_offset + len(encoded))
-        ctypes.c_ubyte.from_buffer(buffer, 0).value = int(replace)
+        buffer = ctypes.create_string_buffer(
+            name_offset + len(encoded) + ctypes.sizeof(ctypes.c_uint16)
+        )
+        ctypes.c_uint32.from_buffer(buffer, 0).value = int(replace)
         ctypes.c_void_p.from_buffer(buffer, root_offset).value = None
         ctypes.c_uint32.from_buffer(buffer, name_length_offset).value = len(encoded)
         buffer[name_offset : name_offset + len(encoded)] = encoded

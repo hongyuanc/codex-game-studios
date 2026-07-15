@@ -780,6 +780,8 @@ class PayloadGenerationTests(unittest.TestCase):
         # Arrange
         import safe_fs
 
+        root = Path("D:/repo")
+
         # Act / Assert
         for error, expected in (
             (FileNotFoundError(2, "missing"), PayloadError),
@@ -791,7 +793,7 @@ class PayloadGenerationTests(unittest.TestCase):
                 safe_fs, "_windows_open_verified", side_effect=error
             ):
                 with self.assertRaises(expected) as caught:
-                    safe_fs.inspect_secure(Path("D:/repo"), "missing.txt")
+                    safe_fs.inspect_secure(root, "missing.txt")
                 if isinstance(error, FileNotFoundError):
                     self.assertIn("cannot inspect payload path", str(caught.exception))
                 else:
