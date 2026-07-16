@@ -21,7 +21,7 @@ class PluginManifestTests(unittest.TestCase):
 
         # Assert
         self.assertEqual("codex-game-studios", data["name"])
-        self.assertEqual("1.0.0", data["version"])
+        self.assertEqual("1.0.1", data["version"])
         self.assertEqual("./skills/", data["skills"])
         self.assertNotIn("hooks", data)
 

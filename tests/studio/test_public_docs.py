@@ -122,21 +122,32 @@ class PublicDocumentationTests(unittest.TestCase):
             text,
         )
 
-    def test_readme_documents_primary_and_prerelease_plugin_flows(self):
+    def test_readme_documents_working_app_and_cli_plugin_flows(self):
         # Arrange / Act
         text = (ROOT / "README.md").read_text(encoding="utf-8")
 
         # Assert
-        self.assertIn("Codex Plugins Directory", text)
+        self.assertIn("### Codex app", text)
+        self.assertIn("### Codex CLI", text)
+        self.assertIn("Start a new Codex task", text)
         self.assertIn("$codex-game-studios install", text)
         self.assertIn(
-            "codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1",
+            "codex plugin marketplace add hongyuanc/codex-game-studios --ref main",
             text,
         )
         self.assertIn(
             "codex plugin add codex-game-studios@codex-game-studios",
             text,
         )
+        self.assertIn(
+            "not yet listed in the public Codex Plugins Directory",
+            text,
+        )
+        self.assertNotIn(
+            "Install **Codex Game Studios** once from the public Codex Plugins Directory",
+            text,
+        )
+        self.assertNotIn("v1.0.0-rc.1", text)
         self.assertNotIn("codex plugin install", text)
 
     def test_readmes_document_trust_lifecycle_and_engine_requirements(self):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import contextlib
 import dataclasses
 from datetime import datetime, timezone
 import hashlib
@@ -38,8 +39,9 @@ from models import (
     normalize_relative_path,
     plan_with_digest,
 )
-from payload import load_verified_manifest, verify_manifest_snapshot
+from payload import load_manifest, load_verified_manifest, verify_manifest_snapshot
 from safe_fs import (
+    copy_file_secure,
     inspect_secure,
     is_reparse_point,
     list_immediate_secure,
@@ -78,6 +80,14 @@ _TRANSACTION_CONTROL_DIRECTORY = ".codex/codex-game-studios"
 _TRANSACTION_INTERNAL_CHILD_TYPES = {
     "manager.lock": "file",
 }
+_FAILURE_PHASES = frozenset({
+    "planning",
+    "payload-snapshot",
+    "state-render",
+    "action-render",
+    "installed-validation",
+    "transaction",
+})
 
 
 class ManagerError(ValueError):
@@ -90,12 +100,16 @@ class ManagerError(ValueError):
         *,
         wrote: bool = False,
         recovery: dict[str, str] | None = None,
+        failure_phase: str | None = None,
     ):
         super().__init__(f"{code}: {detail}")
+        if failure_phase is not None and failure_phase not in _FAILURE_PHASES:
+            raise ValueError("manager failure phase is not public")
         self.code = code
         self.detail = detail
         self.wrote = wrote
         self.recovery = recovery
+        self.failure_phase = failure_phase
 
 
 _EXPECTED_MANAGER_FAILURES = (
@@ -106,6 +120,16 @@ _EXPECTED_MANAGER_FAILURES = (
     OSError,
 )
 _PUBLIC_MANAGER_FAILURES = (ManagerError, *_EXPECTED_MANAGER_FAILURES)
+
+
+def _attach_failure_phase(error: ManagerError, phase: str) -> ManagerError:
+    """Attach one fixed public phase without changing the stable error code."""
+
+    if phase not in _FAILURE_PHASES:
+        raise ValueError("manager failure phase is not public")
+    if error.failure_phase is None:
+        error.failure_phase = phase
+    return error
 
 
 def _manager_error_from_expected(
@@ -1458,6 +1482,7 @@ def _result_document(
     next_action: str,
     approval_context: str | None = None,
     findings: list[dict[str, str]] | None = None,
+    failure_phase: str | None = None,
 ) -> dict[str, object]:
     return {
         "status": status,
@@ -1470,10 +1495,17 @@ def _result_document(
         "next_action": next_action,
         "approval_context": approval_context,
         "findings": findings or [],
+        "failure_phase": failure_phase,
     }
 
 
-def _error_document(operation: str, code: str, *, next_action: str) -> dict[str, object]:
+def _error_document(
+    operation: str,
+    code: str,
+    *,
+    next_action: str,
+    failure_phase: str,
+) -> dict[str, object]:
     return {
         "status": code,
         "operation": operation,
@@ -1485,6 +1517,7 @@ def _error_document(operation: str, code: str, *, next_action: str) -> dict[str,
         "next_action": next_action,
         "approval_context": None,
         "findings": [],
+        "failure_phase": failure_phase,
     }
 
 
@@ -1720,6 +1753,74 @@ def _validate_prospective(
         return validate_installed_read_only(shadow, plugin)
 
 
+@contextlib.contextmanager
+def _verified_apply_payload_snapshot(
+    plugin: Path,
+    expected_digest: str,
+):
+    """Yield a private immutable copy of the exact approved payload."""
+
+    last_error: PayloadError | None = None
+    temporary_parent = Path(tempfile.gettempdir()).resolve()
+    with tempfile.TemporaryDirectory(
+        prefix=".codex-game-studios-payload-",
+        dir=temporary_parent,
+    ) as temporary:
+        staging = Path(temporary)
+        for attempt_number in range(3):
+            snapshot = staging / f"plugin-{attempt_number}"
+            try:
+                manifest = load_manifest(plugin / "assets/payload-manifest.json")
+                if manifest.digest != expected_digest:
+                    raise ManagerError(
+                        "STALE_PLAN",
+                        "installed plugin payload differs from the approved plan",
+                        failure_phase="payload-snapshot",
+                    )
+                snapshot.mkdir(mode=0o755)
+                (snapshot / ".codex-plugin").mkdir(mode=0o755)
+                (snapshot / "assets/studio").mkdir(parents=True, mode=0o755)
+                for relative in (
+                    ".codex-plugin/plugin.json",
+                    "LICENSE",
+                    "assets/payload-manifest.json",
+                    "assets/payload-policy.json",
+                ):
+                    copy_file_secure(plugin, relative, snapshot, relative, 0o644)
+                studio = snapshot / "assets/studio"
+                for entry in manifest.entries:
+                    target = studio / PurePosixPath(entry.path)
+                    if entry.entry_type == "directory":
+                        target.mkdir(parents=True, exist_ok=True)
+                        if os.name != "nt":
+                            os.chmod(target, entry.mode)
+                        continue
+                    copied = copy_file_secure(
+                        plugin / "assets/studio",
+                        entry.path,
+                        studio,
+                        entry.path,
+                        entry.mode,
+                    )
+                    if copied != entry.sha256:
+                        raise PayloadError(
+                            f"payload source hash changed during apply snapshot: {entry.path}"
+                        )
+                verify_manifest_snapshot(snapshot, manifest)
+                yield snapshot, manifest
+                return
+            except PayloadError as error:
+                last_error = error
+                if snapshot.exists():
+                    shutil.rmtree(snapshot)
+        assert last_error is not None
+        raise ManagerError(
+            "INVALID_PAYLOAD",
+            "installed plugin payload did not stabilize for approved apply",
+            failure_phase="payload-snapshot",
+        ) from last_error
+
+
 def apply_operation(
     plan: OperationPlan,
     root: Path,
@@ -1736,56 +1837,109 @@ def apply_operation(
     sys.modules.setdefault("studio_manager", sys.modules[__name__])
     from transaction import apply_transaction
 
-    state = _load_optional_state(root)
-    manifest = load_verified_manifest(plugin)
-    entries = {item.path: item for item in manifest.entries}
-    if (
-        manifest.version != plan.plugin_version
-        or manifest.digest != plan.payload_digest
-    ):
-        raise ManagerError("STALE_PLAN", "verified payload does not match approved plan")
-    state_bytes = None if plan.operation == "uninstall" else _prospective_state_bytes(
-        plan,
-        plugin,
-        state,
-        approval_context,
-        manifest=manifest,
-        entries=entries,
-    )
-
-    def persist(action: Action, mutation: object) -> None:
-        if plan.operation == "uninstall":
-            mutation.remove_state_file(action.path)
-        else:
-            assert state_bytes is not None
-            mutation.replace_file(action.path, state_bytes, 0o600)
-
-    def apply_action(action: Action, mutation: object) -> None:
-        try:
-            _apply_lifecycle_action(action, mutation, root, plugin, state, entries)
-        except _EXPECTED_MANAGER_FAILURES as error:
-            raise _manager_error_from_expected(error) from error
-
-    def validate(current: Path) -> list[object]:
-        try:
-            return _validate_prospective(
-                current, plugin, plan, state, approval_context
-            )
-        except _EXPECTED_MANAGER_FAILURES as error:
-            raise _manager_error_from_expected(error) from error
-
+    failure_phase = "payload-snapshot"
     try:
-        return apply_transaction(
-            plan,
-            root,
-            lambda: plan_operation(plan.operation, root, plugin, approval_context),
-            apply_action,
-            validate,
-            persist_state=persist,
-            transaction_id=(approval_context.transaction_id if approval_context else None),
-        )
+        with _verified_apply_payload_snapshot(
+            Path(plugin),
+            plan.payload_digest,
+        ) as (active_plugin, manifest):
+            failure_phase = "state-render"
+            entries = {item.path: item for item in manifest.entries}
+            if manifest.version != plan.plugin_version:
+                raise ManagerError(
+                    "STALE_PLAN", "verified payload does not match approved plan"
+                )
+            state = _load_optional_state(root)
+            try:
+                state_bytes = (
+                    None
+                    if plan.operation == "uninstall"
+                    else _prospective_state_bytes(
+                        plan,
+                        active_plugin,
+                        state,
+                        approval_context,
+                        manifest=manifest,
+                        entries=entries,
+                    )
+                )
+            except ManagerError as error:
+                raise _attach_failure_phase(error, "state-render") from error
+            except _EXPECTED_MANAGER_FAILURES as error:
+                raise _attach_failure_phase(
+                    _manager_error_from_expected(error),
+                    "state-render",
+                ) from error
+
+            def persist(action: Action, mutation: object) -> None:
+                if plan.operation == "uninstall":
+                    mutation.remove_state_file(action.path)
+                else:
+                    assert state_bytes is not None
+                    mutation.replace_file(action.path, state_bytes, 0o600)
+
+            def apply_action(action: Action, mutation: object) -> None:
+                try:
+                    _apply_lifecycle_action(
+                        action,
+                        mutation,
+                        root,
+                        active_plugin,
+                        state,
+                        entries,
+                    )
+                except ManagerError as error:
+                    raise _attach_failure_phase(error, "action-render") from error
+                except _EXPECTED_MANAGER_FAILURES as error:
+                    raise _attach_failure_phase(
+                        _manager_error_from_expected(error),
+                        "action-render",
+                    ) from error
+
+            def validate(current: Path) -> list[object]:
+                try:
+                    return _validate_prospective(
+                        current,
+                        active_plugin,
+                        plan,
+                        state,
+                        approval_context,
+                    )
+                except ManagerError as error:
+                    raise _attach_failure_phase(
+                        error,
+                        "installed-validation",
+                    ) from error
+                except _EXPECTED_MANAGER_FAILURES as error:
+                    raise _attach_failure_phase(
+                        _manager_error_from_expected(error),
+                        "installed-validation",
+                    ) from error
+
+            failure_phase = "transaction"
+            return apply_transaction(
+                plan,
+                root,
+                lambda: plan_operation(
+                    plan.operation,
+                    root,
+                    active_plugin,
+                    approval_context,
+                ),
+                apply_action,
+                validate,
+                persist_state=persist,
+                transaction_id=(
+                    approval_context.transaction_id if approval_context else None
+                ),
+            )
+    except ManagerError as error:
+        raise _attach_failure_phase(error, failure_phase) from error
     except _EXPECTED_MANAGER_FAILURES as error:
-        raise _manager_error_from_expected(error) from error
+        raise _attach_failure_phase(
+            _manager_error_from_expected(error),
+            failure_phase,
+        ) from error
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1879,6 +2033,7 @@ def main(argv: list[str] | None = None) -> int:
                     if error.code == "ROLLBACK_FAILED"
                     else "run a new read-only plan"
                 ),
+                failure_phase=(error.failure_phase or "transaction"),
             )
         else:
             document = _error_document(
@@ -1888,6 +2043,14 @@ def main(argv: list[str] | None = None) -> int:
                     "inspect installation state"
                     if boundary == "installed-validation"
                     else "run a new read-only plan"
+                ),
+                failure_phase=(
+                    error.failure_phase
+                    or (
+                        "installed-validation"
+                        if boundary == "installed-validation"
+                        else "planning"
+                    )
                 ),
             )
         print(canonical_json(document).decode("utf-8"), end="")

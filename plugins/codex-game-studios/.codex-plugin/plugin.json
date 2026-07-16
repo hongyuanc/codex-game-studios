@@ -1,6 +1,6 @@
 {
   "name": "codex-game-studios",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Install and manage a complete Codex-native game-development studio in a repository.",
   "author": {
     "name": "hongyuanc"

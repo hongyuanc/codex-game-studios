@@ -28,6 +28,10 @@ reports `ROLLBACK_FAILED`, stop and follow
 
 3. Parse the JSON response. Present its full action list, conflicts, preserved
    paths, warnings, and validation findings without omission or rewriting.
+   If the complete response exceeds the conversation transport limit, save the
+   exact unmodified JSON outside the target repository as a Codex artifact,
+   link that artifact, and present its action counts and digest. Do not apply
+   until the user can access that complete artifact and explicitly approves it.
    Exit `2` with `status: awaiting-approval` is the expected successful planning
    result for a mutation. Exit `0` is a completed success; exit `1` is a stable
    categorized failure.
@@ -53,9 +57,11 @@ reports `ROLLBACK_FAILED`, stop and follow
    trusted `recovery` object. Never synthesize missing recovery metadata.
 
 Every JSON response contains `status`, `operation`, `digest`, `actions`,
-`conflicts`, `findings`, `wrote`, `recovery`, `next_action`, and `approval_context`. Treat `wrote` and
-`recovery` as authoritative; never infer write or rollback status from the
-presence of target files.
+`conflicts`, `findings`, `wrote`, `recovery`, `next_action`,
+`approval_context`, and `failure_phase`. Treat `wrote` and `recovery` as
+authoritative; never infer write or rollback status from the presence of target
+files. `failure_phase` is null on success and otherwise names only a stable,
+content-free manager phase; never replace it with guessed exception details.
 
 The manager commands are the only authorized interface. Do not reproduce their
 filesystem mutations manually or enable embedded project hooks as plugin

@@ -10,12 +10,38 @@ Engine 5 are supported through mutually exclusive engine packs.
 
 ## Install the plugin
 
-Install **Codex Game Studios** once from the public Codex Plugins Directory.
-Then open each Git game repository where you want the studio and run:
+Codex Game Studios is currently distributed through this repository's plugin
+marketplace. It is not yet listed in the public Codex Plugins Directory.
+
+### Codex app
+
+1. Clone this repository and open the clone in the Codex app.
+2. Open **Plugins**, select the **Codex Game Studios** repository marketplace,
+   and install **Codex Game Studios**.
+3. Start a new Codex task in the Git game repository where you want the studio.
+   A new task is required so Codex loads the newly installed plugin.
+4. Run:
 
 ```text
 $codex-game-studios install
 ```
+
+You can close the Codex Game Studios source repository after installing the
+plugin. The installed copy is available to other local repositories.
+
+### Codex CLI
+
+First install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) if
+`codex --version` is not available. Then add this repository's marketplace and
+install the plugin from the published `main` branch:
+
+```bash
+codex plugin marketplace add hongyuanc/codex-game-studios --ref main
+codex plugin add codex-game-studios@codex-game-studios
+```
+
+Start a new Codex session in the target Git repository, then run
+`$codex-game-studios install`.
 
 The retained manager presents a complete, digest-bound plan and changes the
 repository only after you explicitly approve that exact plan. Project
@@ -23,13 +49,6 @@ operations use the verified embedded payload and make no network requests.
 After installation, invoke `$start`; use `$setup-engine` when you are ready to
 choose Godot, Unity, or Unreal. The selected engine itself must be installed
 separately to run or export a game.
-
-For prerelease testing, install the pinned GitHub marketplace release:
-
-```bash
-codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1
-codex plugin add codex-game-studios@codex-game-studios
-```
 
 The same retained manager remains available for repository lifecycle work:
 
@@ -91,7 +110,7 @@ community, visit the
   projects moving from the upstream template without an operational
   compatibility bridge.
 
-## Getting started
+## Use the source checkout directly
 
 1. Clone this repository.
 2. Open the project in Codex and trust the repository configuration and hooks after review.

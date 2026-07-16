@@ -22,6 +22,11 @@ digest from another plan or synthesize one. The manager reacquires and checks
 the plan while holding its cooperative lock; a changed repository produces a
 stale-plan error and requires a new plan and new approval.
 
+When the complete canonical response is too large for the conversation
+transport, store that exact response as a Codex artifact outside the target
+repository and provide a link, action counts, and digest. The artifact is the
+complete plan presented for approval; a truncated message is not.
+
 For `verify`, present every canonical ordered relative-path object in the
 `findings` array without omission. An empty array is the exact clean result;
 never infer findings from status, actions, or conflicts.
@@ -31,3 +36,8 @@ must validate the embedded payload, reject unsafe paths and links, preserve a
 same-filesystem recovery snapshot, apply the action list, validate the result,
 and record state before reporting success. Project operations make no network
 requests and collect no credentials or telemetry.
+
+Approved apply uses a private verified snapshot of the exact digest-bound
+payload so a concurrent marketplace cache refresh cannot change bytes during a
+transaction. Error JSON reports only a fixed-vocabulary `failure_phase`; it
+must not expose filesystem paths, payload content, or exception text.

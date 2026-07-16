@@ -110,6 +110,9 @@ class PluginDocumentationTests(unittest.TestCase):
         self.assertIn("exact digest", skill)
         self.assertIn("never invent", skill)
         self.assertIn("explicit approval", skill)
+        self.assertIn("exact unmodified JSON", skill)
+        self.assertIn("Codex artifact", skill)
+        self.assertIn("failure_phase", skill)
         self.assertIn("verify", skill)
         self.assertIn("never requests approval", skill)
 

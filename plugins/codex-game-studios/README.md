@@ -11,13 +11,24 @@ operations use the embedded payload and make no network requests.
 - A Git repository in which you want to manage the studio
 - Godot, Unity, or Unreal installed separately before running or exporting a game
 
-Install the public release once from the Codex Plugins Directory. For a pinned
-prerelease marketplace build, use:
+The plugin is currently distributed through the repository marketplace and is
+not yet listed in the public Codex Plugins Directory.
+
+In the Codex app, clone and open the
+[Codex Game Studios repository](https://github.com/hongyuanc/codex-game-studios),
+open **Plugins**, select the **Codex Game Studios** repository marketplace, and
+install the plugin. Start a new Codex task in the target Git repository so the
+newly installed plugin is loaded.
+
+For the Codex CLI, add the repository marketplace and install from the
+published `main` branch:
 
 ```bash
-codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1
+codex plugin marketplace add hongyuanc/codex-game-studios --ref main
 codex plugin add codex-game-studios@codex-game-studios
 ```
+
+Start a new Codex session in the target Git repository after installation.
 
 ## Operations
 
