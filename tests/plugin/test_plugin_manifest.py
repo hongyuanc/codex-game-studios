@@ -12,18 +12,27 @@ PLUGIN = ROOT / "plugins/codex-game-studios"
 class PluginManifestTests(unittest.TestCase):
     """Verify the public plugin metadata contract."""
 
-    def test_plugin_manifest_exposes_only_native_manager_skill(self):
+    def test_plugin_manifest_exposes_complete_native_skill_catalog(self):
         # Arrange
         manifest = PLUGIN / ".codex-plugin/plugin.json"
 
         # Act
         data = json.loads(manifest.read_text(encoding="utf-8"))
+        bundled = {
+            path.parent.name
+            for path in (PLUGIN / data["skills"]).resolve().glob("*/SKILL.md")
+        }
+        canonical = {
+            path.parent.name
+            for path in (ROOT / ".agents/skills").glob("*/SKILL.md")
+        }
 
         # Assert
-        self.assertEqual("codex-game-studios", data["name"])
-        self.assertEqual("1.0.1", data["version"])
-        self.assertEqual("./skills/", data["skills"])
-        self.assertNotIn("hooks", data)
+        self.assertEqual("2.0.0", data["version"])
+        self.assertEqual("./assets/studio/.agents/skills/", data["skills"])
+        self.assertEqual(canonical, bundled)
+        self.assertEqual(73, len(bundled))
+        self.assertFalse((PLUGIN / "skills/codex-game-studios/SKILL.md").exists())
 
     def test_plugin_manifest_publishes_approved_metadata(self):
         # Arrange
@@ -40,7 +49,7 @@ class PluginManifestTests(unittest.TestCase):
             "capabilities": ["Read", "Write"],
             "websiteURL": "https://github.com/hongyuanc/codex-game-studios",
             "defaultPrompt": [
-                "Use $codex-game-studios install to add the studio to this game repository."
+                "Use $codex-game-studios:start to begin in this game repository."
             ],
         }
 

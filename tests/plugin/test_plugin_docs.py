@@ -1,4 +1,4 @@
-"""Contract tests for plugin documentation, licensing, and manager skill."""
+"""Contract tests for plugin documentation and licensing."""
 
 from pathlib import Path
 import unittest
@@ -6,9 +6,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
-SKILL = PLUGIN / "skills/codex-game-studios"
-
-
 class PluginDocumentationTests(unittest.TestCase):
     """Verify user-facing plugin and skill contracts."""
 
@@ -75,66 +72,6 @@ class PluginDocumentationTests(unittest.TestCase):
         self.assertIn("Python 3.11", readme)
         self.assertIn("Git repository", readme)
         self.assertIn("no network", readme)
-
-    def test_skill_declares_only_supported_operations(self):
-        # Arrange
-        skill_path = SKILL / "SKILL.md"
-
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        self.assertIn("name: codex-game-studios", skill)
-        self.assertIn("`install|update|verify|repair|uninstall`", skill)
-        for operation in ("install", "update", "verify", "repair", "uninstall"):
-            self.assertIn(operation, skill)
-
-    def test_skill_uses_digest_bound_two_phase_cli_protocol(self):
-        # Arrange
-        skill_path = SKILL / "SKILL.md"
-
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        self.assertIn(
-            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --format json",
-            skill,
-        )
-        self.assertIn(
-            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --approval-context <context> --format json",
-            skill,
-        )
-        self.assertIn("approval_context", skill)
-        self.assertIn("full action list", skill)
-        self.assertIn("exact digest", skill)
-        self.assertIn("never invent", skill)
-        self.assertIn("explicit approval", skill)
-        self.assertIn("exact unmodified JSON", skill)
-        self.assertIn("Codex artifact", skill)
-        self.assertIn("failure_phase", skill)
-        self.assertIn("verify", skill)
-        self.assertIn("never requests approval", skill)
-
-    def test_skill_routes_contract_conflicts_and_recovery_to_references(self):
-        # Arrange
-        skill_path = SKILL / "SKILL.md"
-        references = {
-            "references/install-contract.md": "read-only",
-            "references/conflict-policy.md": "CUSTOMIZED_MANAGED_FILE",
-            "references/recovery.md": "ROLLBACK_FAILED",
-        }
-
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        for relative_path, required_text in references.items():
-            self.assertIn(relative_path, skill)
-            self.assertIn(required_text, (SKILL / relative_path).read_text(encoding="utf-8"))
-        self.assertIn("ROLLBACK_FAILED", skill)
-        self.assertIn("references/recovery.md", skill)
-
 
 if __name__ == "__main__":
     unittest.main()
