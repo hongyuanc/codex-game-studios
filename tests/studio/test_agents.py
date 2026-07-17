@@ -51,6 +51,9 @@ class AgentValidationTests(unittest.TestCase):
             "default launch reports capability unavailable",
             "single-agent fallback",
             "must not fall through",
+            "Evaluate default capability availability before model support",
+            "model support is irrelevant",
+            "default capability is usable",
         ):
             with self.subTest(token=token):
                 self.assertIn(token, normalized)

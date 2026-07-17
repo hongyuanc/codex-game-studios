@@ -3,6 +3,7 @@ import importlib
 import importlib.util
 import shutil
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -237,6 +238,148 @@ class RoleResolverTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "ambiguous"):
                 delegation.resolve_role(fixture, project, "qa-tester")
 
+    def test_resolver_detects_ancestor_replacement_after_validation(self):
+        delegation = _delegation_module(self)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            fixture = base / "studio"
+            shutil.copytree(ROOT / ".codex", fixture / ".codex")
+            project = base / "project"
+            project.mkdir()
+            _write_studio_config(project)
+            agents = fixture / ".codex/agents"
+            retained = fixture / ".codex/agents-retained"
+            outside = base / "outside-agents"
+            outside.mkdir()
+            outside_contract = (
+                agents / "qa-tester.toml"
+            ).read_text(encoding="utf-8").replace(
+                "Create detailed test cases, bug reports, and test checklists.",
+                "OUTSIDE CONTROLLED INSTRUCTIONS",
+                1,
+            )
+            (outside / "qa-tester.toml").write_text(
+                outside_contract, encoding="utf-8"
+            )
+            real_open = delegation.os.open
+            real_metadata = delegation._safe_metadata
+            replaced = False
+
+            def replace_before_contract_metadata(path, label, *, missing_ok=False):
+                nonlocal replaced
+                if label == "role contract" and not replaced:
+                    replaced = True
+                    agents.rename(retained)
+                    agents.symlink_to(outside, target_is_directory=True)
+                return real_metadata(path, label, missing_ok=missing_ok)
+
+            def replace_before_final(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal replaced
+                final_component = Path(path).name == "qa-tester.toml"
+                if final_component and not replaced:
+                    replaced = True
+                    agents.rename(retained)
+                    agents.symlink_to(outside, target_is_directory=True)
+                if dir_fd is None:
+                    return real_open(path, flags, mode)
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            with mock.patch.object(
+                delegation,
+                "_safe_metadata",
+                side_effect=replace_before_contract_metadata,
+            ), mock.patch.object(delegation.os, "open", side_effect=replace_before_final):
+                with self.assertRaisesRegex(ValueError, "ancestor.*changed|identity"):
+                    delegation.resolve_role(fixture, project, "qa-tester")
+
+    def test_windows_resolver_pins_ancestor_identity_through_role_read(self):
+        delegation = _delegation_module(self)
+
+        class FakeWindowsApi:
+            FILE_SHARE_READ = 0x1
+            FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+            FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+
+            def __init__(self, contract):
+                self.contract = contract
+                self.calls = []
+                self.closed = []
+                self.handles = {}
+                self.next_handle = 1
+                self.replaced = False
+
+            def open(self, path, *, flags, share):
+                normalized = str(path).replace("/", "\\")
+                handle = self.next_handle
+                self.next_handle += 1
+                name = normalized.rsplit("\\", 1)[-1]
+                if name == "qa-tester.toml":
+                    self.replaced = True
+                identity = (1, 3)
+                if name == ".codex":
+                    identity = (1, 2)
+                elif name == "agents":
+                    identity = (1, 30 if self.replaced else 3)
+                elif name == "qa-tester.toml":
+                    identity = (1, 4)
+                elif normalized.endswith("studio"):
+                    identity = (1, 1)
+                kind = "file" if name.endswith(".toml") else "directory"
+                self.handles[handle] = (normalized, identity, kind)
+                self.calls.append((normalized, flags, share, handle))
+                return handle
+
+            def info(self, handle):
+                _, identity, kind = self.handles[handle]
+                return types.SimpleNamespace(
+                    identity=identity,
+                    kind=kind,
+                    reparse=False,
+                    disk=True,
+                    size=len(self.contract) if kind == "file" else 0,
+                    write_time=1,
+                )
+
+            def final_path(self, handle):
+                return self.handles[handle][0]
+
+            def read(self, handle):
+                return self.contract
+
+            def close(self, handle):
+                self.closed.append(handle)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            project.mkdir()
+            _write_studio_config(project)
+            raw = (ROOT / ".codex/agents/qa-tester.toml").read_bytes().replace(
+                b"Create detailed test cases, bug reports, and test checklists.",
+                b"OUTSIDE CONTROLLED INSTRUCTIONS",
+                1,
+            )
+            api = FakeWindowsApi(raw)
+            with mock.patch.object(
+                delegation, "_is_windows", return_value=True, create=True
+            ), mock.patch.object(
+                delegation, "_windows_api_factory", return_value=api, create=True
+            ):
+                with self.assertRaisesRegex(ValueError, "ancestor.*changed|identity"):
+                    delegation.resolve_role(
+                        Path("C:/plugin/studio"), project, "qa-tester"
+                    )
+
+        self.assertTrue(api.calls)
+        self.assertTrue(
+            all(
+                flags & api.FILE_FLAG_OPEN_REPARSE_POINT
+                for _, flags, _, _ in api.calls
+            )
+        )
+        self.assertEqual(
+            {handle for *_, handle in api.calls}, set(api.closed)
+        )
+
 
 class DelegationRoutingTests(unittest.TestCase):
     def test_closed_route_table(self):
@@ -249,6 +392,10 @@ class DelegationRoutingTests(unittest.TestCase):
             ("absent", "blocked", True, ("default", "BLOCKED", None)),
             ("absent", "absent", True, ("single-agent", "FALLBACK", "single-agent fallback")),
             ("unavailable", "unavailable", True, ("single-agent", "FALLBACK", "single-agent fallback")),
+            ("absent", "absent", False, ("single-agent", "FALLBACK", "single-agent fallback")),
+            ("absent", "unavailable", False, ("single-agent", "FALLBACK", "single-agent fallback")),
+            ("unavailable", "absent", False, ("single-agent", "FALLBACK", "single-agent fallback")),
+            ("unavailable", "unavailable", False, ("single-agent", "FALLBACK", "single-agent fallback")),
             ("absent", "not-attempted", False, ("approval-required", "BLOCKED", None)),
         )
         for native, default, model_supported, expected in cases:
@@ -259,6 +406,27 @@ class DelegationRoutingTests(unittest.TestCase):
                     model_supported=model_supported,
                 )
                 self.assertEqual(expected, (decision.route, decision.status, decision.evidence_label))
+
+    def test_closed_route_table_rejects_impossible_state_combinations(self):
+        delegation = _delegation_module(self)
+        cases = (
+            ("success", "success", True),
+            ("blocked", "absent", True),
+            ("absent", "not-attempted", True),
+            ("absent", "success", False),
+            ("unavailable", "blocked", False),
+        )
+        for native, default, model_supported in cases:
+            with self.subTest(
+                native=native,
+                default=default,
+                model_supported=model_supported,
+            ), self.assertRaisesRegex(ValueError, "impossible route state"):
+                delegation.decide_route(
+                    native_result=native,
+                    default_result=default,
+                    model_supported=model_supported,
+                )
 
     def test_default_request_maps_model_fields_and_complete_bounded_prompt(self):
         delegation = _delegation_module(self)

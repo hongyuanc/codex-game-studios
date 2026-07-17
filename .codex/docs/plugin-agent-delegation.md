@@ -47,6 +47,14 @@ Do not infer any other transition. Do not skip an available earlier route. A
 default delegated agent carrying the complete plugin-local role contract is the
 only substitute for a native named role.
 
+Evaluate default capability availability before model support. When the default
+delegated agent is absent or its invocation reports capability unavailable,
+model support is irrelevant and the route enters the labeled single-agent
+fallback. Model approval applies only when the default capability is usable but
+the configured model or reasoning setting prevents launch. A native or default
+child result and any later-route result in the same decision are an impossible
+state; reject that combination instead of falling through.
+
 ## Default-agent parameter contract
 
 Map supported settings exactly:
