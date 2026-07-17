@@ -364,7 +364,8 @@ class OperationsSkillTests(unittest.TestCase):
     def test_skill_maintenance_has_native_safety_contracts(self):
         skill_test = self.skill_text("skill-test")
         self.assertIn("Validation is read-only and does not require approval", skill_test)
-        self.assertIn(".agents/skills/", skill_test)
+        self.assertIn("current task's available skill catalog", skill_test)
+        self.assertIn("Do not search for or copy repository-local skill files", skill_test)
         self.assertIn("tools/codex_studio/validate.py", skill_test)
         self.assertIn("exactly `name` and `description`", skill_test)
         self.assertIn("`name` must equal the skill directory name", skill_test)
@@ -382,7 +383,7 @@ class OperationsSkillTests(unittest.TestCase):
 
         improve = self.skill_text("skill-improve")
         for phrase in (
-            "exact proposed edit set",
+            "list that source path as the only target",
             "explicit approval before applying",
             "retest score does not regress",
             "restore the original skill",
@@ -394,7 +395,7 @@ class OperationsSkillTests(unittest.TestCase):
         self.assertIn("Codex Studio Testing Framework/catalog.yaml", text)
         self.assertIn("Codex Studio Testing Framework/skills/", text)
         self.assertNotIn("not migrated yet", text)
-        self.assertNotIn("staged dependency", text.lower())
+        self.assertIn("Staged dependency: $[name] is not available", text)
 
     def test_team_ui_quick_reference_matches_preflight_contract(self):
         text = self.skill_text("team-ui")
@@ -405,7 +406,9 @@ class OperationsSkillTests(unittest.TestCase):
         for name in ("skill-test", "skill-improve"):
             text = self.skill_text(name)
             with self.subTest(skill=name):
-                self.assertIn(".agents/skills/", text)
+                self.assertIn("current task's available skill catalog", text)
+                self.assertIn("do not search for or copy", text.lower())
+                self.assertIn("repository-local skill file", text)
                 self.assertNotIn(".codex/skills/", text)
                 self.assertNotIn("CCGS", text)
 
