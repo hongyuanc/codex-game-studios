@@ -49,7 +49,7 @@ class _PluginInventory:
 
 def _manager_api(plugin: Path) -> tuple[object, object, object, object, object]:
     scripts = plugin / "scripts"
-    names = ("models", "safe_fs", "payload")
+    names = ("models", "safe_fs", "payload", "legacy_payload")
     saved = {name: sys.modules.get(name) for name in names}
     for name in names:
         sys.modules.pop(name, None)
@@ -58,6 +58,11 @@ def _manager_api(plugin: Path) -> tuple[object, object, object, object, object]:
         models = importlib.import_module("models")
         safe_fs = importlib.import_module("safe_fs")
         payload = importlib.import_module("payload")
+        legacy_payload = importlib.import_module("legacy_payload")
+        payload._LEGACY_CAPSULE_VERIFIER = (
+            legacy_payload.LegacyPayloadError,
+            legacy_payload.verified_legacy_snapshot,
+        )
     finally:
         try:
             sys.path.remove(str(scripts))
@@ -75,6 +80,33 @@ def _manager_api(plugin: Path) -> tuple[object, object, object, object, object]:
         safe_fs.AnchoredFilesystem,
         safe_fs.pin_root,
     )
+
+
+def _legacy_api(plugin: Path) -> tuple[type[Exception], object]:
+    """Load the plugin-local legacy capsule verifier without module leakage."""
+
+    scripts = plugin / "scripts"
+    names = ("models", "safe_fs", "payload", "legacy_payload")
+    saved = {name: sys.modules.get(name) for name in names}
+    for name in names:
+        sys.modules.pop(name, None)
+    sys.path.insert(0, str(scripts))
+    try:
+        importlib.import_module("models")
+        importlib.import_module("safe_fs")
+        importlib.import_module("payload")
+        legacy_payload = importlib.import_module("legacy_payload")
+    finally:
+        try:
+            sys.path.remove(str(scripts))
+        except ValueError:
+            pass
+        for name in names:
+            sys.modules.pop(name, None)
+        for name, module in saved.items():
+            if module is not None:
+                sys.modules[name] = module
+    return legacy_payload.LegacyPayloadError, legacy_payload.verified_legacy_snapshot
 
 
 def _plugin_files(filesystem: object) -> _PluginInventory:
@@ -212,6 +244,12 @@ def _verified_version(
         raise ValueError(f"plugin payload is not release-ready: {error}") from error
     if verified.version != fresh.version:
         raise ValueError("plugin and payload versions do not match")
+    legacy_error, verified_legacy_snapshot = _legacy_api(plugin)
+    try:
+        with verified_legacy_snapshot(plugin, "1.0.0"):
+            pass
+    except (OSError, ValueError, legacy_error) as error:
+        raise ValueError(f"legacy payload capsule is not release-ready: {error}") from error
     return verified.version
 
 

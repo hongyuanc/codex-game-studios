@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import hashlib
 import ntpath
@@ -15,6 +16,8 @@ import tempfile
 import types
 import unittest
 from unittest import mock
+import warnings
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,8 +31,15 @@ from payload import (  # noqa: E402
     load_manifest,
     load_verified_manifest,
     verify_payload,
+    verify_manifest_snapshot,
     inventory_attestation,
 )
+from legacy_payload import (  # noqa: E402
+    LegacyPayloadError,
+    load_legacy_payload,
+    verified_legacy_snapshot,
+)
+import legacy_payload  # noqa: E402
 from safe_fs import list_immediate_secure  # noqa: E402
 
 
@@ -73,8 +83,207 @@ class PayloadPathTests(unittest.TestCase):
         self.assertEqual(b'{"a":"caf\xc3\xa9","z":1}\n', encoded)
 
 
+class LegacyPayloadSecurityTests(unittest.TestCase):
+    """Verify the immutable legacy capsule fails closed."""
+
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.plugin = Path(self.temporary_directory.name) / "plugin"
+        source = PLUGIN / "assets/legacy/1.0.0"
+        shutil.copytree(source, self.plugin / "assets/legacy/1.0.0")
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def rewrite_archive(self, mutate):
+        archive_path = self.plugin / "assets/legacy/1.0.0/studio.zip"
+        with zipfile.ZipFile(archive_path, "r") as source:
+            infos = [copy.copy(info) for info in source.infolist()]
+            contents = [source.read(info) for info in source.infolist()]
+            comment = source.comment
+        infos, contents, comment = mutate(infos, contents, comment)
+        with zipfile.ZipFile(
+            archive_path,
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+        ) as destination:
+            destination.comment = comment
+            for info, content in zip(infos, contents, strict=True):
+                destination.writestr(
+                    info,
+                    content,
+                    compress_type=zipfile.ZIP_DEFLATED,
+                    compresslevel=9,
+                )
+        digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+        return mock.patch.dict(legacy_payload._ARCHIVE_SHA256, {"1.0.0": digest})
+
+    def test_legacy_payload_manifest_and_archive_tampering_is_rejected(self):
+        # Arrange
+        manifest = self.plugin / "assets/legacy/1.0.0/payload-manifest.json"
+        archive = self.plugin / "assets/legacy/1.0.0/studio.zip"
+
+        # Act / Assert
+        manifest.write_bytes(manifest.read_bytes() + b" ")
+        with self.assertRaisesRegex(LegacyPayloadError, "manifest authentication"):
+            load_legacy_payload(self.plugin, "1.0.0")
+        shutil.copyfile(
+            PLUGIN / "assets/legacy/1.0.0/payload-manifest.json", manifest
+        )
+        archive.write_bytes(archive.read_bytes() + b"trailing bytes")
+        with self.assertRaisesRegex(LegacyPayloadError, "archive authentication"):
+            load_legacy_payload(self.plugin, "1.0.0")
+
+    def test_legacy_payload_unsafe_and_duplicate_member_names_are_rejected(self):
+        # Arrange / Act / Assert
+        cases = {
+            "absolute": "/absolute",
+            "traversal": "assets/studio/../escape",
+            "backslash": "assets/studio/unsafe\\name",
+        }
+        original = self.plugin / "assets/legacy/1.0.0/studio.zip"
+        original_bytes = original.read_bytes()
+        for case, hostile_name in cases.items():
+            with self.subTest(case=case):
+                original.write_bytes(original_bytes)
+
+                def mutate(infos, contents, comment):
+                    infos[0].filename = hostile_name
+                    return infos, contents, comment
+
+                with self.rewrite_archive(mutate), self.assertRaisesRegex(
+                    LegacyPayloadError, "unsafe"
+                ):
+                    with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                        self.fail("unsafe archive yielded a snapshot")
+
+        original.write_bytes(original_bytes)
+
+        def duplicate(infos, contents, comment):
+            infos[1].filename = infos[0].filename
+            return infos, contents, comment
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            with self.rewrite_archive(duplicate), self.assertRaisesRegex(
+                LegacyPayloadError, "duplicate normalized"
+            ):
+                with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                    self.fail("duplicate archive yielded a snapshot")
+
+    def test_legacy_payload_links_specials_and_undeclared_entries_are_rejected(self):
+        # Arrange / Act / Assert
+        cases = {
+            "link": stat.S_IFLNK | 0o755,
+            "special": stat.S_IFIFO | 0o644,
+        }
+        archive = self.plugin / "assets/legacy/1.0.0/studio.zip"
+        original_bytes = archive.read_bytes()
+        for case, hostile_mode in cases.items():
+            with self.subTest(case=case):
+                archive.write_bytes(original_bytes)
+
+                def mutate(infos, contents, comment):
+                    infos[-1].external_attr = hostile_mode << 16
+                    return infos, contents, comment
+
+                with self.rewrite_archive(mutate), self.assertRaisesRegex(
+                    LegacyPayloadError, "link or special"
+                ):
+                    with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                        self.fail("special archive yielded a snapshot")
+
+        archive.write_bytes(original_bytes)
+
+        def undeclared(infos, contents, comment):
+            infos[-1].filename = "assets/studio/undeclared.txt"
+            return infos, contents, comment
+
+        with self.rewrite_archive(undeclared), self.assertRaisesRegex(
+            LegacyPayloadError, "undeclared"
+        ):
+            with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                self.fail("undeclared archive yielded a snapshot")
+
+    def test_legacy_payload_mode_hash_and_metadata_drift_are_rejected(self):
+        # Arrange / Act / Assert
+        archive = self.plugin / "assets/legacy/1.0.0/studio.zip"
+        original_bytes = archive.read_bytes()
+
+        def mode_drift(infos, contents, comment):
+            infos[-1].external_attr = (stat.S_IFREG | 0o755) << 16
+            return infos, contents, comment
+
+        with self.rewrite_archive(mode_drift), self.assertRaisesRegex(
+            LegacyPayloadError, "mode drift"
+        ):
+            with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                self.fail("mode-drift archive yielded a snapshot")
+
+        archive.write_bytes(original_bytes)
+
+        def hash_drift(infos, contents, comment):
+            contents[-1] += b"tampered"
+            return infos, contents, comment
+
+        with self.rewrite_archive(hash_drift), self.assertRaisesRegex(
+            LegacyPayloadError, "hash drift"
+        ):
+            with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                self.fail("hash-drift archive yielded a snapshot")
+
+        archive.write_bytes(original_bytes)
+
+        def metadata_drift(infos, contents, comment):
+            return infos, contents, b"forbidden comment"
+
+        with self.rewrite_archive(metadata_drift), self.assertRaisesRegex(
+            LegacyPayloadError, "comment"
+        ):
+            with verified_legacy_snapshot(self.plugin, "1.0.0"):
+                self.fail("metadata-drift archive yielded a snapshot")
+
+    def test_legacy_payload_snapshot_is_private_external_and_cleaned(self):
+        # Arrange / Act
+        with verified_legacy_snapshot(self.plugin, "1.0.0") as (root, _manifest):
+            snapshot = root
+            mode = stat.S_IMODE(root.stat().st_mode)
+            inside_plugin = root.is_relative_to(self.plugin)
+            extracted_into_plugin = (self.plugin / "assets/studio").exists()
+
+        # Assert
+        self.assertEqual(0o700, mode)
+        self.assertFalse(inside_plugin)
+        self.assertFalse(extracted_into_plugin)
+        self.assertFalse(snapshot.exists())
+
+
 class PayloadGenerationTests(unittest.TestCase):
     """Verify generation, policy parity, and committed payload integrity."""
+
+    def test_public_legacy_payload_is_authenticated_and_complete(self):
+        # Arrange / Act
+        legacy = load_legacy_payload(PLUGIN, "1.0.0")
+        with verified_legacy_snapshot(PLUGIN, "1.0.0") as (root, manifest):
+            snapshot = root
+            issues = verify_manifest_snapshot(root, manifest)
+            required_exists = (
+                root / "assets/studio/.agents/skills/start/SKILL.md"
+            ).is_file()
+
+        # Assert
+        self.assertEqual("1.0.0", legacy.manifest.version)
+        self.assertIsNone(issues)
+        self.assertTrue(required_exists)
+        self.assertFalse(snapshot.exists())
+
+    def test_legacy_payload_rejects_unsupported_version(self):
+        # Arrange / Act / Assert
+        with self.assertRaisesRegex(LegacyPayloadError, "unsupported"):
+            load_legacy_payload(PLUGIN, "1.0.1")
 
     def test_payload_inventory_attestation_matches_exact_manifest_projection(self):
         # Arrange
@@ -347,6 +556,70 @@ class PayloadGenerationTests(unittest.TestCase):
                 else:
                     source_bytes = (ROOT / entry.path).read_bytes()
                 self.assertEqual(source_bytes, payload_bytes, entry.path)
+
+    def test_payload_build_preserves_authenticated_legacy_capsule_byte_exactly(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            plugin = Path(temporary_directory) / "codex-game-studios"
+            shutil.copytree(PLUGIN, plugin)
+            legacy = plugin / "assets/legacy/1.0.0"
+            before = {
+                path.name: path.read_bytes()
+                for path in legacy.iterdir()
+                if path.is_file()
+            }
+
+            # Act
+            build_payload(ROOT, plugin)
+            after = {
+                path.name: path.read_bytes()
+                for path in legacy.iterdir()
+                if path.is_file()
+            }
+
+            # Assert
+            self.assertEqual(before, after)
+            with verified_legacy_snapshot(plugin, "1.0.0") as (root, manifest):
+                self.assertIsNone(verify_manifest_snapshot(root, manifest))
+
+    def test_payload_build_check_authenticates_legacy_without_staleness(self):
+        # Arrange / Act
+        manifest = build_payload(ROOT, PLUGIN, check=True)
+
+        # Assert
+        self.assertEqual("2.0.0", manifest.version)
+
+    def test_payload_build_rejects_extra_or_unsafe_legacy_inventory(self):
+        # Arrange / Act / Assert
+        cases = ("extra file", "unsupported version", "link")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                plugin = Path(directory) / "codex-game-studios"
+                shutil.copytree(PLUGIN, plugin)
+                legacy = plugin / "assets/legacy"
+                if case == "extra file":
+                    (legacy / "extra.txt").write_text("extra", encoding="utf-8")
+                elif case == "unsupported version":
+                    (legacy / "9.9.9").mkdir()
+                else:
+                    (legacy / "linked.zip").symlink_to(
+                        "1.0.0/studio.zip"
+                    )
+
+                with self.assertRaisesRegex(PayloadError, "legacy"):
+                    build_payload(ROOT, plugin, check=True)
+
+    def test_payload_build_rejects_tampered_legacy_capsule(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            plugin = Path(temporary_directory) / "codex-game-studios"
+            shutil.copytree(PLUGIN, plugin)
+            archive = plugin / "assets/legacy/1.0.0/studio.zip"
+            archive.write_bytes(archive.read_bytes() + b"tampered")
+
+            # Act / Assert
+            with self.assertRaisesRegex(PayloadError, "legacy"):
+                build_payload(ROOT, plugin, check=True)
 
     def test_payload_policy_excludes_maintainer_material(self):
         # Arrange

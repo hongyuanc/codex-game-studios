@@ -166,6 +166,22 @@ class ReleaseContractTests(unittest.TestCase):
             completed.stdout.splitlines(),
         )
 
+    def test_release_source_allows_only_exact_legacy_zip(self):
+        # Arrange
+        lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        exception = (
+            "!plugins/codex-game-studios/assets/legacy/1.0.0/studio.zip"
+        )
+
+        # Act
+        archive_exceptions = [
+            line for line in lines if line.startswith("!") and line.endswith(".zip")
+        ]
+
+        # Assert
+        self.assertEqual([exception], archive_exceptions)
+        self.assertEqual(exception, lines[lines.index("*.zip") + 1])
+
     def test_release_tag_contract_accepts_stable_and_semver_prerelease_tags(self):
         # Arrange
         version = "1.0.0"
@@ -263,6 +279,40 @@ class ReleaseContractTests(unittest.TestCase):
         )
         self.assertIn("plugins/codex-game-studios/LICENSE", names)
         self.assertIn("plugins/codex-game-studios/ATTRIBUTION.md", names)
+
+    def test_release_archive_contains_exact_authenticated_legacy_capsule(self):
+        # Arrange
+        from tools.codex_studio.package_plugin import package_plugin
+
+        legacy = PLUGIN / "assets/legacy/1.0.0"
+        expected = {
+            f"plugins/codex-game-studios/assets/legacy/1.0.0/{path.name}": (
+                path.read_bytes()
+            )
+            for path in legacy.iterdir()
+            if path.is_file()
+        }
+
+        # Act
+        result = package_plugin(ROOT, self.output)
+        with zipfile.ZipFile(result.archive) as archive:
+            actual = {name: archive.read(name) for name in expected}
+
+        # Assert
+        self.assertEqual(expected, actual)
+
+    def test_release_packager_rejects_missing_legacy_capsule(self):
+        # Arrange
+        from tools.codex_studio.package_plugin import package_plugin
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
+            shutil.rmtree(root / "plugins/codex-game-studios/assets/legacy")
+
+            # Act / Assert
+            with self.assertRaisesRegex(ValueError, "legacy"):
+                package_plugin(root, root / "dist")
 
     def test_release_packager_rejects_links_and_special_files(self):
         # Arrange

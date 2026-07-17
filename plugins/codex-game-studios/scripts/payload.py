@@ -670,6 +670,91 @@ def _tree_fingerprint(root: pathlib.Path) -> dict[str, tuple[str, int, str | Non
     return result
 
 
+_LEGACY_CAPSULE_INVENTORY = {
+    "1.0.0": ("directory", 0o755),
+    "1.0.0/payload-manifest.json": ("file", 0o644),
+    "1.0.0/studio.zip": ("file", 0o644),
+}
+_LEGACY_CAPSULE_VERIFIER: tuple[type[Exception], object] | None = None
+
+
+def _operational_assets_fingerprint(
+    root: pathlib.Path,
+) -> dict[str, tuple[str, int, str | None]]:
+    """Fingerprint current payload files, excluding only the legacy capsule root."""
+
+    return {
+        path: value
+        for path, value in _tree_fingerprint(root).items()
+        if path != "legacy" and not path.startswith("legacy/")
+    }
+
+
+def _preserve_authenticated_legacy_capsule(
+    plugin: pathlib.Path, staged_assets: pathlib.Path
+) -> bool:
+    """Authenticate and copy only the exact supported immutable legacy capsule."""
+
+    legacy = plugin / "assets/legacy"
+    try:
+        legacy.lstat()
+    except FileNotFoundError:
+        return False
+    try:
+        if _safe_type(legacy)[0] != "directory":
+            raise PayloadError("legacy payload root is not a directory")
+        inventory = walk_tree_secure(legacy)
+    except (OSError, PayloadError) as error:
+        raise PayloadError("legacy payload inventory is unsafe") from error
+    observed = {path: entry_type for path, (entry_type, _mode) in inventory.items()}
+    expected = {
+        path: entry_type
+        for path, (entry_type, _mode) in _LEGACY_CAPSULE_INVENTORY.items()
+    }
+    if observed != expected:
+        raise PayloadError(
+            "legacy payload inventory mismatch: "
+            f"expected={sorted(expected)}, actual={sorted(observed)}"
+        )
+    for path, (_entry_type, expected_mode) in _LEGACY_CAPSULE_INVENTORY.items():
+        if not mode_matches(inventory[path][1], expected_mode):
+            raise PayloadError(f"legacy payload mode mismatch: {path}")
+
+    # Import locally because legacy_payload consumes this module's canonical
+    # manifest parser and snapshot verifier.
+    if _LEGACY_CAPSULE_VERIFIER is None:
+        from legacy_payload import LegacyPayloadError, verified_legacy_snapshot
+    else:
+        LegacyPayloadError, verified_legacy_snapshot = _LEGACY_CAPSULE_VERIFIER
+
+    try:
+        with verified_legacy_snapshot(plugin, "1.0.0"):
+            pass
+    except LegacyPayloadError as error:
+        raise PayloadError(f"legacy payload authentication failed: {error}") from error
+
+    staged_legacy = staged_assets / "legacy"
+    staged_version = staged_legacy / "1.0.0"
+    staged_legacy.mkdir(mode=0o755)
+    staged_version.mkdir(mode=0o755)
+    for name in ("payload-manifest.json", "studio.zip"):
+        copy_file_secure(
+            plugin,
+            f"assets/legacy/1.0.0/{name}",
+            staged_assets,
+            f"legacy/1.0.0/{name}",
+            0o644,
+        )
+    try:
+        with verified_legacy_snapshot(staged_assets.parent, "1.0.0"):
+            pass
+    except LegacyPayloadError as error:
+        raise PayloadError(
+            f"staged legacy payload authentication failed: {error}"
+        ) from error
+    return True
+
+
 def build_payload(
     source_root: pathlib.Path | str,
     plugin_root: pathlib.Path | str,
@@ -697,9 +782,15 @@ def build_payload(
         staged_issues = verify_payload(staged_plugin)
         if staged_issues:
             raise PayloadError("staged payload failed public verification: " + "; ".join(staged_issues))
+        _preserve_authenticated_legacy_capsule(plugin, staged_assets)
         if check:
             current_issues = verify_payload(plugin)
-            if current_issues or not assets.is_dir() or _tree_fingerprint(staged_assets) != _tree_fingerprint(assets):
+            if (
+                current_issues
+                or not assets.is_dir()
+                or _operational_assets_fingerprint(staged_assets)
+                != _operational_assets_fingerprint(assets)
+            ):
                 raise PayloadError("Codex Game Studios payload is stale")
             return manifest
         backup = pathlib.Path(temporary) / "previous-assets"

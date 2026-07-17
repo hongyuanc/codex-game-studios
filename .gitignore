@@ -101,10 +101,10 @@ node_modules/
 
 # === Archives ===
 *.zip
+!plugins/codex-game-studios/assets/legacy/1.0.0/studio.zip
 *.tar.gz
 *.rar
 *.7z
-!plugins/codex-game-studios/assets/legacy/1.0.0/studio.zip
 
 # === Local Development Worktrees ===
 .worktrees/
