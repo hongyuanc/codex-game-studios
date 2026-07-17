@@ -12,13 +12,13 @@ description: "Use when repeated test setup, assertions, factories, or engine-spe
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, do not route to `$setup-engine`, and do not search for or copy a repository-local skill file.
 
 ### Native readiness gate for `$skill-test`
 
-Before invoking `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, do not route to `$skill-test`, and do not search for or copy a repository-local skill file.
 
 # Test Helpers
 

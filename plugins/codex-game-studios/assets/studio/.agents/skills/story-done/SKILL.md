@@ -12,8 +12,8 @@ description: "Use when an implemented story needs evidence-backed acceptance, de
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, do not route to `$team-qa`, and do not search for or copy a repository-local skill file.
 
 # Story Done
 

@@ -2,6 +2,8 @@ from pathlib import Path
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -24,6 +26,17 @@ EXPECTED_DEPENDENCIES = {
     "test-helpers": ("setup-engine", "skill-test"),
     "test-setup": ("setup-engine",),
 }
+
+
+def _dependency_gate(dependency: str) -> str:
+    return (
+        f"### Native readiness gate for `${dependency}`\n\n"
+        f"Before invoking or routing to `${dependency}`, confirm that `{dependency}` is "
+        "present in the current task's available skill catalog. If unavailable, report\n"
+        f"`Staged dependency: ${dependency} is not available`, defer the handoff, do not "
+        f"invoke `${dependency}`, do not route to `${dependency}`, and do not search for "
+        "or copy a repository-local skill file."
+    )
 
 
 def _copy_catalog_fixture(directory: str) -> tuple[Path, Path]:
@@ -83,20 +96,23 @@ class PluginSkillCatalogTests(unittest.TestCase):
             )
             for dependency in dependencies:
                 with self.subTest(skill=skill, dependency=dependency):
-                    self.assertIn(
-                        f"`{dependency}` is present in the current task's available skill catalog",
-                        text,
-                    )
-                    self.assertIn(
-                        f"Staged dependency: ${dependency} is not available", text
-                    )
-                    self.assertRegex(text, rf"(?s)\${re.escape(dependency)}.*?defer")
-                    self.assertIn(f"do not invoke `${dependency}`", text)
-                    self.assertIn(
-                        "do not search for or copy a repository-local skill file", text
-                    )
+                    self.assertEqual(1, text.count(_dependency_gate(dependency)))
 
-    def test_catalog_validator_rejects_every_incomplete_dependency_contract(self):
+    def test_catalog_validator_rejects_every_mutated_dependency_branch_action(self):
+        mutations = {
+            "availability": (
+                "present in the current task's available skill catalog",
+                "present in a repository-local catalog",
+            ),
+            "message": ("is not available", "was not discovered"),
+            "defer": ("defer the handoff", "continue the handoff"),
+            "do-not-invoke": ("do not invoke", "invoke"),
+            "do-not-route": ("do not route", "route"),
+            "do-not-search-copy": (
+                "do not search for or copy a repository-local skill file",
+                "search for and copy a repository-local skill file",
+            ),
+        }
         with tempfile.TemporaryDirectory() as directory:
             # Arrange
             root, plugin = _copy_catalog_fixture(directory)
@@ -104,25 +120,30 @@ class PluginSkillCatalogTests(unittest.TestCase):
                 source_path = root / ".agents/skills" / skill / "SKILL.md"
                 original = source_path.read_text(encoding="utf-8")
                 for dependency in dependencies:
-                    with self.subTest(skill=skill, dependency=dependency):
-                        required = f"Staged dependency: ${dependency} is not available"
-                        tampered = original.replace(required, "Staged dependency: $wrong is not available", 1)
-                        self.assertNotEqual(original, tampered)
-                        _write_fixture_skill(root, plugin, skill, tampered)
+                    gate = _dependency_gate(dependency)
+                    self.assertEqual(1, original.count(gate))
+                    for action, (required, replacement) in mutations.items():
+                        with self.subTest(
+                            skill=skill, dependency=dependency, action=action
+                        ):
+                            tampered_gate = gate.replace(required, replacement, 1)
+                            self.assertNotEqual(gate, tampered_gate)
+                            tampered = original.replace(gate, tampered_gate, 1)
+                            _write_fixture_skill(root, plugin, skill, tampered)
 
-                        # Act
-                        issues = validate_plugin_skill_catalog(root, plugin)
+                            # Act
+                            issues = validate_plugin_skill_catalog(root, plugin)
 
-                        # Assert
-                        self.assertTrue(
-                            any(
-                                "dependency contract is incomplete" in issue.message
-                                and dependency in issue.message
-                                for issue in issues
-                            ),
-                            (skill, dependency, issues),
-                        )
-                        _write_fixture_skill(root, plugin, skill, original)
+                            # Assert
+                            self.assertTrue(
+                                any(
+                                    "dependency contract is incomplete" in issue.message
+                                    and dependency in issue.message
+                                    for issue in issues
+                                ),
+                                (skill, dependency, action, issues),
+                            )
+                            _write_fixture_skill(root, plugin, skill, original)
 
     def test_skill_test_resolves_all_resources_without_project_local_copies(self):
         # Arrange
@@ -151,6 +172,43 @@ class PluginSkillCatalogTests(unittest.TestCase):
             self.assertIn("`../../../tools/codex_studio/validate.py`", text)
             self.assertIn("resolve every `spec:` value against the bundled studio root", text)
 
+    def test_bundled_validator_executes_validate_skill_from_empty_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            # Arrange
+            project = Path(directory)
+            bundled_validator = (
+                PLUGIN / "assets/studio/tools/codex_studio/validate.py"
+            ).resolve()
+            bundled_skill = (
+                PLUGIN / "assets/studio/.agents/skills/skill-test/SKILL.md"
+            ).resolve()
+            environment = {
+                "PATH": os.environ.get("PATH", ""),
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+
+            # Act
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(bundled_validator),
+                    "--skill-file",
+                    str(bundled_skill),
+                ],
+                cwd=project,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            # Assert
+            self.assertFalse((project / "tools").exists())
+            self.assertFalse((project / ".agents/skills").exists())
+            self.assertFalse((project / "Codex Studio Testing Framework").exists())
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("Skill validation: PASS", result.stdout)
+
     def test_plugin_static_resources_are_read_only_and_outputs_are_project_owned(self):
         # Arrange
         skill_test = (ROOT / ".agents/skills/skill-test/SKILL.md").read_text(encoding="utf-8")
@@ -167,30 +225,65 @@ class PluginSkillCatalogTests(unittest.TestCase):
         self.assertNotIn("catalog-resolved skill resource as\nthe only target", skill_improve)
         self.assertIn("bundled engine references are read-only", setup_engine)
         self.assertNotIn("Create or refresh `../../../docs/engine-reference", setup_engine)
+        self.assertNotIn("Add `category: [name]` to the skill entry", skill_test)
+        self.assertNotIn("update the skill\n  or the test spec", skill_test)
+        self.assertNotIn("to create new specs", skill_test)
+        self.assertIn("verified canonical studio source checkout", skill_test)
+        self.assertIn("stop without writing", skill_test)
+        self.assertNotIn("show the reference-only changeset", setup_engine)
+        self.assertIn("verified canonical studio source checkout", setup_engine)
 
     def test_generated_project_artifacts_use_stable_resource_provenance(self):
         # Arrange
-        architecture = (ROOT / ".agents/skills/architecture-decision/SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        manifest = (ROOT / ".agents/skills/create-control-manifest/SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        skills = {
+            name: (ROOT / ".agents/skills" / name / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            for name in (
+                "adopt",
+                "architecture-decision",
+                "create-architecture",
+                "create-control-manifest",
+                "test-setup",
+            )
+        }
 
         # Act
-        adr_template = architecture.split("Following this format:", 1)[1]
+        adr_template = skills["architecture-decision"].split("Following this format:", 1)[1]
         adr_example = adr_template.split("## Engine Compatibility", 1)[1].split(
             "## ADR Dependencies", 1
         )[0]
-        source_example = manifest.split("### Forbidden APIs", 1)[1].split(
+        source_example = skills["create-control-manifest"].split("### Forbidden APIs", 1)[1].split(
             "### Cross-Cutting Constraints", 1
         )[0]
+        engine_warning = skills["create-architecture"].split(
+            "If an API is post-cutoff, flag it:", 1
+        )[1].split("Get user approval", 1)[0]
+        godot_workflow = skills["test-setup"].split(
+            "Create `.github/workflows/tests.yml`:", 1
+        )[1].split("### Unity", 1)[0]
+        infrastructure_audit = skills["adopt"].split(
+            "### 2e: Infrastructure Audit", 1
+        )[1].split("### 2f: Technical Preferences Audit", 1)[0]
+        generated_contexts = {
+            "ADR engine compatibility": adr_example,
+            "control manifest forbidden APIs": source_example,
+            "architecture engine warning": engine_warning,
+            "Godot test workflow": godot_workflow,
+            "adoption infrastructure audit": infrastructure_audit,
+        }
 
         # Assert
-        self.assertNotIn("../../../", adr_example)
+        for context, output in generated_contexts.items():
+            with self.subTest(context=context):
+                self.assertNotIn("../../../", output)
         self.assertIn("Codex Game Studios bundled engine reference:", adr_example)
-        self.assertNotIn("../../../", source_example)
         self.assertIn("Codex Game Studios bundled engine reference:", source_example)
+        self.assertIn("Codex Game Studios bundled engine reference:", engine_warning)
+        self.assertIn("[CONFIGURED GODOT VERSION]", godot_workflow)
+        self.assertIn(
+            "Codex Game Studios bundled engine reference:", infrastructure_audit
+        )
 
     def test_resource_validator_rejects_malformed_and_missing_static_targets(self):
         cases = (
@@ -217,6 +310,33 @@ class PluginSkillCatalogTests(unittest.TestCase):
                     any(
                         "invalid plugin skill resource" in issue.message
                         or "plugin skill resource target" in issue.message
+                        for issue in issues
+                    ),
+                    (reference, issues),
+                )
+
+    def test_resource_validator_rejects_placeholder_and_wildcard_traversal(self):
+        cases = (
+            "../../../docs/engine-reference/[engine]/../../../../outside",
+            "../../../docs/engine-reference/<engine>/../outside.md",
+            "../../../.codex/docs/templates/*/../outside.md",
+            "../../../Codex Studio Testing Framework/skills/[category]/../../outside.md",
+        )
+        for reference in cases:
+            with self.subTest(reference=reference), tempfile.TemporaryDirectory() as directory:
+                # Arrange
+                root, plugin = _copy_catalog_fixture(directory)
+                path = root / ".agents/skills/bug-report/SKILL.md"
+                text = path.read_text(encoding="utf-8") + f"\nTraversal: `{reference}`\n"
+                _write_fixture_skill(root, plugin, "bug-report", text)
+
+                # Act
+                issues = validate_plugin_skill_catalog(root, plugin)
+
+                # Assert
+                self.assertTrue(
+                    any(
+                        "resource path is not lexically contained" in issue.message
                         for issue in issues
                     ),
                     (reference, issues),

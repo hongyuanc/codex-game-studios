@@ -21,10 +21,21 @@ catalog are read-only. Do not search for or copy repository-local skill files to
 reconstruct the catalog. Optional evidence writes only to the project-owned
 `production/qa/skill-tests/` directory after approval.
 
-### Available target gate for `$[name]`
+Resolve the validator path against this installed `SKILL.md` directory, not the
+project working directory, and convert both it and the catalog-resolved target
+skill to absolute paths. Invoke the actual bundled operation as:
 
-Before validating `$[name]`, confirm that `[name]` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $[name] is not available`, defer validation, do not invoke `$[name]`, and do not search for or copy a repository-local skill file.
+```bash
+python3.11 <absolute-bundled-studio-root>/tools/codex_studio/validate.py --skill-file <absolute-catalog-resolved-SKILL.md>
+```
+
+The bundled validator establishes its own studio root for imports. Do not add
+the target project to `PYTHONPATH` or create project-local tool copies.
+
+### Native readiness gate for `$[name]`
+
+Before invoking or routing to `$[name]`, confirm that `[name]` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $[name] is not available`, defer the handoff, do not invoke `$[name]`, do not route to `$[name]`, and do not search for or copy a repository-local skill file.
 
 # Skill Test
 
@@ -73,6 +84,9 @@ Delegate the structural decision to `validate_skill` in
 `../../../tools/codex_studio/validate.py` so the runtime validator remains the single
 implementation of this contract and non-native interaction primitives, legacy
 paths, model metadata, and tool metadata also fail this check.
+Use the absolute-path `--skill-file` invocation defined in the Validation
+Boundary; its `Skill validation: PASS|FAIL` result and emitted issues are the
+authoritative Check 1 result.
 `validate_skill` does not judge whether the prose is trigger-oriented; that is a
 human or behavioral-spec quality review, not a structural validator rule.
 
@@ -243,7 +257,10 @@ Look up `category:` field in `../../../Codex Studio Testing Framework/catalog.ya
 
 If skill not found: "Skill '[name]' not found."
 If no `category:` field: "No category assigned for '[name]' in catalog.yaml.
-Add `category: [name]` to the skill entry first."
+The bundled catalog is read-only; category validation cannot continue." Report
+that result and stop without writing. If the user explicitly requests canonical metadata authoring,
+route it only through a verified canonical studio source checkout and its
+repository-root testing catalog; never edit or shadow the installed bundle.
 
 For `category all`: collect all skills with a `category:` field and process each.
 `category: utility` skills are evaluated against U1 (static checks pass) and U2
@@ -372,7 +389,11 @@ After any mode completes, offer contextual follow-up:
 - After `spec [name]` PASS: "Optionally record the pass under
   `production/qa/skill-tests/`, then run `$skill-test audit` to find the next
   spec gap."
-- After `spec [name]` FAIL: "Review the failing assertions and update the skill
-  or the test spec to resolve the mismatch."
-- After `audit`: "Start with the critical-priority gaps. Use the spec template
-  at `../../../Codex Studio Testing Framework/templates/skill-test-spec.md` to create new specs."
+- After `spec [name]` FAIL: "Review the failing assertions and record the
+  mismatch in project-owned evidence. Stop without writing to the bundled skill
+  or spec. Canonical corrections require a verified canonical studio source
+  checkout and separate approved source changeset."
+- After `audit`: "Start with the critical-priority gaps. The bundled spec
+  template at `../../../Codex Studio Testing Framework/templates/skill-test-spec.md`
+  is read-only. New canonical specs require a verified canonical studio source
+  checkout; this installed workflow stops without writing to the bundle."

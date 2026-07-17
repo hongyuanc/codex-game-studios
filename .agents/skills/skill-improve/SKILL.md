@@ -23,8 +23,8 @@ restore the original skill without using a destructive Git command.
 
 ### Native readiness gate for `$skill-test`
 
-Before invoking `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, do not route to `$skill-test`, and do not search for or copy a repository-local skill file.
 
 # Skill Improve
 

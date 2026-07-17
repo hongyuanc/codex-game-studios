@@ -12,8 +12,8 @@ description: "Use when a defect needs structured documentation, reproduction ste
 
 ### Native readiness gate for `$hotfix`
 
-Before invoking `$hotfix`, confirm that `hotfix` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $hotfix is not available`, defer the handoff, do not invoke `$hotfix`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$hotfix`, confirm that `hotfix` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $hotfix is not available`, defer the handoff, do not invoke `$hotfix`, do not route to `$hotfix`, and do not search for or copy a repository-local skill file.
 
 ## Phase 1: Parse Arguments
 

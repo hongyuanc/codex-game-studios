@@ -18,6 +18,12 @@ import tomllib
 import unicodedata
 import uuid
 
+if __package__ in {None, ""}:
+    _BUNDLED_STUDIO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+    bundled_studio_root = str(_BUNDLED_STUDIO_ROOT)
+    if bundled_studio_root not in sys.path:
+        sys.path.insert(0, bundled_studio_root)
+
 from tools.codex_studio.engine_pack import load_studio_config, validate_activation
 
 
@@ -469,21 +475,42 @@ def validate_plugin_skill_catalog(
                 )
             )
         expected_dependencies = EXPECTED_PLUGIN_SKILL_DEPENDENCIES.get(name, ())
+        source_lines = source_text.splitlines()
         for dependency in expected_dependencies:
-            required = (
-                f"`{dependency}` is present in the current task's available skill catalog",
-                f"Staged dependency: ${dependency} is not available",
-                "defer",
-                f"do not invoke `${dependency}`",
-                "do not search for or copy a repository-local skill file",
+            heading = f"### Native readiness gate for `${dependency}`"
+            heading_lines = [
+                index for index, line in enumerate(source_lines) if line == heading
+            ]
+            actual_gate = ""
+            if len(heading_lines) == 1:
+                start = heading_lines[0] + 1
+                end = next(
+                    (
+                        index
+                        for index in range(start, len(source_lines))
+                        if source_lines[index].startswith("#")
+                    ),
+                    len(source_lines),
+                )
+                actual_gate = " ".join("\n".join(source_lines[start:end]).split())
+            expected_gate = " ".join(
+                (
+                    f"Before invoking or routing to `${dependency}`, confirm that "
+                    f"`{dependency}` is present in the current task's available skill "
+                    "catalog. If unavailable, report "
+                    f"`Staged dependency: ${dependency} is not available`, defer the "
+                    f"handoff, do not invoke `${dependency}`, do not route to "
+                    f"`${dependency}`, and do not search for or copy a repository-local "
+                    "skill file."
+                ).split()
             )
-            missing = [fragment for fragment in required if fragment not in source_text]
-            if missing:
+            if len(heading_lines) != 1 or actual_gate != expected_gate:
                 issues.append(
                     ValidationIssue(
                         "error",
                         _relative(root, source_path),
-                        f"plugin skill dependency contract is incomplete for {dependency}: {missing}",
+                        "plugin skill dependency contract is incomplete for "
+                        f"{dependency}: expected one bounded normalized fail-closed gate",
                     )
                 )
         valid_resources = list(PLUGIN_SKILL_RESOURCE.finditer(source_text))
@@ -512,11 +539,25 @@ def validate_plugin_skill_catalog(
         studio = plugin / "assets/studio"
         for resource in valid_resources:
             token = resource.group()
-            if not token.startswith("../../../") or any(
-                marker in token for marker in "[]<>*"
-            ):
+            if not token.startswith("../../../"):
                 continue
             relative_resource = token.removeprefix("../../../")
+            normalized_resource = pathlib.PurePosixPath(relative_resource)
+            if (
+                normalized_resource.is_absolute()
+                or ".." in normalized_resource.parts
+                or normalized_resource.as_posix() != relative_resource.rstrip("/")
+            ):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource path is not lexically contained: {token}",
+                    )
+                )
+                continue
+            if any(marker in token for marker in "[]<>*"):
+                continue
             target = studio / relative_resource
             try:
                 resolved_studio = studio.resolve(strict=True)
@@ -1299,7 +1340,7 @@ _INSTALLED_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 513
-_INSTALLED_INVENTORY_SHA256 = "7ab91a2c3410a4fffa9f2cf12155664a3a85dba78a8f5c574470af90396be5fb"
+_INSTALLED_INVENTORY_SHA256 = "dd756d29696a24614e7fd6dec8c00c81b79cac8d489e9c2e4d020c48831ae25c"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -2067,7 +2108,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path("."))
     parser.add_argument("--mode", choices=("source", "installed"), default="source")
     parser.add_argument("--phase", choices=("pre-cleanup", "final"), default="final")
+    parser.add_argument("--skill-file", type=pathlib.Path)
     args = parser.parse_args(argv)
+    if args.skill_file is not None:
+        issues = validate_skill(args.skill_file)
+        for issue in issues:
+            print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
+        if any(issue.severity == "error" for issue in issues):
+            print("Skill validation: FAIL")
+            return 1
+        print("Skill validation: PASS")
+        return 0
     issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
     for issue in issues:
         print(f"{issue.severity.upper()} {issue.path}: {issue.message}")

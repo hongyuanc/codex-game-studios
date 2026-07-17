@@ -97,6 +97,14 @@ Report the engine/version/language, the five active profiles, build/test command
 
 ## Refresh and upgrade
 
-For a reference refresh, do not reactivate the pack unless the pack or engine selection changes. Verify official documentation, show the reference-only changeset, and obtain approval before writing.
+For a bundled reference refresh, report that installed engine references are
+read-only and stop without writing. Only an explicit, verified canonical studio source checkout may target its repository-root engine-reference source files;
+that maintenance requires a separate approved source changeset. Do not
+reactivate the project pack unless the pack or engine selection changes.
 
-For an engine upgrade, first audit breaking/deprecated APIs and present the migration impact. Obtain approval for the version/reference changes and source migration scope. Re-run the transactional activation only when its recorded version/language or source profiles must change, then complete the same validation gate.
+For an engine upgrade, first audit breaking/deprecated APIs and present the
+migration impact. Obtain approval for the project-owned configured-version and
+source-migration scope. Bundled references remain read-only; any canonical
+reference maintenance requires the verified source-checkout workflow above.
+Re-run the transactional activation only when its recorded version/language or
+source profiles must change, then complete the same validation gate.

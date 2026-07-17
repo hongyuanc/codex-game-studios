@@ -12,8 +12,8 @@ description: "Use when a configured game engine lacks test directories, runner c
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, do not route to `$setup-engine`, and do not search for or copy a repository-local skill file.
 
 # Test Setup
 
@@ -243,7 +243,7 @@ jobs:
       - name: Run GdUnit4 Tests
         uses: MikeSchulze/gdUnit4-action@v1
         with:
-          godot-version: '[VERSION FROM ../../../docs/engine-reference/godot/VERSION.md]'
+          godot-version: '[CONFIGURED GODOT VERSION]'
           paths: |
             tests/unit
             tests/integration
