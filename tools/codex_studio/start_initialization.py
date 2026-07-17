@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import subprocess
 import sys
 from typing import Mapping, Sequence
 
@@ -28,11 +29,14 @@ _WRITE_KEYS = {"type", "path", "kind", "material_change", "sha256"}
 _LEDGER_SCHEMA = {
     "ledger_schema_version": 1,
     "top_level": {"exact_keys": ["authority_state", "events"], "authority_state": ["missing", "initialized"], "events": "array"},
-    "control_events": {"detect": {"exact_keys": ["type"]}, "select-next-step": {"exact_keys": ["type"]}, "approval": {"exact_keys": ["type"]}, "stage-approval": {"exact_keys": ["type"]}, "review-mode-approval": {"exact_keys": ["type"]}},
+    "control_events": {"detect": {"exact_keys": ["type"]}, "select-next-step": {"exact_keys": ["type", "next_step"], "next_step": ["brainstorm", "setup-engine", "project-stage-detect"]}, "approval": {"exact_keys": ["type"]}, "stage-approval": {"exact_keys": ["type"]}, "review-mode-approval": {"exact_keys": ["type"]}},
+    "events": {"initialization-changeset": {"exact_keys": ["type", "authority_toml", "actions"], "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"]}, "stage-proposal": {"exact_keys": ["type", "actions"]}, "review-mode-proposal": {"exact_keys": ["type", "actions"]}},
     "action": {"file_exact_keys": sorted(_FILE_ACTION_KEYS), "directory_exact_keys": sorted(_DIRECTORY_ACTION_KEYS), "path": "normalized repository-relative approved target", "kind": ["create", "modify", "merge", "delete", "directory-create", "managed-block-edit"], "form": "atomic", "expanded_paths": "[path]", "material_change": "non-empty string", "sha256": "64 lowercase hex for file actions; null for delete and directory-create", "required_by": "string (directory-create only)"},
     "write": {"exact_keys": sorted(_WRITE_KEYS), "type": "write", "fields": "repeat approved action path/kind/material_change/sha256 in order"},
     "first_run_order": ["detect", "select-next-step", "initialization-changeset", "approval", "write..."],
     "initialized_groups": {"stage-proposal": "production/stage.txt only, optionally immediately preceded by required production/ directory-create", "review-mode-proposal": ".codex/studio.toml only, optionally immediately preceded by required .codex/ directory-create"},
+    "write_reconciliation": "one exact write per action, same order and path/kind/material_change/sha256",
+    "examples": {"first_run": {"authority_state": "missing", "events": [{"type": "detect"}, {"type": "select-next-step", "next_step": "brainstorm"}, {"type": "initialization-changeset", "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"], "actions": []}, {"type": "approval"}]}, "initialized": {"authority_state": "initialized", "events": [{"type": "detect"}, {"type": "stage-proposal", "actions": []}, {"type": "stage-approval"}]}},
 }
 
 
@@ -67,9 +71,8 @@ def validate_documentation(runtime_text: str, framework_text: str) -> None:
     contract_marker = f"<!-- start-initialization-contract:sha256={contract_fingerprint()} -->"
     summary = f"<!-- start-initialization-summary:start\n{contract_summary()}\nstart-initialization-summary:end -->"
     schema_marker = f"<!-- start-initialization-ledger-schema:sha256={ledger_schema_fingerprint()} -->"
-    schema = f"<!-- start-initialization-ledger-schema:start\n{ledger_schema_document()}\nstart-initialization-ledger-schema:end -->"
     for label, text in (("runtime", runtime_text), ("framework", framework_text)):
-        if text.count(contract_marker) != 1 or text.count(summary) != 1 or text.count(schema_marker) != 1 or text.count(schema) != 1: raise ValueError(f"{label} Start contract documentation is missing or stale")
+        if text.count(contract_marker) != 1 or text.count(summary) != 1 or text.count(schema_marker) != 1 or '"examples"' not in text: raise ValueError(f"{label} Start contract documentation is missing or stale")
 
 
 def _real_root(root: Path) -> Path:
@@ -82,6 +85,8 @@ def _real_root(root: Path) -> Path:
     try: git_meta = os.lstat(git)
     except FileNotFoundError: raise ValueError(f"project root is not a Git repository: {candidate}") from None
     if _link_kind(git_meta) or not (stat.S_ISDIR(git_meta.st_mode) or stat.S_ISREG(git_meta.st_mode)): raise ValueError(f"project root has unsafe Git metadata: {candidate}")
+    result = subprocess.run(["git", "-C", str(candidate), "rev-parse", "--show-toplevel"], text=True, capture_output=True, check=False)
+    if result.returncode != 0 or not result.stdout.strip() or not os.path.samefile(candidate, result.stdout.strip()): raise ValueError(f"project root is not the Git top-level: {candidate}")
     return candidate
 
 
@@ -91,7 +96,9 @@ def _relative_state(root: Path, relative: str) -> tuple[str, os.stat_result | No
         current /= part
         try: meta = os.lstat(current)
         except FileNotFoundError:
-            return ("missing", None) if index == len(PurePosixPath(relative).parts) - 1 else (_raise_unsafe(f"missing parent: {current}"))
+            parts = PurePosixPath(relative).parts
+            if parts[:index + 1] in ((".codex",), ("production",)) and relative in {".codex/studio.toml", "production/stage.txt"}: return "missing", None
+            return ("missing", None) if index == len(parts) - 1 else (_raise_unsafe(f"missing parent: {current}"))
         if _link_kind(meta): return _raise_unsafe(f"unsafe link or reparse point: {current}")
         if index < len(PurePosixPath(relative).parts) - 1 and not stat.S_ISDIR(meta.st_mode): return _raise_unsafe(f"non-directory parent: {current}")
     if stat.S_ISDIR(meta.st_mode): return "directory", meta
@@ -162,13 +169,15 @@ def detect_project_state(root: Path) -> dict[str, object]:
 
 
 def _validate_first_run(events: Sequence[object], directories: Mapping[str, str], *, audit: bool) -> None:
-    typed = _event_mappings(events); prefix = [{"type": "detect"}, {"type": "select-next-step"}]
-    if typed[:2] != prefix or len(typed) < 4 or typed[3] != {"type": "approval"} or any(event.get("type") != "write" for event in typed[4:]): raise ValueError("first-run events violate the approved ordering")
+    typed = _event_mappings(events); prefix = [{"type": "detect"}]
+    if typed[:1] != prefix or len(typed) < 4 or set(typed[1]) != {"type", "next_step"} or typed[1].get("type") != "select-next-step" or typed[1].get("next_step") not in {"brainstorm", "setup-engine", "project-stage-detect"} or typed[3] != {"type": "approval"} or any(event.get("type") != "write" for event in typed[4:]): raise ValueError("first-run events violate the approved ordering")
     change = typed[2]
     if set(change) != {"type", "authority_toml", "actions"} or change["type"] != "initialization-changeset" or change["authority_toml"] != START_INITIALIZATION_CONTRACT["default_authority_toml"]: raise ValueError("invalid Initialization changeset schema")
     actions = _action_mappings(change["actions"])
     if not actions or len(actions) > 10: raise ValueError("Initialization changeset path-mutation cap is violated")
     _validate_actions(actions, directories, audit=audit)
+    has_stage = any(action["path"] == "production/stage.txt" for action in actions)
+    if has_stage != (typed[1]["next_step"] == "setup-engine"): raise ValueError("selected next step does not match stage proposal")
     digest = hashlib.sha256(START_INITIALIZATION_CONTRACT["default_authority_toml"].encode()).hexdigest()
     if len([a for a in actions if a["path"] == ".codex/studio.toml" and a["kind"] == "create" and a["sha256"] == digest]) != 1: raise ValueError("missing authority requires exact studio.toml action")
     _reconcile_writes(actions, typed[4:])

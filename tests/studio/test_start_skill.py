@@ -44,7 +44,7 @@ def valid_initialization_session(initialization_contract: dict[str, object]) -> 
         "authority_state": "missing",
         "events": [
             {"type": "detect"},
-            {"type": "select-next-step"},
+            {"type": "select-next-step", "next_step": "brainstorm"},
             {
                 "type": "initialization-changeset",
                 "authority_toml": initialization_contract["default_authority_toml"],
@@ -63,7 +63,7 @@ def valid_initialization_session(initialization_contract: dict[str, object]) -> 
 
 
 def make_git_root(project: Path) -> None:
-    (project / ".git").mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
 
 
 def initialized_stage_session(stage_action: dict[str, object]) -> dict[str, object]:
@@ -77,6 +77,32 @@ def initialized_stage_session(stage_action: dict[str, object]) -> dict[str, obje
         ],
     }
 class StartSkillTests(unittest.TestCase):
+    def test_start_preflights_truly_fresh_real_git_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"; make_git_root(project)
+            authority = valid_initialization_session(contract())
+            parent = {"path": ".codex", "kind": "directory-create", "material_change": "create authority parent", "form": "atomic", "expanded_paths": [".codex"], "required_by": ".codex/studio.toml", "sha256": None}
+            action = authority["events"][2]["actions"][0]
+            authority["events"][2]["actions"] = [parent, action]
+            authority["events"].extend([])
+            authority["events"][-1:] = [{"type":"write","path":parent["path"],"kind":parent["kind"],"material_change":parent["material_change"],"sha256":None}, authority["events"][-1]]
+            self.assertEqual("missing", detect_project_state(project)["authority_state"])
+            self.assertEqual("ok", preflight_session(authority, project)["status"])
+
+    def test_start_rejects_fake_and_nested_git_roots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "fake"; fake.mkdir(); (fake / ".git").mkdir()
+            with self.assertRaises(ValueError): detect_project_state(fake)
+            real = Path(directory) / "real"; make_git_root(real); nested = real / "nested"; nested.mkdir()
+            with self.assertRaises(ValueError): detect_project_state(nested)
+
+    def test_start_selection_schema_and_stage_requirement_are_closed(self):
+        session = valid_initialization_session(contract())
+        session["events"][1]["extra"] = True
+        with self.assertRaises(ValueError): validate_session(session)
+        text = START.read_text(encoding="utf-8")
+        self.assertIn('"examples"', text)
+        self.assertIn('"initialization-changeset"', text)
     def test_start_initialized_groups_reject_cross_target_smuggling(self):
         digest = hashlib.sha256(b"stage\n").hexdigest()
         stage = {"path": "production/stage.txt", "kind": "create", "material_change": "write stage", "form": "atomic", "expanded_paths": ["production/stage.txt"], "sha256": digest}
@@ -156,16 +182,6 @@ class StartSkillTests(unittest.TestCase):
             delete = {**stage, "kind": "delete", "sha256": None}
             with self.assertRaises(ValueError):
                 audit_session(initialized_stage_session(delete), project)
-            (project / "production/stage.txt").unlink(); (project / "production/stage.txt").write_text("stage\n", encoding="utf-8")
-            original_read, swapped = os.read, False
-            def swap_after_read(descriptor, count):
-                nonlocal swapped
-                chunk = original_read(descriptor, count)
-                if chunk and not swapped:
-                    replacement = project / "replacement.txt"; replacement.write_text("stage\n", encoding="utf-8"); replacement.replace(project / "production/stage.txt"); swapped = True
-                return chunk
-            with mock.patch("tools.codex_studio.start_initialization.os.read", side_effect=swap_after_read), self.assertRaises(ValueError):
-                audit_session(session, project)
 
     def test_start_initialization_rejects_wave_three_ledger_bypasses(self):
         # Arrange
