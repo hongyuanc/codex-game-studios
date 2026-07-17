@@ -26,17 +26,51 @@ START_INITIALIZATION_CONTRACT: dict[str, object] = json.loads(_CONTRACT_JSON)
 _FILE_ACTION_KEYS = {"path", "kind", "material_change", "form", "expanded_paths", "sha256"}
 _DIRECTORY_ACTION_KEYS = _FILE_ACTION_KEYS | {"required_by"}
 _WRITE_KEYS = {"type", "path", "kind", "material_change", "sha256"}
+
+
+def _schema_file_action(path: str, material_change: str, content: str, *, kind: str = "create") -> dict[str, object]:
+    return {"path": path, "kind": kind, "material_change": material_change, "form": "atomic", "expanded_paths": [path], "sha256": hashlib.sha256(content.encode()).hexdigest()}
+
+
+def _schema_write(action: Mapping[str, object]) -> dict[str, object]:
+    return {"type": "write", **{key: action[key] for key in ("path", "kind", "material_change", "sha256")}}
+
+
+_AUTHORITY_ACTION = _schema_file_action(".codex/studio.toml", "write the complete default authority", START_INITIALIZATION_CONTRACT["default_authority_toml"])
+_STAGE_ACTION = _schema_file_action("production/stage.txt", "write the selected initial stage", "Concept\n")
+_REVIEW_MODE_ACTION = _schema_file_action(".codex/studio.toml", "update review mode to full", "review_mode = \"full\"\n", kind="modify")
+
+
+def _first_run_example(next_step: str) -> dict[str, object]:
+    actions = [copy.deepcopy(_AUTHORITY_ACTION)]
+    if next_step == "setup-engine": actions.append(copy.deepcopy(_STAGE_ACTION))
+    return {"authority_state": "missing", "events": [{"type": "detect"}, {"type": "select-next-step", "next_step": next_step}, {"type": "initialization-changeset", "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"], "actions": actions}, {"type": "approval"}, *[_schema_write(action) for action in actions]]}
+
+
+def _initialized_group(proposal: str, approval: str, action: Mapping[str, object]) -> list[dict[str, object]]:
+    return [{"type": proposal, "actions": [copy.deepcopy(action)]}, {"type": approval}, _schema_write(action)]
+
+
 _LEDGER_SCHEMA = {
     "ledger_schema_version": 1,
     "top_level": {"exact_keys": ["authority_state", "events"], "authority_state": ["missing", "initialized"], "events": "array"},
+    "authority": {"default_toml_exact_bytes": START_INITIALIZATION_CONTRACT["default_authority_toml"], "default_toml_sha256": hashlib.sha256(START_INITIALIZATION_CONTRACT["default_authority_toml"].encode()).hexdigest(), "missing_requirement": "exactly one .codex/studio.toml create action and reconciled write with these bytes and digest"},
     "control_events": {"detect": {"exact_keys": ["type"]}, "select-next-step": {"exact_keys": ["type", "next_step"], "next_step": ["brainstorm", "setup-engine", "project-stage-detect"]}, "approval": {"exact_keys": ["type"]}, "stage-approval": {"exact_keys": ["type"]}, "review-mode-approval": {"exact_keys": ["type"]}},
     "events": {"initialization-changeset": {"exact_keys": ["type", "authority_toml", "actions"], "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"]}, "stage-proposal": {"exact_keys": ["type", "actions"]}, "review-mode-proposal": {"exact_keys": ["type", "actions"]}},
     "action": {"file_exact_keys": sorted(_FILE_ACTION_KEYS), "directory_exact_keys": sorted(_DIRECTORY_ACTION_KEYS), "path": "normalized repository-relative approved target", "kind": ["create", "modify", "merge", "delete", "directory-create", "managed-block-edit"], "form": "atomic", "expanded_paths": "[path]", "material_change": "non-empty string", "sha256": "64 lowercase hex for file actions; null for delete and directory-create", "required_by": "string (directory-create only)"},
     "write": {"exact_keys": sorted(_WRITE_KEYS), "type": "write", "fields": "repeat approved action path/kind/material_change/sha256 in order"},
-    "first_run_order": ["detect", "select-next-step", "initialization-changeset", "approval", "write..."],
-    "initialized_groups": {"stage-proposal": "production/stage.txt only, optionally immediately preceded by required production/ directory-create", "review-mode-proposal": ".codex/studio.toml only, optionally immediately preceded by required .codex/ directory-create"},
-    "write_reconciliation": "one exact write per action, same order and path/kind/material_change/sha256",
-    "examples": {"first_run": {"authority_state": "missing", "events": [{"type": "detect"}, {"type": "select-next-step", "next_step": "brainstorm"}, {"type": "initialization-changeset", "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"], "actions": []}, {"type": "approval"}]}, "initialized": {"authority_state": "initialized", "events": [{"type": "detect"}, {"type": "stage-proposal", "actions": []}, {"type": "stage-approval"}]}},
+    "ordering": {"first_run": {"exact_sequence": ["detect", "select-next-step", "initialization-changeset", "approval", "one write per action in action order"], "initialization_changesets": 1}, "initialized": {"exact_prefix": ["detect"], "repeating_group": ["unique proposal", "matching separate approval", "one write per action in action order"], "initialization_changesets": 0}},
+    "initialized_groups": {"stage-proposal": {"approval": "stage-approval", "target": "production/stage.txt", "optional_parent": "production"}, "review-mode-proposal": {"approval": "review-mode-approval", "target": ".codex/studio.toml", "optional_parent": ".codex"}, "constraints": "each proposal type and mutation path appears at most once; optional missing parent immediately precedes its sole create or merge target"},
+    "selection_stage_rule": "a production/stage.txt action exists if and only if select-next-step.next_step is setup-engine; brainstorm and project-stage-detect omit it",
+    "write_reconciliation": {"cardinality": "exactly one write per approved action", "order": "same order as actions", "exact_fields": ["path", "kind", "material_change", "sha256"], "unapproved_writes": 0},
+    "examples": {
+        "first_run_brainstorm": _first_run_example("brainstorm"),
+        "first_run_project_stage_detect": _first_run_example("project-stage-detect"),
+        "first_run_setup_engine": _first_run_example("setup-engine"),
+        "initialized_review_mode": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("review-mode-proposal", "review-mode-approval", _REVIEW_MODE_ACTION)]},
+        "initialized_stage": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("stage-proposal", "stage-approval", _STAGE_ACTION)]},
+        "initialized_stage_and_review_mode": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("stage-proposal", "stage-approval", _STAGE_ACTION), *_initialized_group("review-mode-proposal", "review-mode-approval", _REVIEW_MODE_ACTION)]},
+    },
 }
 
 
@@ -71,23 +105,67 @@ def validate_documentation(runtime_text: str, framework_text: str) -> None:
     contract_marker = f"<!-- start-initialization-contract:sha256={contract_fingerprint()} -->"
     summary = f"<!-- start-initialization-summary:start\n{contract_summary()}\nstart-initialization-summary:end -->"
     schema_marker = f"<!-- start-initialization-ledger-schema:sha256={ledger_schema_fingerprint()} -->"
+    schema_block = f"<!-- start-initialization-ledger-schema:start\n{ledger_schema_document()}\nstart-initialization-ledger-schema:end -->"
     for label, text in (("runtime", runtime_text), ("framework", framework_text)):
-        if text.count(contract_marker) != 1 or text.count(summary) != 1 or text.count(schema_marker) != 1 or '"examples"' not in text: raise ValueError(f"{label} Start contract documentation is missing or stale")
+        if text.count(contract_marker) != 1 or text.count(summary) != 1 or text.count(schema_marker) != 1 or text.count(schema_block) != 1: raise ValueError(f"{label} Start contract documentation is missing or stale")
+
+
+_STANDARD_PATH_ALIASES = {Path("/etc"): Path("/private/etc"), Path("/tmp"): Path("/private/tmp"), Path("/var"): Path("/private/var")}
+
+
+def _identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def _is_standard_path_alias(path: Path) -> bool:
+    expected = _STANDARD_PATH_ALIASES.get(path)
+    return expected is not None and Path(os.path.realpath(path)) == expected and expected.is_dir()
+
+
+def _validate_root_ancestry(path: Path) -> None:
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        try: metadata = os.lstat(current)
+        except FileNotFoundError: raise ValueError(f"project root ancestry is missing: {current}") from None
+        link_kind = _link_kind(metadata)
+        if link_kind and not _is_standard_path_alias(current): raise ValueError(f"project root ancestry contains unsafe {link_kind}: {current}")
+
+
+def _checked_git_metadata(root: Path) -> None:
+    git = root / ".git"
+    try: metadata = os.lstat(git)
+    except FileNotFoundError: raise ValueError(f"project root is not a Git repository: {root}") from None
+    if _link_kind(metadata) or not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISREG(metadata.st_mode)): raise ValueError(f"project root has unsafe Git metadata: {root}")
+
+
+def _assert_root_identity(root: Path, expected: tuple[int, int]) -> None:
+    try: metadata = os.lstat(root)
+    except FileNotFoundError: raise ValueError(f"project root changed during validation: {root}") from None
+    if _link_kind(metadata) or not stat.S_ISDIR(metadata.st_mode) or _identity(metadata) != expected: raise ValueError(f"project root changed during validation: {root}")
 
 
 def _real_root(root: Path) -> Path:
-    candidate = Path(root).absolute()
-    try: meta = os.lstat(candidate)
+    candidate = Path(os.path.abspath(os.fspath(root)))
+    _validate_root_ancestry(candidate)
+    try: candidate_before = os.lstat(candidate)
     except FileNotFoundError: raise ValueError(f"project root is missing: {candidate}") from None
-    if _link_kind(meta): raise ValueError(f"project root is an unsafe link or reparse point: {candidate}")
-    if not stat.S_ISDIR(meta.st_mode): raise ValueError(f"project root is not a directory: {candidate}")
-    git = candidate / ".git"
-    try: git_meta = os.lstat(git)
-    except FileNotFoundError: raise ValueError(f"project root is not a Git repository: {candidate}") from None
-    if _link_kind(git_meta) or not (stat.S_ISDIR(git_meta.st_mode) or stat.S_ISREG(git_meta.st_mode)): raise ValueError(f"project root has unsafe Git metadata: {candidate}")
+    if _link_kind(candidate_before): raise ValueError(f"project root is an unsafe link or reparse point: {candidate}")
+    if not stat.S_ISDIR(candidate_before.st_mode): raise ValueError(f"project root is not a directory: {candidate}")
+    _checked_git_metadata(candidate)
     result = subprocess.run(["git", "-C", str(candidate), "rev-parse", "--show-toplevel"], text=True, capture_output=True, check=False)
-    if result.returncode != 0 or not result.stdout.strip() or not os.path.samefile(candidate, result.stdout.strip()): raise ValueError(f"project root is not the Git top-level: {candidate}")
-    return candidate
+    if result.returncode != 0 or not result.stdout.strip(): raise ValueError(f"project root is not the Git top-level: {candidate}")
+    git_top = Path(result.stdout.strip())
+    if not git_top.is_absolute(): raise ValueError(f"Git returned a non-absolute project root: {git_top}")
+    canonical = Path(os.path.realpath(git_top))
+    _validate_root_ancestry(canonical)
+    try:
+        candidate_after = os.lstat(candidate)
+        canonical_meta = os.lstat(canonical)
+    except FileNotFoundError: raise ValueError(f"project root changed during validation: {candidate}") from None
+    if _identity(candidate_before) != _identity(candidate_after) or _identity(candidate_after) != _identity(canonical_meta) or _link_kind(canonical_meta) or not stat.S_ISDIR(canonical_meta.st_mode): raise ValueError(f"project root is not the Git top-level: {candidate}")
+    _checked_git_metadata(canonical)
+    return canonical
 
 
 def _relative_state(root: Path, relative: str) -> tuple[str, os.stat_result | None]:
@@ -109,7 +187,10 @@ def _relative_state(root: Path, relative: str) -> tuple[str, os.stat_result | No
 def _raise_unsafe(message: str): raise ValueError(message)
 def observed_directories(root: Path) -> dict[str, str]:
     safe = _real_root(root)
-    return {path: _relative_state(safe, path)[0] for path in _strings(_mapping(START_INITIALIZATION_CONTRACT, "first_run"), "allowed_parent_directories")}
+    identity = _identity(os.lstat(safe))
+    observed = {path: _relative_state(safe, path)[0] for path in _strings(_mapping(START_INITIALIZATION_CONTRACT, "first_run"), "allowed_parent_directories")}
+    _assert_root_identity(safe, identity)
+    return observed
 
 
 def validate_session(session: Mapping[str, object], *, directories: Mapping[str, object] | None = None, audit: bool = False) -> None:
@@ -121,22 +202,24 @@ def validate_session(session: Mapping[str, object], *, directories: Mapping[str,
 
 def preflight_session(session: Mapping[str, object], root: Path) -> dict[str, object]:
     if not isinstance(session, Mapping): raise ValueError("Start ledger must be a JSON object")
-    safe = _real_root(root); detected = detect_project_state(safe)
+    safe = _real_root(root); identity = _identity(os.lstat(safe)); detected = detect_project_state(safe)
     if detected["authority_state"] == "repair-block": raise ValueError("invalid studio authority blocks Start initialization")
     if session.get("authority_state") != detected["authority_state"]: raise ValueError("Start ledger authority state differs from the observed project")
-    validate_session(session, directories=observed_directories(safe)); return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
+    validate_session(session, directories=observed_directories(safe)); _assert_root_identity(safe, identity); return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
 
 
 def audit_session(session: Mapping[str, object], root: Path) -> dict[str, object]:
     if not isinstance(session, Mapping): raise ValueError("Start ledger must be a JSON object")
-    safe = _real_root(root); validate_session(session, directories=observed_directories(safe), audit=True)
+    safe = _real_root(root); identity = _identity(os.lstat(safe)); validate_session(session, directories=observed_directories(safe), audit=True); _assert_root_identity(safe, identity)
     for write in _writes_from_session(session):
+        _assert_root_identity(safe, identity)
         state, meta = _relative_state(safe, write["path"])
         if write["kind"] == "delete":
             if state != "missing": raise ValueError(f"audit deleted path still exists: {write['path']}")
         elif write["kind"] == "directory-create":
             if state != "directory": raise ValueError(f"audit missing created directory: {write['path']}")
         elif state != "regular" or _secure_digest(safe, write["path"], meta) != write["sha256"]: raise ValueError(f"audit digest mismatch: {write['path']}")
+        _assert_root_identity(safe, identity)
     return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "audit", "status": "ok"}
 
 
@@ -155,7 +238,7 @@ def _secure_digest(root: Path, relative: str, before: os.stat_result | None) -> 
 
 
 def detect_project_state(root: Path) -> dict[str, object]:
-    root = _real_root(root); state, _ = _relative_state(root, ".codex/studio.toml")
+    root = _real_root(root); identity = _identity(os.lstat(root)); state, _ = _relative_state(root, ".codex/studio.toml")
     authority_state, engine, error = "missing", "unconfigured", None
     if state == "regular":
         try: engine, authority_state = load_studio_config(root).engine, "initialized"
@@ -165,7 +248,9 @@ def detect_project_state(root: Path) -> dict[str, object]:
     files = {name: [p for p in base.rglob("*") if base.is_dir() and p.is_file() and p.name not in {"AGENTS.md", ".gitkeep"} and p.suffix in suffixes] for name, (base, suffixes) in roots.items()}
     prototypes = [p for p in (root / "prototypes").iterdir() if p.is_dir()] if (root / "prototypes").is_dir() else []
     production = [p for base in (root / "production/sprints", root / "production/milestones") if base.is_dir() for p in base.rglob("*") if p.is_file() and p.name not in {"AGENTS.md", ".gitkeep"}]
-    return {"engine": engine, "authority_state": authority_state, "authority_error": error, **files, "prototypes": prototypes, "production_files": production, "fresh": authority_state != "repair-block" and engine == "unconfigured" and not (root / "design/gdd/game-concept.md").is_file() and not any(files.values()) and not prototypes and not production}
+    result = {"engine": engine, "authority_state": authority_state, "authority_error": error, **files, "prototypes": prototypes, "production_files": production, "fresh": authority_state != "repair-block" and engine == "unconfigured" and not (root / "design/gdd/game-concept.md").is_file() and not any(files.values()) and not prototypes and not production}
+    _assert_root_identity(root, identity)
+    return result
 
 
 def _validate_first_run(events: Sequence[object], directories: Mapping[str, str], *, audit: bool) -> None:

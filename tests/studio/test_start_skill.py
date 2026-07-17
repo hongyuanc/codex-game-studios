@@ -10,11 +10,16 @@ from unittest import mock
 
 from tools.codex_studio.engine_pack import load_studio_config
 from tools.codex_studio.start_initialization import (
+    _real_root,
+    _relative_state,
     contract,
     contract_fingerprint,
     contract_summary,
     audit_session,
     detect_project_state,
+    ledger_schema,
+    ledger_schema_document,
+    ledger_schema_fingerprint,
     preflight_session,
     validate_contract,
     validate_documentation,
@@ -91,10 +96,89 @@ class StartSkillTests(unittest.TestCase):
 
     def test_start_rejects_fake_and_nested_git_roots(self):
         with tempfile.TemporaryDirectory() as directory:
-            fake = Path(directory) / "fake"; fake.mkdir(); (fake / ".git").mkdir()
-            with self.assertRaises(ValueError): detect_project_state(fake)
+            for kind in ("directory", "file"):
+                fake = Path(directory) / f"fake-{kind}"
+                fake.mkdir()
+                if kind == "directory":
+                    (fake / ".git").mkdir()
+                else:
+                    (fake / ".git").write_text("gitdir: ../missing\n", encoding="utf-8")
+                with self.subTest(kind=kind), self.assertRaises(ValueError):
+                    detect_project_state(fake)
             real = Path(directory) / "real"; make_git_root(real); nested = real / "nested"; nested.mkdir()
             with self.assertRaises(ValueError): detect_project_state(nested)
+
+    def test_start_accepts_real_linked_worktree_git_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            primary = Path(directory) / "primary"
+            linked = Path(directory) / "linked"
+            make_git_root(primary)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(primary),
+                    "-c",
+                    "user.name=Start Tests",
+                    "-c",
+                    "user.email=start-tests@example.invalid",
+                    "commit",
+                    "--allow-empty",
+                    "-q",
+                    "-m",
+                    "fixture",
+                ],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(primary), "worktree", "add", "-q", "-b", "linked-fixture", str(linked)],
+                check=True,
+            )
+
+            self.assertTrue((linked / ".git").is_file())
+            self.assertEqual("missing", detect_project_state(linked)["authority_state"])
+
+    def test_start_rejects_swappable_symlink_in_project_root_ancestry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            first_parent = base / "first-parent"
+            second_parent = base / "second-parent"
+            first = first_parent / "project"
+            second = second_parent / "project"
+            first.mkdir(parents=True)
+            (second / ".codex").mkdir(parents=True)
+            make_git_root(first)
+            make_git_root(second)
+            (second / ".codex/studio.toml").write_text(
+                contract()["default_authority_toml"], encoding="utf-8"
+            )
+            parent_link = base / "parent-link"
+            os.symlink(first_parent, parent_link)
+            original_samefile = os.path.samefile
+
+            def swap_after_identity_check(left: object, right: object) -> bool:
+                matched = original_samefile(left, right)
+                parent_link.unlink()
+                os.symlink(second_parent, parent_link)
+                return matched
+
+            with mock.patch(
+                "tools.codex_studio.start_initialization.os.path.samefile",
+                side_effect=swap_after_identity_check,
+            ), self.assertRaises(ValueError):
+                detect_project_state(parent_link / "project")
+
+    def test_start_missing_ancestry_is_limited_to_approved_target_parents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            make_git_root(project)
+            root = _real_root(project)
+
+            self.assertEqual("missing", _relative_state(root, ".codex/studio.toml")[0])
+            self.assertEqual("missing", _relative_state(root, "production/stage.txt")[0])
+            for relative in ("other/child", ".codex/agents/file"):
+                with self.subTest(relative=relative), self.assertRaises(ValueError):
+                    _relative_state(root, relative)
 
     def test_start_selection_schema_and_stage_requirement_are_closed(self):
         session = valid_initialization_session(contract())
@@ -103,6 +187,58 @@ class StartSkillTests(unittest.TestCase):
         text = START.read_text(encoding="utf-8")
         self.assertIn('"examples"', text)
         self.assertIn('"initialization-changeset"', text)
+
+    def test_start_selection_stage_matrix_enforces_setup_engine_if_and_only_if(self):
+        authority = valid_initialization_session(contract())
+        authority_action = authority["events"][2]["actions"][0]
+        authority_write = authority["events"][4]
+        stage_digest = hashlib.sha256(b"Concept\n").hexdigest()
+        stage_action = {
+            "path": "production/stage.txt",
+            "kind": "create",
+            "material_change": "write the selected initial stage",
+            "form": "atomic",
+            "expanded_paths": ["production/stage.txt"],
+            "sha256": stage_digest,
+        }
+        stage_write = {
+            "type": "write",
+            "path": stage_action["path"],
+            "kind": stage_action["kind"],
+            "material_change": stage_action["material_change"],
+            "sha256": stage_action["sha256"],
+        }
+
+        for next_step, includes_stage, accepted in (
+            ("brainstorm", False, True),
+            ("project-stage-detect", False, True),
+            ("setup-engine", True, True),
+            ("setup-engine", False, False),
+            ("brainstorm", True, False),
+            ("project-stage-detect", True, False),
+        ):
+            actions = [authority_action, *([stage_action] if includes_stage else [])]
+            writes = [authority_write, *([stage_write] if includes_stage else [])]
+            session = {
+                "authority_state": "missing",
+                "events": [
+                    {"type": "detect"},
+                    {"type": "select-next-step", "next_step": next_step},
+                    {
+                        "type": "initialization-changeset",
+                        "authority_toml": contract()["default_authority_toml"],
+                        "actions": actions,
+                    },
+                    {"type": "approval"},
+                    *writes,
+                ],
+            }
+            with self.subTest(next_step=next_step, includes_stage=includes_stage):
+                if accepted:
+                    validate_session(session)
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_session(session)
     def test_start_initialized_groups_reject_cross_target_smuggling(self):
         digest = hashlib.sha256(b"stage\n").hexdigest()
         stage = {"path": "production/stage.txt", "kind": "create", "material_change": "write stage", "form": "atomic", "expanded_paths": ["production/stage.txt"], "sha256": digest}
@@ -164,6 +300,67 @@ class StartSkillTests(unittest.TestCase):
         self.assertIn('"ledger_schema_version":1', text)
         self.assertIn('"required_by":"string (directory-create only)"', text)
 
+    def test_start_docs_embed_exact_fingerprinted_ledger_schema_body(self):
+        framework = ROOT / "Codex Studio Testing Framework/skills/utility/start.md"
+        runtime_text = START.read_text(encoding="utf-8")
+        framework_text = framework.read_text(encoding="utf-8")
+        schema_body = ledger_schema_document()
+
+        self.assertEqual(hashlib.sha256(schema_body.encode()).hexdigest(), ledger_schema_fingerprint())
+        self.assertEqual(1, runtime_text.count(schema_body))
+        self.assertEqual(1, framework_text.count(schema_body))
+        validate_documentation(runtime_text, framework_text)
+
+    def test_start_documentation_rejects_every_material_schema_section_mutation(self):
+        framework = ROOT / "Codex Studio Testing Framework/skills/utility/start.md"
+        runtime_text = START.read_text(encoding="utf-8")
+        framework_text = framework.read_text(encoding="utf-8")
+        schema_body = ledger_schema_document()
+        schema = ledger_schema()
+
+        for section in schema:
+            mutated = json.loads(json.dumps(schema))
+            value = mutated[section]
+            if isinstance(value, dict):
+                value["wave_6_mutation"] = True
+            elif isinstance(value, list):
+                value.append("wave-6-mutation")
+            elif isinstance(value, int):
+                mutated[section] = value + 1
+            else:
+                mutated[section] = f"{value}-wave-6-mutation"
+            mutated_body = json.dumps(mutated, sort_keys=True, separators=(",", ":"))
+            with self.subTest(section=section), self.assertRaises(ValueError):
+                validate_documentation(
+                    runtime_text.replace(schema_body, mutated_body),
+                    framework_text,
+                )
+
+        for label, mutated_runtime in (
+            ("missing body", runtime_text.replace(schema_body, "")),
+            ("duplicate body", runtime_text.replace(schema_body, schema_body + "\n" + schema_body)),
+        ):
+            with self.subTest(label=label), self.assertRaises(ValueError):
+                validate_documentation(mutated_runtime, framework_text)
+
+    def test_start_canonical_ledger_examples_pass_production_validation(self):
+        examples = ledger_schema()["examples"]
+
+        self.assertEqual(
+            {
+                "first_run_brainstorm",
+                "first_run_project_stage_detect",
+                "first_run_setup_engine",
+                "initialized_review_mode",
+                "initialized_stage",
+                "initialized_stage_and_review_mode",
+            },
+            set(examples),
+        )
+        for name, session in examples.items():
+            with self.subTest(name=name):
+                validate_session(session)
+
     def test_start_audit_rejects_links_and_detects_target_identity_swap(self):
         with tempfile.TemporaryDirectory() as directory:
             project, external = Path(directory) / "project", Path(directory) / "external"
@@ -182,6 +379,45 @@ class StartSkillTests(unittest.TestCase):
             delete = {**stage, "kind": "delete", "sha256": None}
             with self.assertRaises(ValueError):
                 audit_session(initialized_stage_session(delete), project)
+
+    def test_start_audit_rejects_descriptor_target_replacement_during_secure_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            (project / ".codex").mkdir(parents=True)
+            (project / "production").mkdir()
+            make_git_root(project)
+            (project / ".codex/studio.toml").write_text(
+                contract()["default_authority_toml"], encoding="utf-8"
+            )
+            target = project / "production/stage.txt"
+            target.write_text("Concept\n", encoding="utf-8")
+            digest = hashlib.sha256(b"Concept\n").hexdigest()
+            action = {
+                "path": "production/stage.txt",
+                "kind": "create",
+                "material_change": "write stage",
+                "form": "atomic",
+                "expanded_paths": ["production/stage.txt"],
+                "sha256": digest,
+            }
+            original_read = os.read
+            original_identity = (target.stat().st_dev, target.stat().st_ino)
+            replaced = False
+
+            def replace_target(descriptor: int, size: int) -> bytes:
+                nonlocal replaced
+                opened = os.fstat(descriptor)
+                if not replaced and (opened.st_dev, opened.st_ino) == original_identity:
+                    replaced = True
+                    target.rename(project / "production/original-stage.txt")
+                    target.write_text("Concept\n", encoding="utf-8")
+                return original_read(descriptor, size)
+
+            with mock.patch(
+                "tools.codex_studio.start_initialization.os.read",
+                side_effect=replace_target,
+            ), self.assertRaises(ValueError):
+                audit_session(initialized_stage_session(action), project)
 
     def test_start_initialization_rejects_wave_three_ledger_bypasses(self):
         # Arrange
