@@ -81,6 +81,31 @@ def initialized_stage_session(stage_action: dict[str, object]) -> dict[str, obje
             {"type": "write", "path": stage_action["path"], "kind": stage_action["kind"], "material_change": stage_action["material_change"], "sha256": stage_action["sha256"]},
         ],
     }
+
+
+def initialized_review_session(review_action: dict[str, object]) -> dict[str, object]:
+    return {
+        "authority_state": "initialized",
+        "events": [
+            {"type": "detect"},
+            {"type": "review-mode-proposal", "actions": [review_action]},
+            {"type": "review-mode-approval"},
+            {"type": "write", "path": review_action["path"], "kind": review_action["kind"], "material_change": review_action["material_change"], "sha256": review_action["sha256"]},
+        ],
+    }
+
+
+def review_action(content: str | None, *, kind: str = "modify") -> dict[str, object]:
+    return {
+        "path": ".codex/studio.toml",
+        "kind": kind,
+        "material_change": "change the initialized review mode",
+        "form": "atomic",
+        "expanded_paths": [".codex/studio.toml"],
+        "sha256": None if content is None else hashlib.sha256(content.encode()).hexdigest(),
+    }
+
+
 class StartSkillTests(unittest.TestCase):
     def test_start_preflights_truly_fresh_real_git_repository(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -343,7 +368,7 @@ class StartSkillTests(unittest.TestCase):
             with self.subTest(label=label), self.assertRaises(ValueError):
                 validate_documentation(mutated_runtime, framework_text)
 
-    def test_start_canonical_ledger_examples_pass_production_validation(self):
+    def test_start_canonical_ledger_examples_execute_against_declared_repository_state(self):
         examples = ledger_schema()["examples"]
 
         self.assertEqual(
@@ -357,9 +382,133 @@ class StartSkillTests(unittest.TestCase):
             },
             set(examples),
         )
-        for name, session in examples.items():
-            with self.subTest(name=name):
-                validate_session(session)
+        for name, example in examples.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                self.assertEqual(
+                    {"initial_state", "session", "write_contents"}, set(example)
+                )
+                initial_state = example["initial_state"]
+                self.assertEqual({"directories", "files"}, set(initial_state))
+                directories = initial_state["directories"]
+                self.assertEqual({".codex", "production"}, set(directories))
+                self.assertTrue(all(state in {"directory", "missing"} for state in directories.values()))
+                session = example["session"]
+                write_contents = example["write_contents"]
+                validate_session(session, directories=directories)
+
+                project = Path(directory) / "project"
+                make_git_root(project)
+                for relative, state in directories.items():
+                    if state == "directory":
+                        (project / relative).mkdir(parents=True)
+                for relative, content in initial_state["files"].items():
+                    target = project / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content, encoding="utf-8")
+
+                self.assertEqual("ok", preflight_session(session, project)["status"])
+                for event in session["events"]:
+                    if event["type"] not in {"initialization-changeset", "stage-proposal", "review-mode-proposal"}:
+                        continue
+                    for action in event["actions"]:
+                        target = project / action["path"]
+                        if action["kind"] == "directory-create":
+                            target.mkdir()
+                        elif action["kind"] == "delete":
+                            target.unlink()
+                        else:
+                            target.write_text(write_contents[action["path"]], encoding="utf-8")
+
+                self.assertEqual("ok", audit_session(session, project)["status"])
+                self.assertEqual("initialized", detect_project_state(project)["authority_state"])
+                load_studio_config(project)
+
+    def test_start_initialized_review_mode_rejects_delete_action(self):
+        session = initialized_review_session(review_action(None, kind="delete"))
+
+        with self.assertRaises(ValueError):
+            validate_session(session)
+
+    def test_start_initialized_review_mode_preflight_rejects_noncanonical_post_images(self):
+        authority = contract()["default_authority_toml"]
+        valid_example = ledger_schema()["examples"]["initialized_review_mode"]
+        cases = {
+            "truncated authority": 'review_mode = "full"\n',
+            "other field changed": authority.replace(
+                'review_mode = "phase-gated"', 'review_mode = "full"'
+            ).replace('model_policy = "balanced"', 'model_policy = "thorough"'),
+        }
+
+        for name, post_image in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                (project / ".codex").mkdir(parents=True)
+                make_git_root(project)
+                (project / ".codex/studio.toml").write_text(authority, encoding="utf-8")
+                session = json.loads(json.dumps(valid_example["session"]))
+                digest = hashlib.sha256(post_image.encode()).hexdigest()
+                session["events"][1]["actions"][0]["sha256"] = digest
+                session["events"][3]["sha256"] = digest
+
+                with self.assertRaises(ValueError):
+                    preflight_session(session, project)
+
+    def test_start_initialized_review_mode_preflight_binds_exact_current_authority(self):
+        authority = contract()["default_authority_toml"]
+        valid_example = ledger_schema()["examples"]["initialized_review_mode"]
+        session = json.loads(json.dumps(valid_example["session"]))
+        proposal = session["events"][1]
+        proposal["authority_before"]["model_policy"] = "thorough"
+        broadened = valid_example["write_contents"][".codex/studio.toml"].replace(
+            'model_policy = "balanced"', 'model_policy = "thorough"'
+        )
+        digest = hashlib.sha256(broadened.encode()).hexdigest()
+        proposal["actions"][0]["sha256"] = digest
+        session["events"][3]["sha256"] = digest
+        validate_session(session)
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
+            (project / ".codex/studio.toml").write_text(authority, encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                preflight_session(session, project)
+
+    def test_start_initialized_review_mode_audit_rejects_invalid_or_broadened_results(self):
+        authority = contract()["default_authority_toml"]
+        cases = {
+            "deleted authority": (None, "delete"),
+            "truncated authority": ('review_mode = "full"\n', "modify"),
+            "other field changed": (
+                authority.replace(
+                    'review_mode = "phase-gated"', 'review_mode = "full"'
+                ).replace('model_policy = "balanced"', 'model_policy = "thorough"'),
+                "modify",
+            ),
+        }
+
+        for name, (post_image, kind) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                (project / ".codex").mkdir(parents=True)
+                make_git_root(project)
+                target = project / ".codex/studio.toml"
+                target.write_text(authority, encoding="utf-8")
+                if kind == "delete":
+                    session = initialized_review_session(review_action(None, kind="delete"))
+                else:
+                    session = json.loads(json.dumps(
+                        ledger_schema()["examples"]["initialized_review_mode"]["session"]
+                    ))
+                if post_image is None:
+                    target.unlink()
+                else:
+                    target.write_text(post_image, encoding="utf-8")
+
+                with self.assertRaises(ValueError):
+                    audit_session(session, project)
 
     def test_start_audit_rejects_links_and_detects_target_identity_swap(self):
         with tempfile.TemporaryDirectory() as directory:

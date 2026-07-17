@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import dataclasses
 import hashlib
 import json
 import os
@@ -18,10 +19,10 @@ if __package__ in {None, ""}:
     _BUNDLED_STUDIO_ROOT = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(_BUNDLED_STUDIO_ROOT))
 
-from tools.codex_studio.engine_pack import _link_kind, load_studio_config
+from tools.codex_studio.engine_pack import STUDIO_KEYS, StudioConfig, _link_kind, _serialize_config, load_studio_config
 
 
-_CONTRACT_JSON = r'''{"authority":{"active_engine_pack":"none","engine":"unconfigured","engine_version":"","language":"","model_policy":"balanced","review_mode":"phase-gated"},"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","execution":{"audit_reads":"link-safe filesystem path types and SHA-256 digests (file mode is not part of this material contract)","cli":"tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT","ledger_schema_version":1},"first_run":{"action_unit":"filesystem path","allowed_atomic_kinds":["create","modify","merge","delete","directory-create","managed-block-edit"],"allowed_parent_directories":[".codex","production"],"approved_targets":[".codex/studio.toml","production/stage.txt"],"approval_sequence":["detect","select-next-step","initialization-changeset","approval","write"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_roots":[".agents/skills",".codex/agents",".codex/agent-packs","Codex Studio Testing Framework","docs/engine-reference"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true,"speculative_empty_directories":false},"initialized":{"approval_pairs":{"review-mode-proposal":"review-mode-approval","stage-proposal":"stage-approval"},"initialization_changesets":0,"proposal_targets":{"review-mode-proposal":".codex/studio.toml","stage-proposal":"production/stage.txt"},"separate_proposals":true,"zero_unapproved_writes":true},"schema_version":1}'''
+_CONTRACT_JSON = r'''{"authority":{"active_engine_pack":"none","engine":"unconfigured","engine_version":"","language":"","model_policy":"balanced","review_mode":"phase-gated"},"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","execution":{"audit_reads":"link-safe filesystem path types and SHA-256 digests (file mode is not part of this material contract)","cli":"tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT","ledger_schema_version":1},"first_run":{"action_unit":"filesystem path","allowed_atomic_kinds":["create","modify","merge","delete","directory-create","managed-block-edit"],"allowed_parent_directories":[".codex","production"],"approved_targets":[".codex/studio.toml","production/stage.txt"],"approval_sequence":["detect","select-next-step","initialization-changeset","approval","write"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_roots":[".agents/skills",".codex/agents",".codex/agent-packs","Codex Studio Testing Framework","docs/engine-reference"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true,"speculative_empty_directories":false},"initialized":{"approval_pairs":{"review-mode-proposal":"review-mode-approval","stage-proposal":"stage-approval"},"initialization_changesets":0,"proposal_targets":{"review-mode-proposal":".codex/studio.toml","stage-proposal":"production/stage.txt"},"review_modes":["full","phase-gated","solo"],"separate_proposals":true,"zero_unapproved_writes":true},"schema_version":1}'''
 START_INITIALIZATION_CONTRACT: dict[str, object] = json.loads(_CONTRACT_JSON)
 _FILE_ACTION_KEYS = {"path", "kind", "material_change", "form", "expanded_paths", "sha256"}
 _DIRECTORY_ACTION_KEYS = _FILE_ACTION_KEYS | {"required_by"}
@@ -36,19 +37,67 @@ def _schema_write(action: Mapping[str, object]) -> dict[str, object]:
     return {"type": "write", **{key: action[key] for key in ("path", "kind", "material_change", "sha256")}}
 
 
+def _schema_directory_action(path: str, required_by: str, material_change: str) -> dict[str, object]:
+    return {"path": path, "kind": "directory-create", "material_change": material_change, "form": "atomic", "expanded_paths": [path], "required_by": required_by, "sha256": None}
+
+
+def _config_mapping(config: StudioConfig) -> dict[str, str]:
+    return {key: getattr(config, key) for key in STUDIO_KEYS}
+
+
+def _config_from_mapping(value: object) -> StudioConfig:
+    if not isinstance(value, Mapping) or set(value) != set(STUDIO_KEYS) or any(not isinstance(value.get(key), str) for key in STUDIO_KEYS): raise ValueError("review-mode authority_before must contain the exact six string fields")
+    return StudioConfig(**{key: value[key] for key in STUDIO_KEYS})
+
+
+def _review_mode_post_image(before: StudioConfig, review_mode: str) -> bytes:
+    return _serialize_config(dataclasses.replace(before, review_mode=review_mode))
+
+
+_DEFAULT_CONFIG = _config_from_mapping(START_INITIALIZATION_CONTRACT["authority"])
+_DEFAULT_AUTHORITY = START_INITIALIZATION_CONTRACT["default_authority_toml"]
+_FULL_REVIEW_AUTHORITY = _review_mode_post_image(_DEFAULT_CONFIG, "full").decode()
+_AUTHORITY_PARENT_ACTION = _schema_directory_action(".codex", ".codex/studio.toml", "create the authority parent")
 _AUTHORITY_ACTION = _schema_file_action(".codex/studio.toml", "write the complete default authority", START_INITIALIZATION_CONTRACT["default_authority_toml"])
+_PRODUCTION_PARENT_ACTION = _schema_directory_action("production", "production/stage.txt", "create the stage parent")
 _STAGE_ACTION = _schema_file_action("production/stage.txt", "write the selected initial stage", "Concept\n")
-_REVIEW_MODE_ACTION = _schema_file_action(".codex/studio.toml", "update review mode to full", "review_mode = \"full\"\n", kind="modify")
+_REVIEW_MODE_ACTION = _schema_file_action(".codex/studio.toml", "update only review_mode to full in the complete authority", _FULL_REVIEW_AUTHORITY, kind="modify")
+
+
+def _example(initial_directories: Mapping[str, str], initial_files: Mapping[str, str], session: Mapping[str, object], write_contents: Mapping[str, str]) -> dict[str, object]:
+    return {"initial_state": {"directories": dict(initial_directories), "files": dict(initial_files)}, "session": copy.deepcopy(session), "write_contents": dict(write_contents)}
 
 
 def _first_run_example(next_step: str) -> dict[str, object]:
-    actions = [copy.deepcopy(_AUTHORITY_ACTION)]
-    if next_step == "setup-engine": actions.append(copy.deepcopy(_STAGE_ACTION))
-    return {"authority_state": "missing", "events": [{"type": "detect"}, {"type": "select-next-step", "next_step": next_step}, {"type": "initialization-changeset", "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"], "actions": actions}, {"type": "approval"}, *[_schema_write(action) for action in actions]]}
+    actions = [copy.deepcopy(_AUTHORITY_PARENT_ACTION), copy.deepcopy(_AUTHORITY_ACTION)]
+    write_contents = {".codex/studio.toml": _DEFAULT_AUTHORITY}
+    if next_step == "setup-engine":
+        actions.extend((copy.deepcopy(_PRODUCTION_PARENT_ACTION), copy.deepcopy(_STAGE_ACTION)))
+        write_contents["production/stage.txt"] = "Concept\n"
+    session = {"authority_state": "missing", "events": [{"type": "detect"}, {"type": "select-next-step", "next_step": next_step}, {"type": "initialization-changeset", "authority_toml": _DEFAULT_AUTHORITY, "actions": actions}, {"type": "approval"}, *[_schema_write(action) for action in actions]]}
+    return _example({".codex": "missing", "production": "missing"}, {}, session, write_contents)
 
 
-def _initialized_group(proposal: str, approval: str, action: Mapping[str, object]) -> list[dict[str, object]]:
-    return [{"type": proposal, "actions": [copy.deepcopy(action)]}, {"type": approval}, _schema_write(action)]
+def _initialized_stage_group(actions: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    return [{"type": "stage-proposal", "actions": copy.deepcopy(list(actions))}, {"type": "stage-approval"}, *[_schema_write(action) for action in actions]]
+
+
+def _initialized_review_group() -> list[dict[str, object]]:
+    proposal = {"type": "review-mode-proposal", "review_mode": "full", "authority_before": _config_mapping(_DEFAULT_CONFIG), "actions": [copy.deepcopy(_REVIEW_MODE_ACTION)]}
+    return [proposal, {"type": "review-mode-approval"}, _schema_write(_REVIEW_MODE_ACTION)]
+
+
+def _initialized_example(*, stage: bool, review_mode: bool) -> dict[str, object]:
+    events: list[dict[str, object]] = [{"type": "detect"}]
+    write_contents: dict[str, str] = {}
+    if stage:
+        events.extend(_initialized_stage_group((_PRODUCTION_PARENT_ACTION, _STAGE_ACTION)))
+        write_contents["production/stage.txt"] = "Concept\n"
+    if review_mode:
+        events.extend(_initialized_review_group())
+        write_contents[".codex/studio.toml"] = _FULL_REVIEW_AUTHORITY
+    session = {"authority_state": "initialized", "events": events}
+    return _example({".codex": "directory", "production": "missing"}, {".codex/studio.toml": _DEFAULT_AUTHORITY}, session, write_contents)
 
 
 _LEDGER_SCHEMA = {
@@ -56,20 +105,21 @@ _LEDGER_SCHEMA = {
     "top_level": {"exact_keys": ["authority_state", "events"], "authority_state": ["missing", "initialized"], "events": "array"},
     "authority": {"default_toml_exact_bytes": START_INITIALIZATION_CONTRACT["default_authority_toml"], "default_toml_sha256": hashlib.sha256(START_INITIALIZATION_CONTRACT["default_authority_toml"].encode()).hexdigest(), "missing_requirement": "exactly one .codex/studio.toml create action and reconciled write with these bytes and digest"},
     "control_events": {"detect": {"exact_keys": ["type"]}, "select-next-step": {"exact_keys": ["type", "next_step"], "next_step": ["brainstorm", "setup-engine", "project-stage-detect"]}, "approval": {"exact_keys": ["type"]}, "stage-approval": {"exact_keys": ["type"]}, "review-mode-approval": {"exact_keys": ["type"]}},
-    "events": {"initialization-changeset": {"exact_keys": ["type", "authority_toml", "actions"], "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"]}, "stage-proposal": {"exact_keys": ["type", "actions"]}, "review-mode-proposal": {"exact_keys": ["type", "actions"]}},
+    "events": {"initialization-changeset": {"exact_keys": ["type", "authority_toml", "actions"], "authority_toml": START_INITIALIZATION_CONTRACT["default_authority_toml"]}, "stage-proposal": {"exact_keys": ["type", "actions"]}, "review-mode-proposal": {"exact_keys": ["type", "review_mode", "authority_before", "actions"], "review_mode": ["full", "phase-gated", "solo"], "authority_before_exact_keys": list(STUDIO_KEYS)}},
     "action": {"file_exact_keys": sorted(_FILE_ACTION_KEYS), "directory_exact_keys": sorted(_DIRECTORY_ACTION_KEYS), "path": "normalized repository-relative approved target", "kind": ["create", "modify", "merge", "delete", "directory-create", "managed-block-edit"], "form": "atomic", "expanded_paths": "[path]", "material_change": "non-empty string", "sha256": "64 lowercase hex for file actions; null for delete and directory-create", "required_by": "string (directory-create only)"},
     "write": {"exact_keys": sorted(_WRITE_KEYS), "type": "write", "fields": "repeat approved action path/kind/material_change/sha256 in order"},
     "ordering": {"first_run": {"exact_sequence": ["detect", "select-next-step", "initialization-changeset", "approval", "one write per action in action order"], "initialization_changesets": 1}, "initialized": {"exact_prefix": ["detect"], "repeating_group": ["unique proposal", "matching separate approval", "one write per action in action order"], "initialization_changesets": 0}},
-    "initialized_groups": {"stage-proposal": {"approval": "stage-approval", "target": "production/stage.txt", "optional_parent": "production"}, "review-mode-proposal": {"approval": "review-mode-approval", "target": ".codex/studio.toml", "optional_parent": ".codex"}, "constraints": "each proposal type and mutation path appears at most once; optional missing parent immediately precedes its sole create or merge target"},
+    "initialized_groups": {"stage-proposal": {"approval": "stage-approval", "target": "production/stage.txt", "optional_parent": "production"}, "review-mode-proposal": {"approval": "review-mode-approval", "target": ".codex/studio.toml", "action_kind": "modify", "optional_parent": None, "post_image": "canonical complete six-field authority_before with only review_mode changed to the closed target value; action/write SHA-256 matches exact post-image"}, "constraints": "each proposal type and mutation path appears at most once; only a stage proposal may include its observed-missing production parent immediately before the create or merge target"},
     "selection_stage_rule": "a production/stage.txt action exists if and only if select-next-step.next_step is setup-engine; brainstorm and project-stage-detect omit it",
     "write_reconciliation": {"cardinality": "exactly one write per approved action", "order": "same order as actions", "exact_fields": ["path", "kind", "material_change", "sha256"], "unapproved_writes": 0},
+    "example_envelope": {"exact_keys": ["initial_state", "session", "write_contents"], "initial_state": {"exact_keys": ["directories", "files"], "directories": {".codex": ["missing", "directory"], "production": ["missing", "directory"]}, "files": "exact repository-relative UTF-8 pre-images"}, "write_contents": "exact UTF-8 post-image for every non-directory, non-delete approved action"},
     "examples": {
         "first_run_brainstorm": _first_run_example("brainstorm"),
         "first_run_project_stage_detect": _first_run_example("project-stage-detect"),
         "first_run_setup_engine": _first_run_example("setup-engine"),
-        "initialized_review_mode": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("review-mode-proposal", "review-mode-approval", _REVIEW_MODE_ACTION)]},
-        "initialized_stage": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("stage-proposal", "stage-approval", _STAGE_ACTION)]},
-        "initialized_stage_and_review_mode": {"authority_state": "initialized", "events": [{"type": "detect"}, *_initialized_group("stage-proposal", "stage-approval", _STAGE_ACTION), *_initialized_group("review-mode-proposal", "review-mode-approval", _REVIEW_MODE_ACTION)]},
+        "initialized_review_mode": _initialized_example(stage=False, review_mode=True),
+        "initialized_stage": _initialized_example(stage=True, review_mode=False),
+        "initialized_stage_and_review_mode": _initialized_example(stage=True, review_mode=True),
     },
 }
 
@@ -92,7 +142,7 @@ def contract_summary(value: Mapping[str, object] | None = None) -> str:
         f"- Forbidden roots and every descendant are {quoted(_strings(first, 'forbidden_roots'))}; all other paths are outside selected and approved project authority.",
         f"- No writes precede approval ({first['pre_approval_writes']}); writes match approved actions exactly in order, and a plan above the cap replans ({first['replan_above_max_path_mutations']}).",
         "- The six-field default authority is " + "; ".join(f"`{key} = {json.dumps(item)}`" for key, item in authority.items()) + ", and missing authority must create and write its exact bytes.",
-        f"- Initialized repositories have {initialized['initialization_changesets']} Initialization changesets and retain unique proposal-specific stage and review-mode approval/write groups.",
+        f"- Initialized repositories have {initialized['initialization_changesets']} Initialization changesets and retain unique proposal-specific stage and review-mode approval/write groups; review mode is a full-file `modify` to one of {quoted(_strings(initialized, 'review_modes'))}, preserving every other authority value.",
         f"- Installed execution uses `{execution['cli']}` and ledger schema version {execution['ledger_schema_version']}. Preflight and audit are link/reparse-safe; {execution['audit_reads']}.",
     ))
 
@@ -205,7 +255,9 @@ def preflight_session(session: Mapping[str, object], root: Path) -> dict[str, ob
     safe = _real_root(root); identity = _identity(os.lstat(safe)); detected = detect_project_state(safe)
     if detected["authority_state"] == "repair-block": raise ValueError("invalid studio authority blocks Start initialization")
     if session.get("authority_state") != detected["authority_state"]: raise ValueError("Start ledger authority state differs from the observed project")
-    validate_session(session, directories=observed_directories(safe)); _assert_root_identity(safe, identity); return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
+    validate_session(session, directories=observed_directories(safe))
+    if session["authority_state"] == "initialized": _verify_review_mode_preflight(session, load_studio_config(safe))
+    _assert_root_identity(safe, identity); return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
 
 
 def audit_session(session: Mapping[str, object], root: Path) -> dict[str, object]:
@@ -220,6 +272,7 @@ def audit_session(session: Mapping[str, object], root: Path) -> dict[str, object
             if state != "directory": raise ValueError(f"audit missing created directory: {write['path']}")
         elif state != "regular" or _secure_digest(safe, write["path"], meta) != write["sha256"]: raise ValueError(f"audit digest mismatch: {write['path']}")
         _assert_root_identity(safe, identity)
+    if session["authority_state"] == "initialized": _verify_review_mode_audit(session, safe)
     return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "audit", "status": "ok"}
 
 
@@ -274,12 +327,46 @@ def _validate_initialized(events: Sequence[object], directories: Mapping[str, st
     pairs = _mapping(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "approval_pairs"); targets = _mapping(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "proposal_targets"); seen_types, seen_paths, index = set(), set(), 1
     while index < len(typed):
         proposal = typed[index]; kind = proposal.get("type")
-        if kind not in pairs or kind in seen_types or set(proposal) != {"type", "actions"} or index + 2 >= len(typed) or typed[index + 1] != {"type": pairs[kind]}: raise ValueError("initialized proposal lacks its exact separate approval")
+        expected_keys = {"type", "review_mode", "authority_before", "actions"} if kind == "review-mode-proposal" else {"type", "actions"}
+        if kind not in pairs or kind in seen_types or set(proposal) != expected_keys or index + 2 >= len(typed) or typed[index + 1] != {"type": pairs[kind]}: raise ValueError("initialized proposal lacks its exact separate approval")
         actions = _action_mappings(proposal["actions"]); _validate_actions(actions, directories, audit=audit); target = targets[kind]
         if [a["path"] for a in actions if a["kind"] != "directory-create"] != [target]: raise ValueError("proposal may mutate only its declared target")
-        if len(actions) == 2 and not (actions[0]["kind"] == "directory-create" and actions[0]["required_by"] == target and actions[1]["path"] == target) or len(actions) not in {1, 2}: raise ValueError("proposal parent must immediately precede its sole target")
+        if kind == "review-mode-proposal":
+            if len(actions) != 1 or actions[0]["kind"] != "modify": raise ValueError("review-mode proposal must be one full authority modify without a parent action")
+            _review_mode_transition(proposal, actions[0])
+        elif len(actions) == 2 and not (actions[0]["kind"] == "directory-create" and actions[0]["required_by"] == target and actions[1]["path"] == target) or len(actions) not in {1, 2}: raise ValueError("proposal parent must immediately precede its sole target")
         if seen_paths.intersection(a["path"] for a in actions): raise ValueError("initialized proposal repeats a mutation path")
         writes = typed[index + 2:index + 2 + len(actions)]; _reconcile_writes(actions, writes); seen_types.add(kind); seen_paths.update(a["path"] for a in actions); index += 2 + len(actions)
+
+
+def _review_mode_transition(proposal: Mapping[str, object], action: Mapping[str, object]) -> tuple[StudioConfig, StudioConfig]:
+    before = _config_from_mapping(proposal["authority_before"])
+    review_mode = proposal["review_mode"]
+    allowed = _strings(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "review_modes")
+    if not isinstance(review_mode, str) or review_mode not in allowed or review_mode == before.review_mode: raise ValueError("review-mode proposal target must be a different allowed value")
+    after = dataclasses.replace(before, review_mode=review_mode)
+    expected_digest = hashlib.sha256(_serialize_config(after)).hexdigest()
+    if action["path"] != ".codex/studio.toml" or action["kind"] != "modify" or action["sha256"] != expected_digest: raise ValueError("review-mode proposal digest must bind the canonical full authority post-image")
+    return before, after
+
+
+def _review_mode_proposals(session: Mapping[str, object]) -> list[Mapping[str, object]]:
+    return [event for event in _event_mappings(session["events"]) if event["type"] == "review-mode-proposal"]
+
+
+def _verify_review_mode_preflight(session: Mapping[str, object], current: StudioConfig) -> None:
+    for proposal in _review_mode_proposals(session):
+        before, _ = _review_mode_transition(proposal, _action_mappings(proposal["actions"])[0])
+        if before != current: raise ValueError("review-mode proposal authority_before differs from current strict authority")
+
+
+def _verify_review_mode_audit(session: Mapping[str, object], root: Path) -> None:
+    proposals = _review_mode_proposals(session)
+    if not proposals: return
+    actual = load_studio_config(root)
+    for proposal in proposals:
+        _, expected = _review_mode_transition(proposal, _action_mappings(proposal["actions"])[0])
+        if actual != expected: raise ValueError("review-mode audit changed authority fields beyond the approved review_mode")
 
 
 def _validate_actions(actions: Sequence[Mapping[str, object]], directories: Mapping[str, str], *, audit: bool) -> None:
