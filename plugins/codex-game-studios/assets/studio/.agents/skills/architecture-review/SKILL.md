@@ -62,10 +62,10 @@ Read all inputs appropriate to the mode:
 - `docs/architecture/architecture.md` if it exists
 
 ### Engine Reference
-- `docs/engine-reference/[engine]/VERSION.md`
-- `docs/engine-reference/[engine]/breaking-changes.md`
-- `docs/engine-reference/[engine]/deprecated-apis.md`
-- All files in `docs/engine-reference/[engine]/modules/`
+- `../../../docs/engine-reference/[engine]/VERSION.md`
+- `../../../docs/engine-reference/[engine]/breaking-changes.md`
+- `../../../docs/engine-reference/[engine]/deprecated-apis.md`
+- All files in `../../../docs/engine-reference/[engine]/modules/`
 
 ### Project Standards
 - `.codex/docs/technical-preferences.md`

@@ -12,7 +12,10 @@ description: "Use when an implementation-ready story has been approved for bound
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+Before invoking `$team-qa`, confirm that `team-qa` is present in the current
+task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, and do not
+search for or copy a repository-local skill file.
 
 # Dev Story
 

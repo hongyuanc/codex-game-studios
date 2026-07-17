@@ -20,7 +20,7 @@ gap analysis, use `$project-stage-detect`.
 
 ## Step 1: Read the Catalog
 
-Read `.codex/docs/workflow-catalog.yaml`. This is the authoritative list of all
+Read `../../../.codex/docs/workflow-catalog.yaml`. This is the authoritative list of all
 phases, their steps (in order), whether each step is required or optional, and
 the artifact globs that indicate completion.
 
@@ -28,8 +28,9 @@ the artifact globs that indicate completion.
 
 ## Step 1b: Find Skills Not in the Catalog
 
-After reading the catalog, Search `.agents/skills/*/SKILL.md` to get the full list
-of installed skills. For each file, extract the `name:` field from its frontmatter.
+After reading the catalog, use the current task's available skill catalog to get
+the full list of installed skills. Do not search for or copy repository-local
+skill files to reconstruct the catalog.
 
 Compare against the `command:` values in the catalog. Any skill whose name does
 not appear as a catalog command is an **uncataloged skill** — still usable but not
@@ -39,7 +40,7 @@ Collect these for the output in Step 7 — show them as a footer block:
 
 ```
 ### Also installed (not in workflow)
-- `$skill-name` — [description from SKILL.md frontmatter]
+- `$skill-name` — [description from the available skill catalog]
 - `$skill-name` — [description]
 ```
 

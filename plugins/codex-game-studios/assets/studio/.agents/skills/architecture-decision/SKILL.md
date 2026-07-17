@@ -17,7 +17,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **If the argument starts with `retrofit` followed by a file path**
 (e.g., `$architecture-decision retrofit docs/architecture/adr-0001-event-system.md`):
@@ -76,7 +76,7 @@ Use the user's response as the title, then proceed to Step 1.
 
 Before doing anything else, establish the engine environment:
 
-1. Read `docs/engine-reference/[engine]/VERSION.md` to get:
+1. Read `../../../docs/engine-reference/[engine]/VERSION.md` to get:
    - Engine name and version
    - LLM knowledge cutoff date
    - Post-cutoff version risk levels (LOW / MEDIUM / HIGH)
@@ -86,12 +86,12 @@ Before doing anything else, establish the engine environment:
    Animation, Networking, Core, Input, Scripting.
 
 3. Read the corresponding module reference if it exists:
-   `docs/engine-reference/[engine]/modules/[domain].md`
+   `../../../docs/engine-reference/[engine]/modules/[domain].md`
 
-4. Read `docs/engine-reference/[engine]/breaking-changes.md` — flag any
+4. Read `../../../docs/engine-reference/[engine]/breaking-changes.md` — flag any
    changes in the relevant domain that post-date the LLM's training cutoff.
 
-5. Read `docs/engine-reference/[engine]/deprecated-apis.md` — flag any APIs
+5. Read `../../../docs/engine-reference/[engine]/deprecated-apis.md` — flag any APIs
    in the relevant domain that should not be used.
 
 6. **Display a knowledge gap warning** before proceeding if the domain carries
@@ -248,7 +248,7 @@ Following this format:
 | **Engine** | [e.g. Godot 4.6] |
 | **Domain** | [Physics / Rendering / UI / Audio / Navigation / Animation / Networking / Core / Input] |
 | **Knowledge Risk** | [LOW / MEDIUM / HIGH — from VERSION.md] |
-| **References Consulted** | [List engine-reference docs read, e.g. `docs/engine-reference/godot/modules/physics.md`] |
+| **References Consulted** | [List engine-reference docs read, e.g. `../../../docs/engine-reference/godot/modules/physics.md`] |
 | **Post-Cutoff APIs Used** | [Any APIs from post-LLM-cutoff versions this decision depends on, or "None"] |
 | **Verification Required** | [Specific behaviours to test before shipping, or "None"] |
 
@@ -351,7 +351,7 @@ to implement it.]
 Review mode may vary optional specialist depth, but it never skips this material
 architecture decision gate.
 
-5.6. **Technical Director Strategic Review** — After the engine specialist validation, delegate to `technical-director` through Codex custom-agent delegation using gate **TD-ADR** (`.codex/docs/director-gates.md`):
+5.6. **Technical Director Strategic Review** — After the engine specialist validation, delegate to `technical-director` through Codex custom-agent delegation using gate **TD-ADR** (`../../../.codex/docs/director-gates.md`):
    - Pass: the ADR file path (or draft content), engine version, domain, any existing ADRs in the same domain
    - The TD validates architectural coherence (is this decision consistent with the whole system?) — distinct from the engine specialist's API-level check
    - If CONCERNS or REJECT: revise the Decision or Alternatives sections accordingly before proceeding

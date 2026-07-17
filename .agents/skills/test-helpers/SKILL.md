@@ -12,11 +12,17 @@ description: "Use when repeated test setup, assertions, factories, or engine-spe
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+Before invoking `$setup-engine`, confirm that `setup-engine` is present in the
+current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, and do
+not search for or copy a repository-local skill file.
 
 ### Native readiness gate for `$skill-test`
 
-Before invoking `$skill-test`, validate `.agents/skills/skill-test/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $skill-test is not Codex-native yet`, defer the skill-validation handoff, and do not invoke it.
+Before invoking `$skill-test`, confirm that `skill-test` is present in the
+current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, and do
+not search for or copy a repository-local skill file.
 
 # Test Helpers
 

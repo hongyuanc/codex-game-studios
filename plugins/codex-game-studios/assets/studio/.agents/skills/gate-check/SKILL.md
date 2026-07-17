@@ -110,7 +110,7 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 - [ ] Art bible exists at `design/art/art-bible.md` with at least Sections 1–4 (Visual Identity Foundation)
 - [ ] At least 3 Architecture Decision Records in `docs/architecture/` covering
       Foundation-layer systems (scene management, event architecture, save/load)
-- [ ] Engine reference docs exist in `docs/engine-reference/[engine]/`
+- [ ] Engine reference docs exist in `../../../docs/engine-reference/[engine]/`
 - [ ] Test framework initialized: `tests/unit/` and `tests/integration/` directories exist
 - [ ] CI/CD test workflow exists at `.github/workflows/tests.yml` (or equivalent)
 - [ ] At least one example test file exists to confirm the framework is functional
@@ -127,7 +127,7 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 - [ ] At least one screen's UX spec started (often the main menu or core HUD is designed during Technical Setup)
 - [ ] All ADRs have an **Engine Compatibility section** with engine version stamped
 - [ ] All ADRs have a **GDD Requirements Addressed section** with explicit GDD linkage
-- [ ] No ADR references APIs listed in `docs/engine-reference/[engine]/deprecated-apis.md`
+- [ ] No ADR references APIs listed in `../../../docs/engine-reference/[engine]/deprecated-apis.md`
 - [ ] All HIGH RISK engine domains (per VERSION.md) have been explicitly addressed
       in the architecture document or flagged as open questions
 - [ ] Architecture traceability matrix has **zero Foundation layer gaps**
@@ -140,7 +140,7 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
   Neither can reach Accepted while the cycle exists. Remove one 'Depends On' edge to
   break the cycle."
 
-**Engine Validation** (read `docs/engine-reference/[engine]/VERSION.md` first):
+**Engine Validation** (read `../../../docs/engine-reference/[engine]/VERSION.md` first):
 - [ ] ADRs that touch post-cutoff engine APIs are flagged with Knowledge Risk: HIGH/MEDIUM
 - [ ] `$architecture-review` engine audit shows no deprecated API usage
 - [ ] All ADRs agree on the same engine version (no stale version references)
@@ -320,14 +320,14 @@ For items that can't be automatically verified, **ask the user**:
 
 (Review mode was resolved in Phase 1. Use that stored value here.)
 
-Before generating the final verdict, delegate to all four directors as **parallel delegated agents** through Codex custom-agent delegation using the parallel gate protocol from `.codex/docs/director-gates.md`. Issue all four Codex custom-agent delegations simultaneously — do not wait for one before starting the next.
+Before generating the final verdict, delegate to all four directors as **parallel delegated agents** through Codex custom-agent delegation using the parallel gate protocol from `../../../.codex/docs/director-gates.md`. Issue all four Codex custom-agent delegations simultaneously — do not wait for one before starting the next.
 
 **Delegate in parallel to these named Codex custom-agent roles:**
 
-1. **`creative-director`** — gate **CD-PHASE-GATE** (`.codex/docs/director-gates.md`)
-2. **`technical-director`** — gate **TD-PHASE-GATE** (`.codex/docs/director-gates.md`)
-3. **`producer`** — gate **PR-PHASE-GATE** (`.codex/docs/director-gates.md`)
-4. **`art-director`** — gate **AD-PHASE-GATE** (`.codex/docs/director-gates.md`)
+1. **`creative-director`** — gate **CD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+2. **`technical-director`** — gate **TD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+3. **`producer`** — gate **PR-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+4. **`art-director`** — gate **AD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
 
 Pass to each: target phase name, list of artifacts present, and the context fields listed in that gate's definition.
 
@@ -522,8 +522,8 @@ Based on the verdict, suggest specific next steps:
 - **Tests failing?** → delegate to `lead-programmer` or `qa-tester`
 - **No playtest data?** → `$playtest-report`
 - **No playtest sessions beyond the minimum?** → Additional sessions give more reliable signal. 3+ total is recommended before committing the full team. Use `$playtest-report` to structure findings.
-- **No Difficulty Curve doc?** → Create `design/difficulty-curve.md` from the template at `.codex/docs/templates/difficulty-curve.md` — or use `$quick-design "difficulty curve"` for a guided session.
-- **No player journey map?** → Create `design/player-journey.md` from the template at `.codex/docs/templates/player-journey.md` — or author it collaboratively using `$ux-design` Phase 2b.
+- **No Difficulty Curve doc?** → Create `design/difficulty-curve.md` from the template at `../../../.codex/docs/templates/difficulty-curve.md` — or use `$quick-design "difficulty curve"` for a guided session.
+- **No player journey map?** → Create `design/player-journey.md` from the template at `../../../.codex/docs/templates/player-journey.md` — or author it collaboratively using `$ux-design` Phase 2b.
 - **Need a quick sprint check?** → `$sprint-status` for current sprint progress snapshot
 - **Performance unknown?** → `$perf-profile`
 - **Not localized?** → `$localize`

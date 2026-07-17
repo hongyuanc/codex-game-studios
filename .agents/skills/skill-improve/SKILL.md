@@ -15,6 +15,13 @@ description: "Use when a Codex skill has validation failures or warnings that ne
 
 Validation is read-only and needs no approval. Show the exact proposed edit set as a complete changeset and receive explicit approval before applying it. Preserve the original content, retest the same checks, and keep edits only when the retest score does not regress; otherwise restore the original skill without using a destructive Git command.
 
+### Native readiness gate for `$skill-test`
+
+Before invoking `$skill-test`, confirm that `skill-test` is present in the
+current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, and do
+not search for or copy a repository-local skill file.
+
 # Skill Improve
 
 Runs an improvement loop on a single skill:
@@ -31,7 +38,8 @@ Usage: $skill-improve [skill-name]
 Example: $skill-improve tech-debt
 ```
 
-Verify `.agents/skills/[name]/SKILL.md` exists. If not, stop with:
+Confirm that `[name]` is present in the current task's available skill catalog.
+If unavailable, stop with:
 "Skill '[name]' not found."
 
 ---
@@ -53,7 +61,7 @@ If baseline is 0 FAILs and 0 WARNs, note it and proceed to Phase 2b.
 
 ### Phase 2b: Category Baseline
 
-Check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet` and skip the category baseline; static improvement remains available. If it exists, look up the skill's `category:` field there.
+Check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet` and skip the category baseline; static improvement remains available. If it exists, look up the skill's `category:` field there.
 
 If no `category:` field is found, display:
 "Category: not yet assigned — skipping category checks."
@@ -76,7 +84,7 @@ If BOTH static and category baselines are 0 FAILs and 0 WARNs, stop:
 
 ## Phase 3: Diagnose
 
-Read the full skill file at `.agents/skills/[name]/SKILL.md`.
+Read the full skill resource resolved by `[name]` in the available skill catalog.
 
 For each failing or warning **static** check, identify the exact gap:
 
@@ -101,7 +109,10 @@ Show the full combined diagnosis to the user before proposing any changes.
 
 ## Phase 4: Propose Exact Edit Set
 
-For each failing assertion, show the smallest before/after edit. Combine these into the exact proposed edit set, list `.agents/skills/[name]/SKILL.md` as the only target, and request explicit approval before applying. If approval is declined, stop without changing the skill.
+For each failing assertion, show the smallest before/after edit. Combine these
+into the exact proposed edit set, list the catalog-resolved skill resource as
+the only target, and request explicit approval before applying. If approval is
+declined, stop without changing the skill.
 
 ---
 

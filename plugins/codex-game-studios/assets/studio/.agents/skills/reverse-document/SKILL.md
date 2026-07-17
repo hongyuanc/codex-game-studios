@@ -113,9 +113,9 @@ Based on type, use appropriate template:
 
 | Type | Template | Output Path |
 |------|----------|-------------|
-| `design` | `.codex/docs/templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
-| `architecture` | `.codex/docs/templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
-| `concept` | `.codex/docs/templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
+| `design` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
+| `architecture` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
+| `concept` | `../../../.codex/docs/templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
 
 **Draft structure**:
 - Capture **what exists** (mechanics, patterns, implementation)
@@ -190,11 +190,11 @@ Next decision (one only): Should I prepare the `$balance-check` handoff first?
 
 | If analyzing... | Use template... | Because... |
 |----------------|-----------------|------------|
-| `src/gameplay/*` | `.codex/docs/templates/design-doc-from-implementation.md` | Gameplay mechanics → GDD |
-| `src/core/*`, `src/ai/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Core systems → ADR |
-| `prototypes/*` | `.codex/docs/templates/concept-doc-from-prototype.md` | Experiments → concept doc |
-| `src/networking/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Technical systems → ADR |
-| `src/ui/*` | `.codex/docs/templates/design-doc-from-implementation.md` | UI/UX → design spec |
+| `src/gameplay/*` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | Gameplay mechanics → GDD |
+| `src/core/*`, `src/ai/*` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | Core systems → ADR |
+| `prototypes/*` | `../../../.codex/docs/templates/concept-doc-from-prototype.md` | Experiments → concept doc |
+| `src/networking/*` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | Technical systems → ADR |
+| `src/ui/*` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | UI/UX → design spec |
 
 ---
 

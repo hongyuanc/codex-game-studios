@@ -17,7 +17,7 @@ Extract the milestone name (`current` or a specific name) and resolve the review
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 ---
 
@@ -117,7 +117,7 @@ Read all sprint reports for sprints within this milestone from `production/sprin
 - `lean` → skip (not a PHASE-GATE). Note: "PR-MILESTONE skipped — Lean mode." Present the Go/No-Go section without a producer verdict.
 - `full` → spawn as normal.
 
-Before generating the Go/No-Go recommendation, spawn `producer` through Codex custom-agent delegation using gate **PR-MILESTONE** (`.codex/docs/director-gates.md`).
+Before generating the Go/No-Go recommendation, spawn `producer` through Codex custom-agent delegation using gate **PR-MILESTONE** (`../../../.codex/docs/director-gates.md`).
 
 Pass: milestone name and target date, current completion percentage, blocked story count, velocity data from sprint reports (if available), list of cut candidates.
 

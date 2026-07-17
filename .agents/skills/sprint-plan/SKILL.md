@@ -12,7 +12,10 @@ description: "Use when a sprint needs creation, replanning, capacity allocation,
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+Before invoking `$team-qa`, confirm that `team-qa` is present in the current
+task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, and do not
+search for or copy a repository-local skill file.
 
 ## Phase 0: Parse Arguments
 
@@ -21,7 +24,7 @@ Extract the mode argument (`new`, `update`, or `status`) and resolve the review 
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Review mode check**: `.codex/studio.toml` is the single persistent source. A
 `--review` value is in-memory for this run only and is never written.
@@ -202,7 +205,7 @@ stories that haven't changed, add new stories, remove dropped ones.
 - `lean` → skip (not a PHASE-GATE). Note: "PR-SPRINT skipped — Lean mode." Proceed to Phase 5 (QA plan gate).
 - `full` → spawn as normal.
 
-Before finalising the sprint plan, spawn `producer` through Codex custom-agent delegation using gate **PR-SPRINT** (`.codex/docs/director-gates.md`).
+Before finalising the sprint plan, spawn `producer` through Codex custom-agent delegation using gate **PR-SPRINT** (`../../../.codex/docs/director-gates.md`).
 
 Pass: proposed story list (titles, estimates, dependencies), total team capacity in hours/days, any carryover from the previous sprint, milestone constraints and deadline.
 

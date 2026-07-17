@@ -12,7 +12,10 @@ description: "Use when an implemented story needs evidence-backed acceptance, de
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+Before invoking `$team-qa`, confirm that `team-qa` is present in the current
+task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, and do not
+search for or copy a repository-local skill file.
 
 # Story Done
 
@@ -33,7 +36,7 @@ Resolve the review mode (once, store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **If a file path is provided** (e.g., `$story-done production/epics/core/story-damage-calculator.md`):
 read that file directly.
@@ -266,7 +269,7 @@ For each deviation found, categorize:
 - `lean` → skip (not a PHASE-GATE). Note: "QL-TEST-COVERAGE skipped — Lean mode." Proceed to Phase 5.
 - `full` → spawn as normal.
 
-After completing the deviation checks in Phase 4, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-TEST-COVERAGE** (`.codex/docs/director-gates.md`).
+After completing the deviation checks in Phase 4, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-TEST-COVERAGE** (`../../../.codex/docs/director-gates.md`).
 
 Pass:
 - The story file path and story type
@@ -298,7 +301,7 @@ Skip this phase for Config/Data stories (no code tests required).
   - Record the answer in the completion notes (Phase 7). All three options proceed to Phase 6.
 - `full` → spawn as normal.
 
-Spawn `lead-programmer` through Codex custom-agent delegation using gate **LP-CODE-REVIEW** (`.codex/docs/director-gates.md`).
+Spawn `lead-programmer` through Codex custom-agent delegation using gate **LP-CODE-REVIEW** (`../../../.codex/docs/director-gates.md`).
 
 Pass: implementation file paths, story file path, relevant GDD section, governing ADR.
 

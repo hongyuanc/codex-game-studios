@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import tools.codex_studio.validate as validate_module
 from tools.codex_studio.engine_pack import apply_activation, plan_activation
 from tools.codex_studio.validate import (
     validate_repository,
@@ -21,6 +22,7 @@ from tools.codex_studio.validate import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PLUGIN = ROOT / "plugins/codex-game-studios"
 
 
 def _minimal_runtime_tree(root: Path) -> None:
@@ -38,6 +40,33 @@ def _minimal_runtime_tree(root: Path) -> None:
 
 
 class RepositoryValidationTests(unittest.TestCase):
+    def test_plugin_skill_catalog_validator_accepts_canonical_catalog(self):
+        # Arrange
+        validator = getattr(validate_module, "validate_plugin_skill_catalog", None)
+
+        # Act / Assert
+        self.assertIsNotNone(validator)
+        self.assertEqual([], validator(ROOT, PLUGIN))
+
+    def test_final_repository_validation_enforces_plugin_skill_catalog(self):
+        # Arrange
+        expected = validate_module.ValidationIssue(
+            "error", "plugins/codex-game-studios", "catalog sentinel"
+        )
+
+        # Act
+        with mock.patch.object(
+            validate_module,
+            "validate_plugin_skill_catalog",
+            create=True,
+            return_value=[expected],
+        ) as validator:
+            issues = validate_repository(ROOT, "final")
+
+        # Assert
+        validator.assert_called_once_with(ROOT.resolve(), PLUGIN.resolve())
+        self.assertIn(expected, issues)
+
     def test_source_mode_remains_default_and_backward_compatible(self):
         # Arrange / Act / Assert
         self.assertEqual([], validate_repository(ROOT, "final"))

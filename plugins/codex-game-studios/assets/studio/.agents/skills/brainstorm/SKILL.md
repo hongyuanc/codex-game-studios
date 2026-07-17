@@ -17,7 +17,7 @@ When this skill is invoked:
    3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
    4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-   See `.codex/docs/director-gates.md` for the full check pattern.
+   See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 2. **Check for existing concept work**:
    - Read `design/gdd/game-concept.md` if it exists (resume, don't restart)
@@ -188,10 +188,10 @@ Repeat until the user selects [A] Lock these in.
 
 **After pillars and anti-pillars are agreed, delegate to BOTH `creative-director` AND `art-director` through Codex custom-agent delegation in parallel before moving to Phase 5. Issue both Codex custom-agent delegations simultaneously — do not wait for one before starting the other.**
 
-- **`creative-director`** — gate **CD-PILLARS** (`.codex/docs/director-gates.md`)
+- **`creative-director`** — gate **CD-PILLARS** (`../../../.codex/docs/director-gates.md`)
   Pass: full pillar set with design tests, anti-pillars, core fantasy, unique hook.
 
-- **`art-director`** — gate **AD-CONCEPT-VISUAL** (`.codex/docs/director-gates.md`)
+- **`art-director`** — gate **AD-CONCEPT-VISUAL** (`../../../.codex/docs/director-gates.md`)
   Pass: game concept elevator pitch, full pillar set with design tests, target platform (if known), any reference games or visual touchstones the user mentioned.
 
 Collect both verdicts, then present them as two sequential concise questions, waiting for each answer:
@@ -244,7 +244,7 @@ Ground the concept in reality:
 - `lean` → skip (not a PHASE-GATE). Note: "TD-FEASIBILITY skipped — Lean mode." Proceed directly to scope tier definition.
 - `full` → delegate normally.
 
-**After identifying biggest technical risks, delegate to `technical-director` through Codex custom-agent delegation using gate TD-FEASIBILITY (`.codex/docs/director-gates.md`) before scope tiers are defined.**
+**After identifying biggest technical risks, delegate to `technical-director` through Codex custom-agent delegation using gate TD-FEASIBILITY (`../../../.codex/docs/director-gates.md`) before scope tiers are defined.**
 
 Pass: core loop description, platform target, engine choice (or "undecided"), list of identified technical risks.
 
@@ -255,7 +255,7 @@ Present the assessment to the user. If HIGH RISK, offer to revisit scope before 
 - `lean` → skip (not a PHASE-GATE). Note: "PR-SCOPE skipped — Lean mode." Proceed to document generation.
 - `full` → delegate normally.
 
-**After scope tiers are defined, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`.codex/docs/director-gates.md`).**
+**After scope tiers are defined, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`../../../.codex/docs/director-gates.md`).**
 
 Pass: full vision scope, MVP definition, timeline estimate, team size.
 
@@ -264,7 +264,7 @@ Present the assessment to the user. If UNREALISTIC, offer to adjust the MVP defi
 ---
 
 4. **Generate the game concept document** using the template at
-   `.codex/docs/templates/game-concept.md`. Fill in ALL sections from the
+   `../../../.codex/docs/templates/game-concept.md`. Fill in ALL sections from the
    brainstorm conversation, including the MDA analysis, player motivation
    profile, and flow state design sections.
 
@@ -287,7 +287,7 @@ After revising, show the updated section as a diff or clear before/after, then a
 Options: `[A] Yes — write it` / `[B] Revise another section`
 Repeat until the user selects [A].
 
-If yes, generate the document using the template at `.codex/docs/templates/game-concept.md`, fill in ALL sections from the brainstorm conversation, and write the file, creating directories as needed.
+If yes, generate the document using the template at `../../../.codex/docs/templates/game-concept.md`, fill in ALL sections from the brainstorm conversation, and write the file, creating directories as needed.
 
 **Scope consistency rule**: The "Estimated Scope" field in the Core Identity table must match the full-vision timeline from the Scope Tiers section — not just say "Large (9+ months)". Write it as "Large (X–Y months, solo)" or "Large (X–Y months, team of N)" so the summary table is accurate.
 

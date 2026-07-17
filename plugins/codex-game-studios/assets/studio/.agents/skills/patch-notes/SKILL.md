@@ -59,7 +59,7 @@ Verdict: **BLOCKED** — stop here without generating notes.
 
 **Template detection** — check whether a patch notes template exists:
 
-1. File search for `docs/patch-notes-template.md` and `.codex/docs/templates/release-notes.md`.
+1. File search for `docs/patch-notes-template.md` and `../../../.codex/docs/templates/release-notes.md`.
 2. If found at either location, read it and use it as the output structure for Phase 4
    instead of the built-in style templates (Brief / Detailed / Full). Fill in the
    template's sections with the categorized data.

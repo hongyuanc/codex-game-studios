@@ -23,7 +23,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Argument modes:**
 - **No argument / `full`**: Full guided walkthrough — all sections, start to finish
@@ -42,15 +42,15 @@ Before anything else, load the full project context in this order:
 
 Read the engine reference library completely:
 
-1. `docs/engine-reference/[engine]/VERSION.md`
+1. `../../../docs/engine-reference/[engine]/VERSION.md`
    → Extract: engine name, version, LLM cutoff, post-cutoff risk levels
-2. `docs/engine-reference/[engine]/breaking-changes.md`
+2. `../../../docs/engine-reference/[engine]/breaking-changes.md`
    → Extract: all HIGH and MEDIUM risk changes
-3. `docs/engine-reference/[engine]/deprecated-apis.md`
+3. `../../../docs/engine-reference/[engine]/deprecated-apis.md`
    → Extract: APIs to avoid
-4. `docs/engine-reference/[engine]/current-best-practices.md`
+4. `../../../docs/engine-reference/[engine]/current-best-practices.md`
    → Extract: post-cutoff best practices that differ from training data
-5. All files in `docs/engine-reference/[engine]/modules/`
+5. All files in `../../../docs/engine-reference/[engine]/modules/`
    → Extract: current API patterns per domain
 
 If no engine is configured, stop and prompt:
@@ -179,7 +179,7 @@ relevant module reference doc. If an API is post-cutoff, flag it:
 
 ```
 ⚠️  [ClassName.method()] — Godot 4.6 (post-cutoff, HIGH risk)
-    Verified against: docs/engine-reference/godot/modules/[domain].md
+    Verified against: ../../../docs/engine-reference/godot/modules/[domain].md
     Behaviour confirmed: [yes / NEEDS VERIFICATION]
 ```
 
@@ -354,7 +354,7 @@ After finalizing the assembled master architecture document, perform an explicit
 TD-ARCHITECTURE is mandatory in full, lean, and solo modes. Delegate it after
 Phase 7 regardless of optional-review depth.
 
-Delegate the completed architecture to the `technical-director` Sol Codex custom-agent role using gate **TD-ARCHITECTURE** (`.codex/docs/director-gates.md`). Require an evidence-backed verdict against all four gate criteria before proceeding.
+Delegate the completed architecture to the `technical-director` Sol Codex custom-agent role using gate **TD-ARCHITECTURE** (`../../../.codex/docs/director-gates.md`). Require an evidence-backed verdict against all four gate criteria before proceeding.
 
 **Review mode check** — apply before delegating to LP-FEASIBILITY:
 LP-FEASIBILITY is optional and runs only in full mode.
@@ -362,7 +362,7 @@ LP-FEASIBILITY is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "LP-FEASIBILITY skipped — Lean mode." Proceed to Phase 8 handoff.
 - `full` → delegate normally.
 
-**Step 2 — Delegate to `lead-programmer` through Codex custom-agent delegation using gate LP-FEASIBILITY (`.codex/docs/director-gates.md`):**
+**Step 2 — Delegate to `lead-programmer` through Codex custom-agent delegation using gate LP-FEASIBILITY (`../../../.codex/docs/director-gates.md`):**
 
 Pass: architecture document path, technical requirements baseline summary, ADR list.
 

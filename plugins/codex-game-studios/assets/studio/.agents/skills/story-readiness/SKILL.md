@@ -32,7 +32,7 @@ Resolve the review mode once at startup (store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern and mode definitions.
+See `../../../.codex/docs/director-gates.md` for the full check pattern and mode definitions.
 
 ---
 
@@ -337,7 +337,7 @@ Apply the review mode resolved in Phase 0 before spawning QL-STORY-READY:
 - `lean` → skip. Note: "QL-STORY-READY skipped — Lean mode." Proceed to close.
 - `full` → spawn as normal.
 
-Spawn `qa-lead` through Codex custom-agent delegation using gate **QL-STORY-READY** (`.codex/docs/director-gates.md`).
+Spawn `qa-lead` through Codex custom-agent delegation using gate **QL-STORY-READY** (`../../../.codex/docs/director-gates.md`).
 
 Pass the following context:
 - Story title

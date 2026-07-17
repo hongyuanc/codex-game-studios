@@ -152,7 +152,7 @@ ADRs referencing this GDD: [M]
 Review mode may vary optional review depth, but it never skips this
 material architecture conflict gate.
 
-Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`.codex/docs/director-gates.md`).
+Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full Design Change Impact Report from Phase 6 (change summary, all affected ADRs with their Still Valid / Needs Review / Likely Superseded classifications, and recommended actions).
 

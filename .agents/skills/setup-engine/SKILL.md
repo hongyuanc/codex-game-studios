@@ -70,7 +70,7 @@ Only after activation succeeds, apply the complete approved write scope:
 
 - Update the Technology Stack and engine reference import in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.
-- Create or refresh `docs/engine-reference/<engine>/VERSION.md` from official documentation. Record exact version and verification date; add focused breaking-change references only where needed.
+- Create or refresh `../../../docs/engine-reference/<engine>/VERSION.md` from official documentation. Record exact version and verification date; add focused breaking-change references only where needed.
 - Do not add speculative libraries or dependencies.
 
 ## Post-apply validation

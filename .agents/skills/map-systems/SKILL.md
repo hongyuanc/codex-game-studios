@@ -24,7 +24,7 @@ Also resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 ---
 
@@ -151,7 +151,7 @@ dependencies I'm missing or that should be removed?"
 - `lean` → skip (not a PHASE-GATE). Note: "TD-SYSTEM-BOUNDARY skipped — Phase-gated mode." Proceed to priority assignment.
 - `full` → delegate normally.
 
-**After dependency mapping is approved, delegate to `technical-director` through Codex custom-agent delegation using gate TD-SYSTEM-BOUNDARY (`.codex/docs/director-gates.md`) before proceeding to priority assignment.**
+**After dependency mapping is approved, delegate to `technical-director` through Codex custom-agent delegation using gate TD-SYSTEM-BOUNDARY (`../../../.codex/docs/director-gates.md`) before proceeding to priority assignment.**
 
 Pass: the dependency map summary, layer assignments, bottleneck systems list, any circular dependency resolutions.
 
@@ -195,7 +195,7 @@ Pure technical necessity ("X depends on Y") is insufficient alone when the syste
 - `lean` → skip (not a PHASE-GATE). Note: "PR-SCOPE skipped — Phase-gated mode." Proceed to writing the systems index.
 - `full` → delegate normally.
 
-**After priorities are approved, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`.codex/docs/director-gates.md`) before writing the index.**
+**After priorities are approved, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`../../../.codex/docs/director-gates.md`) before writing the index.**
 
 Pass: total system count per milestone tier, estimated implementation volume per tier (system count × average complexity), team size, stated project timeline.
 
@@ -218,7 +218,7 @@ This is the order the team should write GDDs in.
 
 ### Step 5a: Draft the Document
 
-Using the template at `.codex/docs/templates/systems-index.md`, populate the
+Using the template at `../../../.codex/docs/templates/systems-index.md`, populate the
 systems index with all data from Phases 2-4:
 - Fill the enumeration table
 - Fill the dependency map
@@ -254,7 +254,7 @@ session-state record exactly as listed. Approval covers no other path or edit.
 - `lean` → skip (not a PHASE-GATE). Note: "CD-SYSTEMS skipped — Phase-gated mode." Proceed to Phase 7 next steps.
 - `full` → delegate normally.
 
-**After the initial systems index write, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`.codex/docs/director-gates.md`).**
+**After the initial systems index write, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`../../../.codex/docs/director-gates.md`).**
 
 Pass: systems index path, game pillars and core fantasy (from `design/gdd/game-concept.md`), MVP priority tier system list.
 

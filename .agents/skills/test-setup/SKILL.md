@@ -12,7 +12,10 @@ description: "Use when a configured game engine lacks test directories, runner c
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+Before invoking `$setup-engine`, confirm that `setup-engine` is present in the
+current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, and do
+not search for or copy a repository-local skill file.
 
 # Test Setup
 
@@ -242,7 +245,7 @@ jobs:
       - name: Run GdUnit4 Tests
         uses: MikeSchulze/gdUnit4-action@v1
         with:
-          godot-version: '[VERSION FROM docs/engine-reference/godot/VERSION.md]'
+          godot-version: '[VERSION FROM ../../../docs/engine-reference/godot/VERSION.md]'
           paths: |
             tests/unit
             tests/integration

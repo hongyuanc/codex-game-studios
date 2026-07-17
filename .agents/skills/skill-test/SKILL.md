@@ -13,11 +13,15 @@ description: "Use when Codex skill files need structural, behavioral, category, 
 
 ## Validation Boundary
 
-Validation is read-only and does not require approval. Use `.agents/skills/` as the skill root and `tools/codex_studio/validate.py` as the native static validator. Any optional result or catalog write is a separately approved complete proposed changeset.
+Validation is read-only and does not require approval. Resolve skills from the
+current task's available skill catalog and use `tools/codex_studio/validate.py`
+as the native static validator. Do not search for or copy repository-local skill
+files to reconstruct the catalog. Any optional result or catalog write is a
+separately approved complete proposed changeset.
 
 # Skill Test
 
-Validates `.agents/skills/*/SKILL.md` files for structural compliance and
+Validates skill resources from the available skill catalog for structural compliance and
 behavioral correctness. No external dependencies — runs entirely within the
 existing skill/hook/template architecture.
 
@@ -37,16 +41,16 @@ existing skill/hook/template architecture.
 Determine mode from the first argument:
 
 - `static [name]` → run 7 structural checks on one skill
-- `static all` → run 7 structural checks on all skills (File search `.agents/skills/*/SKILL.md`)
+- `static all` → run 7 structural checks on all skills in the available skill catalog
 - `spec [name]` → read skill + test spec, evaluate assertions
-- `category [name]` → run category-specific rubric from `Codex Studio Testing Framework/quality-rubric.md`
+- `category [name]` → run category-specific rubric from `../../../Codex Studio Testing Framework/quality-rubric.md`
 - `category all` → run category rubric for every skill that has a `category:` in catalog
 - `audit` → read catalog, list all skills and agents, show coverage
 - No argument → run `audit`
 
 If the argument is unrecognized, output usage and stop. A missing argument is not an error; it selects `audit`.
 
-For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses `.agents/skills/` and `tools/codex_studio/validate.py` directly.
+For `spec`, `category`, or `audit`, first check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses the available skill catalog and `tools/codex_studio/validate.py` directly.
 
 ---
 
@@ -142,12 +146,12 @@ Aggregate Verdict: N WARNINGS / N FAILURES
 
 ### Step 1 — Locate Files
 
-Find skill at `.agents/skills/[name]/SKILL.md`.
-Look up the spec path from `Codex Studio Testing Framework/catalog.yaml` — use the
+Resolve `[name]` from the current task's available skill catalog.
+Look up the spec path from `../../../Codex Studio Testing Framework/catalog.yaml` — use the
 `spec:` field for the matching skill entry.
 
 If either is missing:
-- Missing skill: "Skill '[name]' not found in `.agents/skills/`."
+- Missing skill: "Skill '[name]' not found in the available skill catalog."
 - Missing spec path in catalog: "No spec path set for '[name]' in catalog.yaml."
 - Spec file not found at path: "Spec file missing at [path]. Run `$skill-test audit`
   to see coverage gaps."
@@ -184,7 +188,7 @@ For **Protocol Compliance** assertions (always present):
 ```
 === Skill Spec Test: $[name] ===
 Date: [date]
-Spec: Codex Studio Testing Framework/skills/[category]/[name].md
+Spec: ../../../Codex Studio Testing Framework/skills/[category]/[name].md
 
 Case 1: [Happy Path — name]
   Fixture: [summary]
@@ -208,11 +212,11 @@ Overall Verdict: FAIL (1 case failed, 1 warning)
 
 ### Step 5 — Offer to Write Results
 
-Present `Codex Studio Testing Framework/results/skill-test-spec-[name]-[date].md` and `Codex Studio Testing Framework/catalog.yaml` together as one optional complete proposed changeset.
+Present `../../../Codex Studio Testing Framework/results/skill-test-spec-[name]-[date].md` and `../../../Codex Studio Testing Framework/catalog.yaml` together as one optional complete proposed changeset.
 
 If yes:
-- Write results file to `Codex Studio Testing Framework/results/`
-- Update the skill's entry in `Codex Studio Testing Framework/catalog.yaml`:
+- Write results file to `../../../Codex Studio Testing Framework/results/`
+- Update the skill's entry in `../../../Codex Studio Testing Framework/catalog.yaml`:
   - `last_spec: [date]`
   - `last_spec_result: PASS|PARTIAL|FAIL`
 
@@ -222,8 +226,8 @@ If yes:
 
 ### Step 1 — Locate Skill and Category
 
-Find skill at `.agents/skills/[name]/SKILL.md`.
-Look up `category:` field in `Codex Studio Testing Framework/catalog.yaml`.
+Resolve `[name]` from the current task's available skill catalog.
+Look up `category:` field in `../../../Codex Studio Testing Framework/catalog.yaml`.
 
 If skill not found: "Skill '[name]' not found."
 If no `category:` field: "No category assigned for '[name]' in catalog.yaml.
@@ -235,7 +239,7 @@ For `category all`: collect all skills with a `category:` field and process each
 
 ### Step 2 — Read Rubric Section
 
-Read `Codex Studio Testing Framework/quality-rubric.md`.
+Read `../../../Codex Studio Testing Framework/quality-rubric.md`.
 Extract the section matching the skill's category (e.g., `### gate`, `### team`).
 
 ### Step 3 — Read Skill
@@ -269,7 +273,7 @@ Fix: Add TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE to the full-mode direct
 
 ### Step 6 — Offer to Update Catalog
 
-Present the proposed `Codex Studio Testing Framework/catalog.yaml` metadata update (`last_category`, `last_category_result`) as an optional complete proposed changeset.
+Present the proposed `../../../Codex Studio Testing Framework/catalog.yaml` metadata update (`last_category`, `last_category_result`) as an optional complete proposed changeset.
 
 ---
 
@@ -277,21 +281,21 @@ Present the proposed `Codex Studio Testing Framework/catalog.yaml` metadata upda
 
 ### Step 1 — Read Catalog
 
-Read `Codex Studio Testing Framework/catalog.yaml`. If missing, note that catalog doesn't exist
+Read `../../../Codex Studio Testing Framework/catalog.yaml`. If missing, note that catalog doesn't exist
 yet (first-run state).
 
 ### Step 2 — Enumerate All Skills and Agents
 
-File search `.agents/skills/*/SKILL.md` to get the complete list of skills.
+Use the current task's available skill catalog to get the complete list of skills.
 Extract skill name from each path (directory name).
 
-Also read the `agents:` section from `Codex Studio Testing Framework/catalog.yaml` to get the
+Also read the `agents:` section from `../../../Codex Studio Testing Framework/catalog.yaml` to get the
 complete list of agents.
 
 ### Step 3 — Build Skill Coverage Table
 
 For each skill:
-- Check if a spec file exists (use the `spec:` path from catalog, or file search `Codex Studio Testing Framework/skills/*/[name].md`)
+- Check if a spec file exists (use the `spec:` path from catalog, or file search `../../../Codex Studio Testing Framework/skills/*/[name].md`)
 - Look up `last_static`, `last_static_result`, `last_spec`, `last_spec_result`,
   `last_category`, `last_category_result`, `category` from catalog (or mark as
   "never" / "—" if not in catalog)
@@ -300,7 +304,7 @@ For each skill:
 ### Step 3b — Build Agent Coverage Table
 
 For each agent in catalog's `agents:` section:
-- Check if a spec file exists (use the `spec:` path from catalog, or file search `Codex Studio Testing Framework/agents/*/[name].md`)
+- Check if a spec file exists (use the `spec:` path from catalog, or file search `../../../Codex Studio Testing Framework/agents/*/[name].md`)
 - Look up `last_spec`, `last_spec_result`, `category` from catalog
 
 ### Step 4 — Output Report
@@ -350,9 +354,9 @@ After any mode completes, offer contextual follow-up:
   correctness if a test spec exists."
 - After `static all` with failures: "Address NON-COMPLIANT skills first. Run
   `$skill-test static [name]` individually for detailed remediation guidance."
-- After `spec [name]` PASS: "Update `Codex Studio Testing Framework/catalog.yaml` to record this
+- After `spec [name]` PASS: "Update `../../../Codex Studio Testing Framework/catalog.yaml` to record this
   pass date. Consider running `$skill-test audit` to find the next spec gap."
 - After `spec [name]` FAIL: "Review the failing assertions and update the skill
   or the test spec to resolve the mismatch."
 - After `audit`: "Start with the critical-priority gaps. Use the spec template
-  at `Codex Studio Testing Framework/templates/skill-test-spec.md` to create new specs."
+  at `../../../Codex Studio Testing Framework/templates/skill-test-spec.md` to create new specs."

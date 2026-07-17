@@ -17,7 +17,7 @@ Resolve the review mode (once, store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Determine the mode:
 
@@ -125,7 +125,7 @@ Present the categorized list, then route:
 - `lean` → skip (not a PHASE-GATE). Note: "CD-PLAYTEST skipped — Lean mode." Proceed to Phase 4 (save the report).
 - `full` → spawn as normal.
 
-After categorising findings, spawn `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST** (`.codex/docs/director-gates.md`).
+After categorising findings, spawn `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the structured report content, game pillars and core fantasy (from `design/gdd/game-concept.md`), the specific hypothesis being tested.
 

@@ -157,6 +157,14 @@ RUNTIME_FORBIDDEN_PATTERNS = {
 }
 MACHINE_PATH = re.compile(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])")
 # enforcement-literal-end
+PLUGIN_SKILL_PROBE = re.compile(r"\.agents/skills/[a-z0-9-]+/SKILL\.md")
+PLUGIN_SKILL_RESOURCE = re.compile(
+    r"(?P<prefix>(?:\.\./)*)"
+    r"(?P<path>\.codex/studio\.toml|"
+    r"\.codex/docs/[A-Za-z0-9_./-]+|"
+    r"docs/engine-reference/[A-Za-z0-9_./\[\]-]+|"
+    r"Codex Studio Testing Framework/[A-Za-z0-9_./*\[\]-]+)"
+)
 COVERAGE_ENTRY_COUNT = 203
 COVERAGE_SOURCE_SET_SHA256 = "37580b38a3b505292d524d4432239ff571741fb9ace8787544ec6643e34feef0"
 COVERAGE_CONTRACT_SHA256 = "899296b2dbb4553303606dad787912d834bc81beba6c9e0a8bc44cf15d149cde"
@@ -338,6 +346,101 @@ def validate_skill(path: pathlib.Path) -> list[ValidationIssue]:
     for pattern, label in FORBIDDEN_SKILL_PATTERNS.items():
         if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
             issues.append(ValidationIssue("error", str(path), f"contains {label}"))
+    return issues
+
+
+def validate_plugin_skill_catalog(
+    root: pathlib.Path, plugin: pathlib.Path
+) -> list[ValidationIssue]:
+    """Validate exact source/bundle parity and plugin-relative skill resources."""
+
+    issues: list[ValidationIssue] = []
+    source = root / ".agents/skills"
+    bundled = plugin / "assets/studio/.agents/skills"
+    for catalog, label in ((source, "source"), (bundled, "bundled")):
+        relative = _relative(root, catalog)
+        if catalog.is_symlink() or not catalog.is_dir():
+            issues.append(
+                ValidationIssue(
+                    "error", relative, f"plugin skill {label} catalog must be a regular directory"
+                )
+            )
+
+    source_paths = {
+        path.parent.name: path for path in source.glob("*/SKILL.md")
+    } if source.is_dir() and not source.is_symlink() else {}
+    bundled_paths = {
+        path.parent.name: path for path in bundled.glob("*/SKILL.md")
+    } if bundled.is_dir() and not bundled.is_symlink() else {}
+    source_names = set(source_paths)
+    bundled_names = set(bundled_paths)
+    if source_names != EXPECTED_SKILL_NAMES:
+        issues.append(
+            ValidationIssue(
+                "error",
+                _relative(root, source),
+                "plugin skill source inventory differs; "
+                f"missing={sorted(EXPECTED_SKILL_NAMES - source_names)}, "
+                f"extra={sorted(source_names - EXPECTED_SKILL_NAMES)}",
+            )
+        )
+    if bundled_names != source_names:
+        issues.append(
+            ValidationIssue(
+                "error",
+                _relative(root, bundled),
+                "plugin skill bundled inventory differs; "
+                f"missing={sorted(source_names - bundled_names)}, "
+                f"extra={sorted(bundled_names - source_names)}",
+            )
+        )
+
+    for name in sorted(source_names | bundled_names):
+        source_path = source_paths.get(name)
+        bundled_path = bundled_paths.get(name)
+        if source_path is None or bundled_path is None:
+            continue
+        source_text, source_issues = _read_utf8_file(source_path, "source skill")
+        bundled_text, bundled_issues = _read_utf8_file(bundled_path, "bundled skill")
+        issues.extend(source_issues)
+        issues.extend(bundled_issues)
+        issues.extend(validate_skill(bundled_path))
+        if source_text is None or bundled_text is None:
+            continue
+        if source_text != bundled_text:
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    _relative(root, bundled_path),
+                    f"bundled plugin skill differs from canonical source: {name}",
+                )
+            )
+        if PLUGIN_SKILL_PROBE.search(source_text):
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    _relative(root, source_path),
+                    "skill probes a repository-local skill installation",
+                )
+            )
+        for match in PLUGIN_SKILL_RESOURCE.finditer(source_text):
+            path = match.group("path")
+            expected_prefix = (
+                ""
+                if path in {
+                    ".codex/studio.toml",
+                    ".codex/docs/technical-preferences.md",
+                }
+                else "../../../"
+            )
+            if match.group("prefix") != expected_prefix:
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"skill resource must use {expected_prefix or 'repository-root '}prefix: {match.group()}",
+                    )
+                )
     return issues
 
 
@@ -1074,6 +1177,9 @@ def validate_repository(root: pathlib.Path, phase: str) -> list[ValidationIssue]
     issues.extend(validate_hooks(root / ".codex/hooks.json", root=root))
     issues.extend(validate_repository_counts(root))
     issues.extend(validate_runtime_references(root, phase))
+    if phase == "final":
+        plugin = (root / "plugins/codex-game-studios").resolve()
+        issues.extend(validate_plugin_skill_catalog(root, plugin))
     return issues
 
 
@@ -1088,7 +1194,7 @@ _INSTALLED_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 513
-_INSTALLED_INVENTORY_SHA256 = "16c37a0b341c9b60a14002b230f7cbc5fbf509feed240b571227774394fe08bd"
+_INSTALLED_INVENTORY_SHA256 = "11b86e0f0771993a61c5e4f338d4c1d5ce6ff3b4879284322c2f8db118903b9d"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

@@ -36,10 +36,10 @@ status. Re-run whenever new ADRs are accepted or existing ADRs are revised.
   forbidden patterns
 
 ### Engine Reference
-- Read `docs/engine-reference/[engine]/VERSION.md` for engine + version
-- Read `docs/engine-reference/[engine]/deprecated-apis.md` — these become
+- Read `../../../docs/engine-reference/[engine]/VERSION.md` for engine + version
+- Read `../../../docs/engine-reference/[engine]/deprecated-apis.md` — these become
   forbidden API entries
-- Read `docs/engine-reference/[engine]/current-best-practices.md` if it exists
+- Read `../../../docs/engine-reference/[engine]/current-best-practices.md` if it exists
 
 Report: "Loaded [N] Accepted ADRs, engine: [name + version]."
 
@@ -135,7 +135,7 @@ instead of guessing a mode.
 - `lean` → skip. Note: "TD-MANIFEST skipped — Lean mode." Proceed to Phase 5.
 - `full` → delegate normally.
 
-Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-MANIFEST** (`.codex/docs/director-gates.md`).
+Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-MANIFEST** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the Control Manifest Preview from Phase 4 (rule counts per layer, full extracted rule list), the list of ADRs covered, engine version, and any rules sourced from technical-preferences.md or engine reference docs.
 
@@ -263,7 +263,7 @@ rule, see the referenced ADR.
 ### Forbidden APIs ([engine version])
 These APIs are deprecated or unverified for [engine + version]:
 - `[api name]` — deprecated since [version] / unverified post-cutoff
-- Source: `docs/engine-reference/[engine]/deprecated-apis.md`
+- Source: `../../../docs/engine-reference/[engine]/deprecated-apis.md`
 
 ### Cross-Cutting Constraints
 - [constraint that applies everywhere, regardless of layer]

@@ -12,7 +12,10 @@ description: "Use when a defect needs structured documentation, reproduction ste
 
 ### Native readiness gate for `$hotfix`
 
-Before invoking `$hotfix`, validate `.agents/skills/hotfix/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $hotfix is not Codex-native yet`, defer the emergency-workflow handoff, and do not invoke it.
+Before invoking `$hotfix`, confirm that `hotfix` is present in the current
+task's available skill catalog. If unavailable, report
+`Staged dependency: $hotfix is not available`, defer the handoff, and do not
+search for or copy a repository-local skill file.
 
 ## Phase 1: Parse Arguments
 
