@@ -39,7 +39,7 @@ Run a read-only plan with the chosen values:
 python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <exact-version> --language <primary-language> --dry-run
 ```
 
-Replace the example values with the user's selection. The command must exit successfully. Present its complete activation plan, including every install, every removal, and the configuration change. Also summarize the proposed `AGENTS.md`, `.codex/docs/technical-preferences.md`, build/test command, and engine-reference updates as one bounded changeset.
+Replace the example values with the user's selection. The command must exit successfully. Present its complete activation plan, including every install, every removal, and the configuration change. Also summarize the proposed `AGENTS.md`, `.codex/docs/technical-preferences.md`, build/test command, and bundled engine-reference provenance as one bounded changeset.
 
 Request explicit approval for that complete changeset. No project write is allowed before this approval. Do not run the apply command, edit preferences, or update references before approval. A dry run is not approval.
 
@@ -68,9 +68,9 @@ If activation fails:
 
 Only after activation succeeds, apply the complete approved write scope:
 
-- Update the Technology Stack and engine reference import in `AGENTS.md`.
+- Update the Technology Stack and bundled engine-reference provenance in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.
-- Create or refresh `../../../docs/engine-reference/<engine>/VERSION.md` from official documentation. Record exact version and verification date; add focused breaking-change references only where needed.
+- Read `../../../docs/engine-reference/<engine>/VERSION.md` for the selected engine and record its stable Codex Game Studios provenance label in project-owned configuration. The bundled engine references are read-only; never create, refresh, or edit them during project setup.
 - Do not add speculative libraries or dependencies.
 
 ## Post-apply validation
@@ -91,9 +91,9 @@ Confirm that:
 - The five active profiles exist and match their recorded hashes.
 - Final repository validation accepts the configured core-plus-engine roster.
 - The final dry run reports a no-op.
-- The approved `AGENTS.md`, technical-preference, and engine-reference updates exist.
+- The approved `AGENTS.md` and technical-preference updates exist, and the bundled engine reference remains readable and unchanged.
 
-Report the engine/version/language, the five active profiles, build/test commands, reference status, and test results. Never claim success without post-apply validation.
+Report the engine/version/language, the five active profiles, build/test commands, bundled reference provenance/status, and test results. Never claim success without post-apply validation.
 
 ## Refresh and upgrade
 

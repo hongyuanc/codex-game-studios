@@ -274,7 +274,7 @@ Verdict: **COMPLETE** — user oriented and handed off to next step.
 
 - **User picks D but project is empty**: Gently redirect — "It looks like the project is a fresh template with no artifacts yet. Would Path A or B be a better fit?"
 - **User picks A but project has code**: Mention what you found — "I noticed there's already code in `src/`. Did you mean to pick D (existing work)?"
-- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[read review_mode from .codex/studio.toml]`. Want to pick up where you left off? Try `$sprint-plan` or just tell me what you'd like to work on."
+- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[configured review mode]`. Want to pick up where you left off? Try `$sprint-plan` or just tell me what you'd like to work on."
 - **User doesn't fit any option**: Let them describe their situation in their own words and adapt.
 
 ---

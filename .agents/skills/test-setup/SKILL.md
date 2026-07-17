@@ -12,10 +12,8 @@ description: "Use when a configured game engine lacks test directories, runner c
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, confirm that `setup-engine` is present in the
-current task's available skill catalog. If unavailable, report
-`Staged dependency: $setup-engine is not available`, defer the handoff, and do
-not search for or copy a repository-local skill file.
+Before invoking `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, and do not search for or copy a repository-local skill file.
 
 # Test Setup
 

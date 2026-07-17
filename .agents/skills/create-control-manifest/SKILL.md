@@ -263,7 +263,7 @@ rule, see the referenced ADR.
 ### Forbidden APIs ([engine version])
 These APIs are deprecated or unverified for [engine + version]:
 - `[api name]` — deprecated since [version] / unverified post-cutoff
-- Source: `../../../docs/engine-reference/[engine]/deprecated-apis.md`
+- Source: `Codex Game Studios bundled engine reference: [engine]/deprecated-apis.md`
 
 ### Cross-Cutting Constraints
 - [constraint that applies everywhere, regardless of layer]

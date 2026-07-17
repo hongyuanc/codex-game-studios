@@ -12,10 +12,8 @@ description: "Use when a sprint needs creation, replanning, capacity allocation,
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, confirm that `team-qa` is present in the current
-task's available skill catalog. If unavailable, report
-`Staged dependency: $team-qa is not available`, defer the handoff, and do not
-search for or copy a repository-local skill file.
+Before invoking `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, and do not search for or copy a repository-local skill file.
 
 ## Phase 0: Parse Arguments
 

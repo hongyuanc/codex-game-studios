@@ -158,12 +158,34 @@ RUNTIME_FORBIDDEN_PATTERNS = {
 MACHINE_PATH = re.compile(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])")
 # enforcement-literal-end
 PLUGIN_SKILL_PROBE = re.compile(r"\.agents/skills/[a-z0-9-]+/SKILL\.md")
+EXPECTED_PLUGIN_SKILL_DEPENDENCIES = {
+    "bug-report": ("hotfix",),
+    "bug-triage": ("team-qa",),
+    "dev-story": ("team-qa",),
+    "help": ("[command]",),
+    "skill-improve": ("skill-test",),
+    "skill-test": ("[name]",),
+    "smoke-check": ("setup-engine",),
+    "sprint-plan": ("team-qa",),
+    "story-done": ("team-qa",),
+    "test-evidence-review": ("team-qa",),
+    "test-helpers": ("setup-engine", "skill-test"),
+    "test-setup": ("setup-engine",),
+}
+PLUGIN_SKILL_RESOURCE_CANDIDATE = re.compile(
+    r"\.codex/(?:docs/|studio\.toml)|docs/engine-reference/|"
+    r"Codex Studio Testing Framework/",
+    flags=re.IGNORECASE,
+)
 PLUGIN_SKILL_RESOURCE = re.compile(
-    r"(?P<prefix>(?:\.\./)*)"
-    r"(?P<path>\.codex/studio\.toml|"
-    r"\.codex/docs/[A-Za-z0-9_./-]+|"
-    r"docs/engine-reference/[A-Za-z0-9_./\[\]-]+|"
-    r"Codex Studio Testing Framework/[A-Za-z0-9_./*\[\]-]+)"
+    r"(?<![A-Za-z0-9_./-])(?:"
+    r"\.codex/studio\.toml|"
+    r"\.codex/docs/technical-preferences\.md|"
+    r"\.\./\.\./\.\./(?:"
+    r"\.codex/docs/(?!technical-preferences\.md)[A-Za-z0-9_./*<>\[\]-]+|"
+    r"docs/engine-reference/[A-Za-z0-9_./*<>\[\]-]*|"
+    r"Codex Studio Testing Framework/[A-Za-z0-9_./*<>\[\]-]+"
+    r"))(?=$|[\s`'\"),:;\]}])"
 )
 COVERAGE_ENTRY_COUNT = 203
 COVERAGE_SOURCE_SET_SHA256 = "37580b38a3b505292d524d4432239ff571741fb9ace8787544ec6643e34feef0"
@@ -366,12 +388,35 @@ def validate_plugin_skill_catalog(
                 )
             )
 
-    source_paths = {
-        path.parent.name: path for path in source.glob("*/SKILL.md")
-    } if source.is_dir() and not source.is_symlink() else {}
-    bundled_paths = {
-        path.parent.name: path for path in bundled.glob("*/SKILL.md")
-    } if bundled.is_dir() and not bundled.is_symlink() else {}
+    def catalog_paths(catalog: pathlib.Path) -> dict[str, pathlib.Path]:
+        paths: dict[str, pathlib.Path] = {}
+        if not catalog.is_dir() or catalog.is_symlink():
+            return paths
+        try:
+            entries = sorted(catalog.iterdir(), key=lambda path: path.name)
+        except OSError as error:
+            issues.append(
+                ValidationIssue(
+                    "error", _relative(root, catalog), f"cannot read plugin skill catalog: {error}"
+                )
+            )
+            return paths
+        for directory in entries:
+            if directory.is_symlink():
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, directory),
+                        "plugin skill directory must not be a symlink",
+                    )
+                )
+                continue
+            if directory.is_dir():
+                paths[directory.name] = directory / "SKILL.md"
+        return paths
+
+    source_paths = catalog_paths(source)
+    bundled_paths = catalog_paths(bundled)
     source_names = set(source_paths)
     bundled_names = set(bundled_paths)
     if source_names != EXPECTED_SKILL_NAMES:
@@ -423,22 +468,82 @@ def validate_plugin_skill_catalog(
                     "skill probes a repository-local skill installation",
                 )
             )
-        for match in PLUGIN_SKILL_RESOURCE.finditer(source_text):
-            path = match.group("path")
-            expected_prefix = (
-                ""
-                if path in {
-                    ".codex/studio.toml",
-                    ".codex/docs/technical-preferences.md",
-                }
-                else "../../../"
+        expected_dependencies = EXPECTED_PLUGIN_SKILL_DEPENDENCIES.get(name, ())
+        for dependency in expected_dependencies:
+            required = (
+                f"`{dependency}` is present in the current task's available skill catalog",
+                f"Staged dependency: ${dependency} is not available",
+                "defer",
+                f"do not invoke `${dependency}`",
+                "do not search for or copy a repository-local skill file",
             )
-            if match.group("prefix") != expected_prefix:
+            missing = [fragment for fragment in required if fragment not in source_text]
+            if missing:
                 issues.append(
                     ValidationIssue(
                         "error",
                         _relative(root, source_path),
-                        f"skill resource must use {expected_prefix or 'repository-root '}prefix: {match.group()}",
+                        f"plugin skill dependency contract is incomplete for {dependency}: {missing}",
+                    )
+                )
+        valid_resources = list(PLUGIN_SKILL_RESOURCE.finditer(source_text))
+        valid_spans = [match.span() for match in valid_resources]
+        for candidate in PLUGIN_SKILL_RESOURCE_CANDIDATE.finditer(source_text):
+            if not any(start <= candidate.start() and candidate.end() <= end for start, end in valid_spans):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"invalid plugin skill resource reference near: {candidate.group()}",
+                    )
+                )
+        for code_span in re.finditer(r"`([^`\n]+)`", source_text):
+            value = code_span.group(1)
+            if not PLUGIN_SKILL_RESOURCE_CANDIDATE.search(value):
+                continue
+            if PLUGIN_SKILL_RESOURCE.fullmatch(value) is None:
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"invalid plugin skill resource token: {value}",
+                    )
+                )
+        studio = plugin / "assets/studio"
+        for resource in valid_resources:
+            token = resource.group()
+            if not token.startswith("../../../") or any(
+                marker in token for marker in "[]<>*"
+            ):
+                continue
+            relative_resource = token.removeprefix("../../../")
+            target = studio / relative_resource
+            try:
+                resolved_studio = studio.resolve(strict=True)
+                resolved_target = target.resolve(strict=True)
+                resolved_target.relative_to(resolved_studio)
+            except (OSError, ValueError):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource target does not exist or escapes the bundle: {token}",
+                    )
+                )
+                continue
+            current = target
+            unsafe = False
+            while current != studio:
+                if current.is_symlink():
+                    unsafe = True
+                    break
+                current = current.parent
+            if unsafe or not (resolved_target.is_file() or resolved_target.is_dir()):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource target is not a regular bundled resource: {token}",
                     )
                 )
     return issues
@@ -1194,7 +1299,7 @@ _INSTALLED_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 513
-_INSTALLED_INVENTORY_SHA256 = "11b86e0f0771993a61c5e4f338d4c1d5ce6ff3b4879284322c2f8db118903b9d"
+_INSTALLED_INVENTORY_SHA256 = "7ab91a2c3410a4fffa9f2cf12155664a3a85dba78a8f5c574470af90396be5fb"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

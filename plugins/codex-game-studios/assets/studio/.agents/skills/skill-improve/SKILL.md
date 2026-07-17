@@ -13,14 +13,18 @@ description: "Use when a Codex skill has validation failures or warnings that ne
 
 ## Skill Edit Boundary
 
-Validation is read-only and needs no approval. Show the exact proposed edit set as a complete changeset and receive explicit approval before applying it. Preserve the original content, retest the same checks, and keep edits only when the retest score does not regress; otherwise restore the original skill without using a destructive Git command.
+Validation is read-only and needs no approval. An installed plugin skill resource is read-only. Editing a canonical Codex Game Studios
+skill requires an explicit canonical source-repository workflow: confirm the
+current repository is the studio source checkout, target its repository-root
+`.agents/skills/[name]/SKILL.md`, and obtain approval for the exact edit. Never
+edit an installed plugin cache. Preserve the original content, retest the same
+checks, and keep edits only when the retest score does not regress; otherwise
+restore the original skill without using a destructive Git command.
 
 ### Native readiness gate for `$skill-test`
 
-Before invoking `$skill-test`, confirm that `skill-test` is present in the
-current task's available skill catalog. If unavailable, report
-`Staged dependency: $skill-test is not available`, defer the handoff, and do
-not search for or copy a repository-local skill file.
+Before invoking `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, and do not search for or copy a repository-local skill file.
 
 # Skill Improve
 
@@ -109,10 +113,16 @@ Show the full combined diagnosis to the user before proposing any changes.
 
 ## Phase 4: Propose Exact Edit Set
 
-For each failing assertion, show the smallest before/after edit. Combine these
-into the exact proposed edit set, list the catalog-resolved skill resource as
-the only target, and request explicit approval before applying. If approval is
-declined, stop without changing the skill.
+If the resolved resource belongs to an installed plugin, report that it is
+read-only and stop after the diagnosis. Do not offer to edit, copy, or shadow it
+inside the game repository.
+
+For canonical studio-skill authoring, first enter an explicit canonical
+source-repository workflow and verify the repository-root source path
+`.agents/skills/[name]/SKILL.md`. For each failing assertion, show the smallest
+before/after edit, list that source path as the only target, and request
+explicit approval before applying. If source-repository verification fails or
+approval is declined, stop without changing the skill.
 
 ---
 

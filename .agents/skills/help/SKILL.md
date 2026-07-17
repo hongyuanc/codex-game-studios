@@ -7,6 +7,11 @@ description: Orient the user from current repository state and recommend the nex
 
 Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$start`; engine-dependent work with no configured engine routes to `$setup-engine`.
 
+### Available workflow gate for `$[command]`
+
+Before invoking or recommending `$[command]`, confirm that `[command]` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $[command] is not available`, defer that route, do not invoke `$[command]`, and do not search for or copy a repository-local skill file.
+
 # Studio Help — What Do I Do Next?
 
 

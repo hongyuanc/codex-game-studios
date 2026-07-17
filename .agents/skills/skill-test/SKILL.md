@@ -14,10 +14,17 @@ description: "Use when Codex skill files need structural, behavioral, category, 
 ## Validation Boundary
 
 Validation is read-only and does not require approval. Resolve skills from the
-current task's available skill catalog and use `tools/codex_studio/validate.py`
-as the native static validator. Do not search for or copy repository-local skill
-files to reconstruct the catalog. Any optional result or catalog write is a
-separately approved complete proposed changeset.
+current task's available skill catalog and use
+`../../../tools/codex_studio/validate.py` as the native static validator. The
+bundled validator, testing framework, specs, templates, and bundled testing
+catalog are read-only. Do not search for or copy repository-local skill files to
+reconstruct the catalog. Optional evidence writes only to the project-owned
+`production/qa/skill-tests/` directory after approval.
+
+### Available target gate for `$[name]`
+
+Before validating `$[name]`, confirm that `[name]` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $[name] is not available`, defer validation, do not invoke `$[name]`, and do not search for or copy a repository-local skill file.
 
 # Skill Test
 
@@ -50,7 +57,7 @@ Determine mode from the first argument:
 
 If the argument is unrecognized, output usage and stop. A missing argument is not an error; it selects `audit`.
 
-For `spec`, `category`, or `audit`, first check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses the available skill catalog and `tools/codex_studio/validate.py` directly.
+For `spec`, `category`, or `audit`, first check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses the available skill catalog and `../../../tools/codex_studio/validate.py` directly.
 
 ---
 
@@ -63,7 +70,7 @@ The YAML frontmatter must contain exactly `name` and `description`; `name` must 
 This static contract does not require a literal `Use when` prefix.
 
 Delegate the structural decision to `validate_skill` in
-`tools/codex_studio/validate.py` so the runtime validator remains the single
+`../../../tools/codex_studio/validate.py` so the runtime validator remains the single
 implementation of this contract and non-native interaction primitives, legacy
 paths, model metadata, and tool metadata also fail this check.
 `validate_skill` does not judge whether the prose is trigger-oriented; that is a
@@ -148,7 +155,10 @@ Aggregate Verdict: N WARNINGS / N FAILURES
 
 Resolve `[name]` from the current task's available skill catalog.
 Look up the spec path from `../../../Codex Studio Testing Framework/catalog.yaml` — use the
-`spec:` field for the matching skill entry.
+`spec:` field for the matching skill entry. Treat the catalog value as a path
+relative to the bundled studio root: ascend three levels from this skill's
+directory, then resolve every `spec:` value against the bundled studio root.
+Never resolve it against the target repository's working directory.
 
 If either is missing:
 - Missing skill: "Skill '[name]' not found in the available skill catalog."
@@ -188,7 +198,7 @@ For **Protocol Compliance** assertions (always present):
 ```
 === Skill Spec Test: $[name] ===
 Date: [date]
-Spec: ../../../Codex Studio Testing Framework/skills/[category]/[name].md
+Spec: Codex Game Studios bundled testing spec: skills/[category]/[name].md
 
 Case 1: [Happy Path — name]
   Fixture: [summary]
@@ -210,15 +220,17 @@ Protocol Compliance:
 Overall Verdict: FAIL (1 case failed, 1 warning)
 ```
 
-### Step 5 — Offer to Write Results
+### Step 5 — Offer to Write Project Evidence
 
-Present `../../../Codex Studio Testing Framework/results/skill-test-spec-[name]-[date].md` and `../../../Codex Studio Testing Framework/catalog.yaml` together as one optional complete proposed changeset.
+The bundled testing catalog is read-only. Offer one optional project-owned
+evidence file at
+`production/qa/skill-tests/skill-test-spec-[name]-[date].md`. Show that exact
+path and report contents as a complete proposed changeset before writing.
 
-If yes:
-- Write results file to `../../../Codex Studio Testing Framework/results/`
-- Update the skill's entry in `../../../Codex Studio Testing Framework/catalog.yaml`:
-  - `last_spec: [date]`
-  - `last_spec_result: PASS|PARTIAL|FAIL`
+If approved, write only that evidence file. Record the bundled spec's stable
+source label plus `last_spec: [date]` and
+`last_spec_result: PASS|PARTIAL|FAIL` in the project evidence; never update the
+bundled catalog or testing framework.
 
 ---
 
@@ -271,9 +283,12 @@ Fix: Add TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE to the full-mode direct
      panel in Phase 3.
 ```
 
-### Step 6 — Offer to Update Catalog
+### Step 6 — Offer to Write Project Evidence
 
-Present the proposed `../../../Codex Studio Testing Framework/catalog.yaml` metadata update (`last_category`, `last_category_result`) as an optional complete proposed changeset.
+The bundled testing catalog is read-only. Offer an optional project-owned
+`production/qa/skill-tests/skill-test-category-[name]-[date].md` evidence file
+containing `last_category` and `last_category_result`. Write only that approved
+file; never update the bundled catalog or testing framework.
 
 ---
 
@@ -354,8 +369,9 @@ After any mode completes, offer contextual follow-up:
   correctness if a test spec exists."
 - After `static all` with failures: "Address NON-COMPLIANT skills first. Run
   `$skill-test static [name]` individually for detailed remediation guidance."
-- After `spec [name]` PASS: "Update `../../../Codex Studio Testing Framework/catalog.yaml` to record this
-  pass date. Consider running `$skill-test audit` to find the next spec gap."
+- After `spec [name]` PASS: "Optionally record the pass under
+  `production/qa/skill-tests/`, then run `$skill-test audit` to find the next
+  spec gap."
 - After `spec [name]` FAIL: "Review the failing assertions and update the skill
   or the test spec to resolve the mismatch."
 - After `audit`: "Start with the critical-priority gaps. Use the spec template
