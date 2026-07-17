@@ -383,6 +383,7 @@ class OperationsSkillTests(unittest.TestCase):
 
         improve = self.skill_text("skill-improve")
         for phrase in (
+            "present every target path and material edit together",
             "list that source path as the only target",
             "explicit approval before applying",
             "retest score does not regress",
