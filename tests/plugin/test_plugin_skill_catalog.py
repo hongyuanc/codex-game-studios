@@ -26,10 +26,28 @@ EXPECTED_DEPENDENCIES = {
     "test-helpers": ("setup-engine", "skill-test"),
     "test-setup": ("setup-engine",),
 }
-DELEGATION_PATTERN = re.compile(r"\b(?:delegate|spawn|subagent|custom-agent)\b")
+DELEGATION_MARKER = "<!-- codex-studio-delegation: governed -->"
 DELEGATION_PREFLIGHT = (
     "Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;\n"
     "do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree."
+)
+DELEGATION_RESOLVER = (
+    "Before default delegation, run `python3 "
+    "../../../tools/codex_studio/agent_delegation.py resolve --project-root "
+    "<project-root> --role <role>` and use only its returned role contract."
+)
+EXPECTED_DELEGATING_SKILLS = set(
+    """architecture-decision architecture-review art-bible asset-spec brainstorm
+bug-report bug-triage changelog code-review create-architecture
+create-control-manifest create-epics create-stories day-one-patch design-review
+design-system dev-story estimate gate-check hotfix launch-checklist localize
+map-systems milestone-review onboard patch-notes playtest-report
+propagate-design-change prototype qa-plan regression-suite release-checklist
+retrospective reverse-document review-all-gdds security-audit skill-improve
+skill-test smoke-check soak-test sprint-plan sprint-status story-done
+story-readiness team-audio team-combat team-level team-live-ops team-narrative
+team-polish team-qa team-release team-ui test-evidence-review test-flakiness
+test-helpers test-setup ux-design vertical-slice""".split()
 )
 
 
@@ -77,11 +95,11 @@ class PluginSkillCatalogTests(unittest.TestCase):
         paths = tuple(
             path
             for path in sorted(source.glob("*/SKILL.md"))
-            if DELEGATION_PATTERN.search(path.read_text(encoding="utf-8"))
+            if DELEGATION_MARKER in path.read_text(encoding="utf-8")
         )
 
         # Assert
-        self.assertTrue(paths)
+        self.assertEqual(EXPECTED_DELEGATING_SKILLS, {path.parent.name for path in paths})
         for path in paths:
             bundled_path = bundled / path.parent.name / "SKILL.md"
             with self.subTest(skill=path.parent.name):
@@ -89,6 +107,12 @@ class PluginSkillCatalogTests(unittest.TestCase):
                     1,
                     bundled_path.read_text(encoding="utf-8").count(
                         DELEGATION_PREFLIGHT
+                    ),
+                )
+                self.assertEqual(
+                    1,
+                    bundled_path.read_text(encoding="utf-8").count(
+                        DELEGATION_RESOLVER
                     ),
                 )
 
@@ -203,6 +227,53 @@ class PluginSkillCatalogTests(unittest.TestCase):
                                 (skill, dependency, action, issues),
                             )
                             _write_fixture_skill(root, plugin, skill, original)
+
+    def test_catalog_validator_enforces_delegation_governance_mutations(self):
+        additions = (
+            "Delegate to `qa-tester`.",
+            "This workflow Spawns a named specialist.",
+            "Use Codex custom agents by role and profile when delegation is useful.",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            # Arrange
+            root, plugin = _copy_catalog_fixture(directory)
+            path = root / ".agents/skills/adopt/SKILL.md"
+            original = path.read_text(encoding="utf-8")
+
+            for instruction in additions:
+                with self.subTest(instruction=instruction):
+                    _write_fixture_skill(root, plugin, "adopt", original + f"\n{instruction}\n")
+
+                    # Act
+                    issues = validate_plugin_skill_catalog(root, plugin)
+
+                    # Assert
+                    self.assertTrue(
+                        any("ungoverned delegation instruction" in issue.message for issue in issues),
+                        issues,
+                    )
+
+            examples_only = original + """
+```markdown
+Delegate to `qa-tester` and spawn custom agents.
+```
+<!-- Use Codex custom agents by role. -->
+"""
+            _write_fixture_skill(root, plugin, "adopt", examples_only)
+            self.assertEqual([], validate_plugin_skill_catalog(root, plugin))
+
+            governed = root / ".agents/skills/code-review/SKILL.md"
+            governed_text = governed.read_text(encoding="utf-8")
+            _write_fixture_skill(
+                root,
+                plugin,
+                "code-review",
+                governed_text.replace(DELEGATION_MARKER, "", 1),
+            )
+            issues = validate_plugin_skill_catalog(root, plugin)
+            self.assertTrue(
+                any("delegation marker" in issue.message for issue in issues), issues
+            )
 
     def test_skill_test_resolves_all_resources_without_project_local_copies(self):
         # Arrange

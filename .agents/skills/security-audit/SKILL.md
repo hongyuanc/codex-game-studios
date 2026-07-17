@@ -3,8 +3,10 @@ name: security-audit
 description: "Use when game code or data flows need a diagnostic security review before release or multiplayer exposure."
 ---
 
+<!-- codex-studio-delegation: governed -->
 Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
 do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
 
 ## Codex Interaction Contract
 

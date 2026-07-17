@@ -24,27 +24,21 @@ if __package__ in {None, ""}:
     if bundled_studio_root not in sys.path:
         sys.path.insert(0, bundled_studio_root)
 
+from tools.codex_studio.agent_delegation import (
+    ALLOWED_MODELS,
+    ALLOWED_REASONING_EFFORTS,
+    CORE_ROLE_NAMES,
+    ENGINE_ROLE_NAMES,
+    ROLE_FIELDS,
+    validate_delegation_skill,
+)
 from tools.codex_studio.engine_pack import load_studio_config, validate_activation
 
 
-ALLOWED_MODELS = {"gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"}
-ALLOWED_EFFORTS = {"low", "medium", "high", "xhigh"}
-REQUIRED_AGENT_FIELDS = {"name", "description", "developer_instructions", "model", "model_reasoning_effort"}
-EXPECTED_CORE_NAMES = set("""accessibility-specialist ai-programmer analytics-engineer art-director
-audio-director community-manager creative-director devops-engineer economy-designer
-engine-programmer game-designer gameplay-programmer lead-programmer level-designer
-live-ops-designer localization-lead narrative-director network-programmer
-performance-analyst producer prototyper qa-lead qa-tester release-manager
-security-engineer sound-designer systems-designer technical-artist technical-director
-tools-programmer ui-programmer ux-designer world-builder writer""".split())
-EXPECTED_PACK_NAMES = {
-    "godot": set("""godot-csharp-specialist godot-gdextension-specialist
-        godot-gdscript-specialist godot-shader-specialist godot-specialist""".split()),
-    "unity": set("""unity-addressables-specialist unity-dots-specialist
-        unity-shader-specialist unity-specialist unity-ui-specialist""".split()),
-    "unreal": set("""ue-blueprint-specialist ue-gas-specialist
-        ue-replication-specialist ue-umg-specialist unreal-specialist""".split()),
-}
+ALLOWED_EFFORTS = set(ALLOWED_REASONING_EFFORTS)
+REQUIRED_AGENT_FIELDS = set(ROLE_FIELDS)
+EXPECTED_CORE_NAMES = set(CORE_ROLE_NAMES)
+EXPECTED_PACK_NAMES = {engine: set(names) for engine, names in ENGINE_ROLE_NAMES.items()}
 EXPECTED_SKILL_NAMES = set("""adopt architecture-decision architecture-review art-bible asset-audit
 asset-spec balance-check brainstorm bug-report bug-triage changelog code-review
 consistency-check content-audit create-architecture create-control-manifest
@@ -375,6 +369,8 @@ def validate_skill(path: pathlib.Path) -> list[ValidationIssue]:
     for pattern, label in FORBIDDEN_SKILL_PATTERNS.items():
         if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
             issues.append(ValidationIssue("error", str(path), f"contains {label}"))
+    for message in validate_delegation_skill(path.parent.name, text):
+        issues.append(ValidationIssue("error", str(path), message))
     return issues
 
 
@@ -1340,8 +1336,8 @@ _INSTALLED_STATE_KEYS = {
 }
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
-_INSTALLED_INVENTORY_ENTRY_COUNT = 515
-_INSTALLED_INVENTORY_SHA256 = "be0bd13fbd023058b1a9d659e4fe9f372254c92150536cad0e80fe6a3ea51a8d"
+_INSTALLED_INVENTORY_ENTRY_COUNT = 516
+_INSTALLED_INVENTORY_SHA256 = "a8e57709396a35d34de2e04e8ee15e79f61a89feac50e976605909892b7d7341"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

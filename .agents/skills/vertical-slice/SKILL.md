@@ -3,8 +3,10 @@ name: vertical-slice
 description: Build and evaluate a production-quality vertical slice before advancing from Pre-Production to Production.
 ---
 
+<!-- codex-studio-delegation: governed -->
 Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
 do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
 
 ## Codex-native operating rules
 
@@ -227,6 +229,7 @@ skip it. It feeds directly into sprint planning.
 
 Read `../../../.codex/docs/templates/vertical-slice-report.md` to get the report structure.
 If the template file is not found, use this fallback structure:
+```markdown
 - `## Vertical Slice Report — [Game Title] — [Date]`
 - `### Executive Summary` (PROCEED / PIVOT / STOP verdict + 2-sentence rationale)
 - `### Core Loop Validation` (what was tested, what passed, what failed)

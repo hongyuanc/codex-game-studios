@@ -3,8 +3,10 @@ name: art-bible
 description: Author the game's visual identity specification after the game concept is approved and before asset production begins.
 ---
 
+<!-- codex-studio-delegation: governed -->
 Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
 do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
 
 ## Codex-native operating rules
 

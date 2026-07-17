@@ -3,8 +3,10 @@ name: team-level
 description: "Use when a level or area needs coordinated narrative, world, art, systems, layout, and QA design."
 ---
 
+<!-- codex-studio-delegation: governed -->
 Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
 do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
 
 # Team Level
 

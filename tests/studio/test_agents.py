@@ -13,7 +13,7 @@ class AgentValidationTests(unittest.TestCase):
         # Arrange
         expected_routes = (
             "If the collaboration API exposes the named role, delegate with that role.",
-            "Otherwise read `../../../.codex/agents/<role>.toml`",
+            "Otherwise run the plugin-local resolver",
             "If delegation is unavailable",
         )
 
@@ -25,7 +25,7 @@ class AgentValidationTests(unittest.TestCase):
         # Assert
         self.assertEqual(tuple(sorted(positions)), positions)
         for token in (
-            "../../../.codex/agent-packs/<engine>/<role>.toml",
+            "../../../tools/codex_studio/agent_delegation.py resolve",
             "complete role contract",
             "`name`",
             "`description`",
@@ -33,6 +33,41 @@ class AgentValidationTests(unittest.TestCase):
             "`model`",
             "`model_reasoning_effort`",
             "single-agent fallback",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+
+    def test_plugin_agent_delegation_protocol_defines_closed_operational_routes(self):
+        # Arrange / Act
+        normalized = " ".join(PROTOCOL.read_text(encoding="utf-8").split())
+
+        # Assert
+        for token in (
+            "native named role absent",
+            "native invocation reports capability unavailable",
+            "child returns `BLOCKED`",
+            "completed route result",
+            "default delegated agent absent",
+            "default launch reports capability unavailable",
+            "single-agent fallback",
+            "must not fall through",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+
+    def test_plugin_agent_delegation_protocol_maps_default_agent_parameters(self):
+        # Arrange / Act
+        normalized = " ".join(PROTOCOL.read_text(encoding="utf-8").split())
+
+        # Assert
+        for token in (
+            "TOML `model` -> default-agent `model`",
+            "TOML `model_reasoning_effort` -> default-agent `reasoning_effort`",
+            '`fork_turns = "none"`',
+            "configured model is unavailable",
+            "approval-required",
+            "complete role contract",
+            "bounded direct-child task",
         ):
             with self.subTest(token=token):
                 self.assertIn(token, normalized)
