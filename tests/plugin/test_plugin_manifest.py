@@ -28,11 +28,13 @@ class PluginManifestTests(unittest.TestCase):
         }
 
         # Assert
+        self.assertEqual("codex-game-studios", data["name"])
         self.assertEqual("2.0.0", data["version"])
         self.assertEqual("./assets/studio/.agents/skills/", data["skills"])
         self.assertEqual(canonical, bundled)
         self.assertEqual(73, len(bundled))
         self.assertFalse((PLUGIN / "skills/codex-game-studios/SKILL.md").exists())
+        self.assertNotIn("hooks", data)
 
     def test_plugin_manifest_publishes_approved_metadata(self):
         # Arrange
