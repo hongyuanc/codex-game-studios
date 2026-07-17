@@ -32,35 +32,28 @@ an error: continue read-only project detection, report that repository authority
 is absent, and let the observed artifacts determine the onboarding path. Do not
 infer a configured engine from another file.
 
-After the user selects the next step, present one **Initialization changeset**
-containing only the persistent project authority that step requires. It must
-contain at most 10 mutating actions, meaning at most 10 path mutations, and
-produce zero writes before explicit approval.
-The changeset may establish the repository authority with this complete default:
-`engine = "unconfigured"`; `engine_version = ""`; `language = ""`;
-`review_mode = "phase-gated"`; `active_engine_pack = "none"`; and
-`model_policy = "balanced"`. The concrete unconfigured engine version and
-language values are empty strings, not the text `unconfigured`.
-On first run, this one Initialization changeset replaces the separate persistent proposals in Phases 4-6.
-It may include `production/stage.txt` only when that selected next step requires
-it; after approval, skip those separate persistent proposals.
+Before presenting a persistent proposal, invoke the production
+`tools.codex_studio.start_initialization` planning/validation interface with the
+read-only project state and proposed event ledger. Do not present or perform a
+write if it rejects the ledger. Its emitted normative contract controls every
+first-run initialization rule below; the fingerprint and generated summary are
+checked mechanically in both runtime and framework documentation.
 
-Count each created, modified, merged, or deleted filesystem path as one
-mutating action. Directory creation and each file or managed-block edit count
-as separate actions. List every exact target path and its material change; never
-use recursive, glob, tree-copy, bulk, or otherwise expanded actions. If
-enumerating the complete changeset would exceed ten path mutations, stop and
-replan before seeking approval.
+<!-- start-initialization-contract:sha256=105c8073cc49cf441251ee0cb9ffa54e1f20485514e03390c4dc30abf6c84682 -->
+<!-- start-initialization-summary:start
+- First run has exactly 1 Initialization changeset and at most 10 path mutations; each mutation is one filesystem path.
+- The only first-run project-owned file targets are `.codex/studio.toml`, `production/stage.txt`; directory creation is allowed only for `.codex`, `production` when required by one of those files, never as a speculative empty directory.
+- Each action has one normalized exact target and material change, uses one of `create`, `modify`, `merge`, `delete`, `directory-create`, `managed-block-edit`, and may not use `glob`, `recursive`, `tree-copy`, `bulk` or an expanded alias.
+- Forbidden roots and every descendant are `.agents/skills`, `.codex/agents`, `.codex/agent-packs`, `Codex Studio Testing Framework`, `docs/engine-reference`; all other paths are outside the selected and approved project authority.
+- No writes precede approval (0); after approval, writes match the approved actions exactly in order, and a plan above the cap must replan (True).
+- The six-field default authority is `active_engine_pack = "none"`; `engine = "unconfigured"`; `engine_version = ""`; `language = ""`; `model_policy = "balanced"`; `review_mode = "phase-gated"`.
+- Initialized repositories have 0 Initialization changesets and retain separate stage and review-mode proposals, each with its own approval before its matching write (True).
+start-initialization-summary:end -->
 
-The initialization changeset must not create `.agents/skills/`, `.codex/agents/`,
-`.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine
-references, or speculative empty project directories. It must not initialize global or plugin resources.
-Do not install, copy, or initialize any resource
-outside the selected repository authority and explicitly approved project path.
-
-<!-- start-initialization-contract:start
-{"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","first_run":{"action_unit":"filesystem path","counted_path_mutations":["create","modify","merge","delete","directory-create","managed-block-edit"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_target_prefixes":[".agents/skills/",".codex/agents/",".codex/agent-packs/","Codex Studio Testing Framework/","docs/engine-reference/"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true}}
-start-initialization-contract:end -->
+On first run, this one Initialization changeset replaces the separate persistent
+proposals in Phases 4-6. It may include `production/stage.txt` only when that
+selected next step requires it; after approval, skip those separate persistent
+proposals.
 
 For a present, readable `.codex/studio.toml`, preserve the initialized-repository
 protocol below, including its separate stage and review-mode approvals. An

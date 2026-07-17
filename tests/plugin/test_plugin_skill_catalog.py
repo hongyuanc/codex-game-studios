@@ -68,10 +68,10 @@ class PluginSkillCatalogTests(unittest.TestCase):
         for token in (
             "$codex-game-studios:start",
             "Initialization changeset",
-            "at most 10 mutating actions",
-            "zero writes before explicit approval",
-            "must not create `.agents/skills/`",
-            "must not initialize global or plugin resources",
+            "at most 10 path mutations",
+            "No writes precede approval",
+            "Forbidden roots and every descendant",
+            "tools.codex_studio.start_initialization",
         ):
             with self.subTest(token=token):
                 self.assertIn(token, source_text)

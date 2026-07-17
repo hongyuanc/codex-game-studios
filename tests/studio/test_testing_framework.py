@@ -4,6 +4,7 @@ import re
 import tomllib
 import unittest
 
+from tools.codex_studio.start_initialization import validate_documentation
 from tools.codex_studio.validate import validate_skill
 
 
@@ -278,14 +279,14 @@ class TestingFrameworkTests(unittest.TestCase):
             '`review_mode = "solo"`',
             "Initialization changeset",
             "at most 10 path mutations",
-            "zero writes before explicit approval",
-            "must not create `.agents/skills/`",
+            "No writes precede approval",
+            "Forbidden roots and every descendant",
             '`engine = "unconfigured"`',
             '`engine_version = ""`',
             '`language = ""`',
             '`active_engine_pack = "none"`',
             '`model_policy = "balanced"`',
-            "replaces the separate persistent proposals in Phases 4-6",
+            "Initialization changeset replaces the separate persistent",
         )
         for token in shared_runtime_contract:
             self.assertIn(token, runtime)
@@ -300,8 +301,8 @@ class TestingFrameworkTests(unittest.TestCase):
         correspondence = (
             "exclude every nested `AGENTS.md`",
             "instruction-only files such as `.gitkeep`",
-            "continue read-only project detection",
-            "must not initialize global or plugin resources",
+            "read-only",
+            "tools.codex_studio.start_initialization",
             "engine configured, concept exists",
             "Skip onboarding entirely",
         )
@@ -311,22 +312,11 @@ class TestingFrameworkTests(unittest.TestCase):
 
     def test_start_spec_matches_runtime_executable_initialization_contract(self):
         # Arrange
-        marker = re.compile(
-            r"<!-- start-initialization-contract:start\n(?P<contract>.*?)\n"
-            r"start-initialization-contract:end -->",
-            re.DOTALL,
-        )
         runtime = (ROOT / ".agents/skills/start/SKILL.md").read_text(encoding="utf-8")
         spec = (NEW / "skills/utility/start.md").read_text(encoding="utf-8")
 
-        # Act
-        runtime_match = marker.search(runtime)
-        spec_match = marker.search(spec)
-
-        # Assert
-        self.assertIsNotNone(runtime_match)
-        self.assertIsNotNone(spec_match)
-        self.assertEqual(runtime_match.group("contract"), spec_match.group("contract"))
+        # Act / Assert
+        validate_documentation(runtime, spec)
 
     def test_incremental_authoring_specs_match_runtime_section_approval(self):
         incremental = (

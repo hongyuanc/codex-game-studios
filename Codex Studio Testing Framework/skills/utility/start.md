@@ -37,15 +37,18 @@ For a first run, the one Initialization changeset replaces the separate persiste
 - [ ] Path A/B/C maps to stage `Concept`; Path D maps to `Concept`, `Systems Design`, or `Technical Setup` from observed artifacts.
 - [ ] Review depth offers exactly `Full`, `Phase-gated (recommended)`, and `Solo`, mapping to `review_mode = "full"`, `review_mode = "phase-gated"`, and `review_mode = "solo"`.
 - [ ] `production/stage.txt` and `.codex/studio.toml` are each written only after its exact complete proposal is approved.
-- [ ] With no repository-root `.codex/studio.toml`, continue read-only project detection and present one `Initialization changeset` only after the selected next step.
-- [ ] The initialization changeset has at most 10 path mutations and produces zero writes before explicit approval.
-- [ ] The complete default authority is `engine = "unconfigured"`, `engine_version = ""`, `language = ""`, `review_mode = "phase-gated"`, `active_engine_pack = "none"`, and `model_policy = "balanced"`.
-- [ ] Every created, modified, merged, or deleted filesystem path counts as one action, including directory creation and each file or managed-block edit. Each action lists one exact target and its material change; glob, recursive, tree-copy, and bulk actions are rejected, and a changeset that would exceed ten paths stops for replanning.
-- [ ] Initialization must not create `.agents/skills/`, `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine references, or speculative empty project directories; it must not initialize global or plugin resources.
+- [ ] With no repository-root `.codex/studio.toml`, invoke `tools.codex_studio.start_initialization` for read-only detection and event-ledger validation before presenting a proposal or allowing any write.
 
-<!-- start-initialization-contract:start
-{"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","first_run":{"action_unit":"filesystem path","counted_path_mutations":["create","modify","merge","delete","directory-create","managed-block-edit"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_target_prefixes":[".agents/skills/",".codex/agents/",".codex/agent-packs/","Codex Studio Testing Framework/","docs/engine-reference/"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true}}
-start-initialization-contract:end -->
+<!-- start-initialization-contract:sha256=105c8073cc49cf441251ee0cb9ffa54e1f20485514e03390c4dc30abf6c84682 -->
+<!-- start-initialization-summary:start
+- First run has exactly 1 Initialization changeset and at most 10 path mutations; each mutation is one filesystem path.
+- The only first-run project-owned file targets are `.codex/studio.toml`, `production/stage.txt`; directory creation is allowed only for `.codex`, `production` when required by one of those files, never as a speculative empty directory.
+- Each action has one normalized exact target and material change, uses one of `create`, `modify`, `merge`, `delete`, `directory-create`, `managed-block-edit`, and may not use `glob`, `recursive`, `tree-copy`, `bulk` or an expanded alias.
+- Forbidden roots and every descendant are `.agents/skills`, `.codex/agents`, `.codex/agent-packs`, `Codex Studio Testing Framework`, `docs/engine-reference`; all other paths are outside the selected and approved project authority.
+- No writes precede approval (0); after approval, writes match the approved actions exactly in order, and a plan above the cap must replan (True).
+- The six-field default authority is `active_engine_pack = "none"`; `engine = "unconfigured"`; `engine_version = ""`; `language = ""`; `model_policy = "balanced"`; `review_mode = "phase-gated"`.
+- Initialized repositories have 0 Initialization changesets and retain separate stage and review-mode proposals, each with its own approval before its matching write (True).
+start-initialization-summary:end -->
 
 ## Test Cases
 
@@ -89,21 +92,11 @@ start-initialization-contract:end -->
    engine from `.codex/docs/technical-preferences.md`.
 3. After the selected next step, show one `Initialization changeset` containing
    only persistent authority required by that step.
-4. State the complete default authority: `engine = "unconfigured"`,
-   `engine_version = ""`, `language = ""`, `review_mode = "phase-gated"`,
-   `active_engine_pack = "none"`, and `model_policy = "balanced"`.
-5. Count every created, modified, merged, or deleted filesystem path as one
-   action, including directory creation and each file or managed-block edit.
-   List each exact target and material change; reject glob, recursive, tree-copy,
-   and bulk actions, and stop to replan if more than ten paths would mutate.
-6. Limit the changeset to at most 10 path mutations and produce zero writes
-   before explicit approval.
-7. Treat that one proposal as replacing the separate persistent proposals in
+4. Invoke the production initialization contract validator and show the generated
+   contract summary with the proposed ledger.
+5. Treat that one proposal as replacing the separate persistent proposals in
    Phases 4-6; include `production/stage.txt` only when the selected next step
    requires it.
-8. Do not initialize global or plugin resources, `.agents/skills/`,
-   `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`,
-   unselected engine references, or speculative empty project directories.
 
 **Assertions:**
 - [ ] Missing authority is not treated as a configured engine or an onboarding error.
