@@ -38,16 +38,18 @@ For a first run, the one Initialization changeset replaces the separate persiste
 - [ ] Review depth offers exactly `Full`, `Phase-gated (recommended)`, and `Solo`, mapping to `review_mode = "full"`, `review_mode = "phase-gated"`, and `review_mode = "solo"`.
 - [ ] `production/stage.txt` and `.codex/studio.toml` are each written only after its exact complete proposal is approved.
 - [ ] With no repository-root `.codex/studio.toml`, invoke `tools.codex_studio.start_initialization` for read-only detection and event-ledger validation before presenting a proposal or allowing any write.
+- [ ] Installed execution uses `./assets/studio/tools/codex_studio/start_initialization.py --preflight LEDGER.json --project-root PROJECT_ROOT`; the JSON ledger has `authority_state` and ordered events, and output has `status`, `mode`, and `contract_sha256`. Run `--audit` after writes to check actual filesystem path types and digests.
 
-<!-- start-initialization-contract:sha256=105c8073cc49cf441251ee0cb9ffa54e1f20485514e03390c4dc30abf6c84682 -->
+<!-- start-initialization-contract:sha256=6b4e1c5018bc00ad7c0c5b03b815d1dbb14474826b81e8b3f0176f02c89c6fad -->
 <!-- start-initialization-summary:start
-- First run has exactly 1 Initialization changeset and at most 10 path mutations; each mutation is one filesystem path.
-- The only first-run project-owned file targets are `.codex/studio.toml`, `production/stage.txt`; directory creation is allowed only for `.codex`, `production` when required by one of those files, never as a speculative empty directory.
-- Each action has one normalized exact target and material change, uses one of `create`, `modify`, `merge`, `delete`, `directory-create`, `managed-block-edit`, and may not use `glob`, `recursive`, `tree-copy`, `bulk` or an expanded alias.
-- Forbidden roots and every descendant are `.agents/skills`, `.codex/agents`, `.codex/agent-packs`, `Codex Studio Testing Framework`, `docs/engine-reference`; all other paths are outside the selected and approved project authority.
-- No writes precede approval (0); after approval, writes match the approved actions exactly in order, and a plan above the cap must replan (True).
-- The six-field default authority is `active_engine_pack = "none"`; `engine = "unconfigured"`; `engine_version = ""`; `language = ""`; `model_policy = "balanced"`; `review_mode = "phase-gated"`.
-- Initialized repositories have 0 Initialization changesets and retain separate stage and review-mode proposals, each with its own approval before its matching write (True).
+- First run has exactly 1 Initialization changeset and at most 10 unique path mutations; each mutation is one filesystem path.
+- The only first-run project-owned file targets are `.codex/studio.toml`, `production/stage.txt`; a parent directory is created only when observed missing, before a required create or merge child, never for delete or speculation.
+- Each action and write has an exact closed schema, one normalized target, material change, and SHA-256 digest where content exists; actions use `create`, `modify`, `merge`, `delete`, `directory-create`, `managed-block-edit` and never `glob`, `recursive`, `tree-copy`, `bulk` or aliases.
+- Forbidden roots and every descendant are `.agents/skills`, `.codex/agents`, `.codex/agent-packs`, `Codex Studio Testing Framework`, `docs/engine-reference`; all other paths are outside selected and approved project authority.
+- No writes precede approval (0); writes match approved actions exactly in order, and a plan above the cap replans (True).
+- The six-field default authority is `active_engine_pack = "none"`; `engine = "unconfigured"`; `engine_version = ""`; `language = ""`; `model_policy = "balanced"`; `review_mode = "phase-gated"`, and missing authority must create and write its exact bytes.
+- Initialized repositories have 0 Initialization changesets and retain unique separate stage and review-mode proposal/approval/write groups.
+- Installed execution uses `tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT`. Preflight reads the observed project state; audit reads filesystem path types and SHA-256 digests after the approved writes.
 start-initialization-summary:end -->
 
 ## Test Cases

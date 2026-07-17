@@ -68,7 +68,7 @@ class PluginSkillCatalogTests(unittest.TestCase):
         for token in (
             "$codex-game-studios:start",
             "Initialization changeset",
-            "at most 10 path mutations",
+            "at most 10 unique path mutations",
             "No writes precede approval",
             "Forbidden roots and every descendant",
             "tools.codex_studio.start_initialization",

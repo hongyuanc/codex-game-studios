@@ -1,4 +1,9 @@
 from pathlib import Path
+import hashlib
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -8,6 +13,7 @@ from tools.codex_studio.start_initialization import (
     contract_fingerprint,
     contract_summary,
     detect_project_state,
+    preflight_session,
     validate_contract,
     validate_documentation,
     validate_session,
@@ -17,13 +23,20 @@ from tools.codex_studio.validate import validate_skill
 
 ROOT = Path(__file__).resolve().parents[2]
 START = ROOT / ".agents/skills/start/SKILL.md"
+BUNDLED_START_VALIDATOR = (
+    ROOT / "plugins/codex-game-studios/assets/studio/tools/codex_studio/start_initialization.py"
+)
 def valid_initialization_session(initialization_contract: dict[str, object]) -> dict[str, object]:
+    authority_digest = hashlib.sha256(
+        initialization_contract["default_authority_toml"].encode("utf-8")
+    ).hexdigest()
     action = {
         "path": ".codex/studio.toml",
         "kind": "create",
         "material_change": "write the complete default authority",
         "form": "atomic",
         "expanded_paths": [".codex/studio.toml"],
+        "sha256": authority_digest,
     }
     return {
         "authority_state": "missing",
@@ -41,12 +54,210 @@ def valid_initialization_session(initialization_contract: dict[str, object]) -> 
                 "path": action["path"],
                 "kind": action["kind"],
                 "material_change": action["material_change"],
+                "sha256": action["sha256"],
             },
         ],
     }
 
 
 class StartSkillTests(unittest.TestCase):
+    def test_start_initialization_rejects_wave_three_ledger_bypasses(self):
+        # Arrange
+        initialization_contract = contract()
+        valid = valid_initialization_session(initialization_contract)
+        authority_action = valid["events"][2]["actions"][0]
+        authority_write = valid["events"][4]
+        stage_digest = hashlib.sha256(b"stage: concept\n").hexdigest()
+        stage_action = {
+            "path": "production/stage.txt",
+            "kind": "create",
+            "material_change": "write the selected initial stage",
+            "form": "atomic",
+            "expanded_paths": ["production/stage.txt"],
+            "sha256": stage_digest,
+        }
+        stage_write = {
+            "type": "write",
+            "path": stage_action["path"],
+            "kind": stage_action["kind"],
+            "material_change": stage_action["material_change"],
+            "sha256": stage_digest,
+        }
+        production_parent = {
+            "path": "production",
+            "kind": "directory-create",
+            "material_change": "create the parent for the selected stage",
+            "form": "atomic",
+            "expanded_paths": ["production"],
+            "required_by": "production/stage.txt",
+            "sha256": None,
+        }
+        parent_write = {
+            "type": "write",
+            "path": production_parent["path"],
+            "kind": production_parent["kind"],
+            "material_change": production_parent["material_change"],
+            "sha256": None,
+        }
+        duplicate_initialized_group = [
+            {"type": "stage-proposal", "actions": [stage_action]},
+            {"type": "stage-approval"},
+            stage_write,
+        ]
+        cases = {
+            "duplicate action and write": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {**valid["events"][2], "actions": [authority_action, authority_action]},
+                    *valid["events"][3:4],
+                    authority_write,
+                    authority_write,
+                ],
+            },
+            "unknown action field": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [{**authority_action, "hidden_expanded_paths": ["production/stage.txt"]}],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "missing authority action": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {**valid["events"][2], "actions": [stage_action]},
+                    *valid["events"][3:4],
+                    stage_write,
+                ],
+            },
+            "child before parent": ({
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {**valid["events"][2], "actions": [authority_action, stage_action, production_parent]},
+                    *valid["events"][3:4],
+                    authority_write,
+                    stage_write,
+                    parent_write,
+                ],
+            }, {".codex": True, "production": False}),
+            "parent paired with delete": ({
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [authority_action, {**stage_action, "kind": "delete", "sha256": None}, production_parent],
+                    },
+                    *valid["events"][3:4],
+                    authority_write,
+                    {**stage_write, "kind": "delete", "sha256": None},
+                    parent_write,
+                ],
+            }, {".codex": True, "production": False}),
+            "duplicate initialized proposal": ({
+                "authority_state": "initialized",
+                "events": [{"type": "detect"}, *duplicate_initialized_group, *duplicate_initialized_group],
+            }, {".codex": True, "production": True}),
+        }
+
+        # Act / Assert
+        for name, candidate in cases.items():
+            with self.subTest(name=name):
+                session, directories = candidate if isinstance(candidate, tuple) else (candidate, None)
+                with self.assertRaises(ValueError):
+                    validate_session(session, directories=directories)
+
+    def test_start_detect_project_state_blocks_every_invalid_authority_shape(self):
+        # Arrange
+        complete = contract()["default_authority_toml"]
+        cases = {
+            "unreadable": None,
+            "malformed": 'engine = [',
+            "unknown key": complete + 'unknown = "value"\n',
+            "missing key": complete.replace('model_policy = "balanced"\n', ""),
+            "invalid enum": complete.replace('engine = "unconfigured"', 'engine = "mystery"'),
+            "cross field": complete.replace('active_engine_pack = "none"', 'active_engine_pack = "godot"'),
+        }
+
+        # Act / Assert
+        for name, content in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                control = project / ".codex"
+                control.mkdir(parents=True)
+                studio = control / "studio.toml"
+                if content is None:
+                    studio.mkdir()
+                else:
+                    studio.write_text(content, encoding="utf-8")
+                try:
+                    state = detect_project_state(project)
+                except Exception:
+                    state = {"authority_state": "exception"}
+                self.assertEqual("repair-block", state["authority_state"])
+                with self.assertRaises(ValueError):
+                    preflight_session(valid_initialization_session(contract()), project)
+
+    def test_start_bundled_validator_executes_preflight_from_empty_consumer_cwd(self):
+        # Arrange
+        initialization_contract = contract()
+        with tempfile.TemporaryDirectory() as directory:
+            external = Path(directory) / "external"
+            project = external / "project"
+            (project / ".codex").mkdir(parents=True)
+            ledger = external / "ledger.json"
+            ledger.write_text(json.dumps(valid_initialization_session(initialization_contract)), encoding="utf-8")
+            environment = {**os.environ, "PYTHONPATH": ""}
+
+            # Act
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(BUNDLED_START_VALIDATOR),
+                    "--preflight",
+                    str(ledger),
+                    "--project-root",
+                    str(project),
+                ],
+                cwd=external,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            # Assert
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("ok", json.loads(result.stdout)["status"])
+            (project / ".codex/studio.toml").write_text(
+                initialization_contract["default_authority_toml"], encoding="utf-8"
+            )
+            audit = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(BUNDLED_START_VALIDATOR),
+                    "--audit",
+                    str(ledger),
+                    "--project-root",
+                    str(project),
+                ],
+                cwd=external,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(0, audit.returncode, audit.stderr)
+            self.assertEqual("ok", json.loads(audit.stdout)["status"])
+
     def test_start_initialization_rejects_reviewed_bypass_sessions(self):
         # Arrange
         initialization_contract = contract()
@@ -514,7 +725,7 @@ class StartSkillTests(unittest.TestCase):
             validate_contract(mutated_contract)
         with self.assertRaises(ValueError):
             validate_documentation(
-                runtime_text.replace("at most 10 path mutations", "at most 11 path mutations"),
+                runtime_text.replace("at most 10 unique path mutations", "at most 11 unique path mutations"),
                 framework_text,
             )
 
@@ -526,24 +737,60 @@ class StartSkillTests(unittest.TestCase):
             "material_change": "write the selected initial stage",
             "form": "atomic",
             "expanded_paths": ["production/stage.txt"],
+            "sha256": hashlib.sha256(b"Concept\n").hexdigest(),
         }
         session = {
             "authority_state": "initialized",
             "events": [
                 {"type": "detect"},
-                {"type": "stage-proposal", "action": action},
+                {"type": "stage-proposal", "actions": [action]},
                 {"type": "stage-approval"},
                 {
                     "type": "write",
                     "path": action["path"],
                     "kind": action["kind"],
                     "material_change": action["material_change"],
+                    "sha256": action["sha256"],
                 },
             ],
         }
 
         # Act / Assert
         validate_session(session)
+
+    def test_start_initialized_repository_allows_missing_production_parent_before_stage(self):
+        # Arrange
+        stage_digest = hashlib.sha256(b"Concept\n").hexdigest()
+        parent = {
+            "path": "production",
+            "kind": "directory-create",
+            "material_change": "create the missing stage parent",
+            "form": "atomic",
+            "expanded_paths": ["production"],
+            "required_by": "production/stage.txt",
+            "sha256": None,
+        }
+        stage = {
+            "path": "production/stage.txt",
+            "kind": "create",
+            "material_change": "write the selected initial stage",
+            "form": "atomic",
+            "expanded_paths": ["production/stage.txt"],
+            "sha256": stage_digest,
+        }
+        session = {
+            "authority_state": "initialized",
+            "events": [
+                {"type": "detect"},
+                {"type": "stage-proposal", "actions": [parent, stage]},
+                {"type": "stage-approval"},
+                {"type": "write", "path": parent["path"], "kind": parent["kind"], "material_change": parent["material_change"], "sha256": None},
+                {"type": "write", "path": stage["path"], "kind": stage["kind"], "material_change": stage["material_change"], "sha256": stage["sha256"]},
+            ],
+        }
+
+        # Act / Assert
+        validate_session(session, directories={".codex": True, "production": False})
 
     def test_clean_template_heuristic_ignores_instruction_only_files(self):
         state = detect_project_state(ROOT)
@@ -561,7 +808,7 @@ class StartSkillTests(unittest.TestCase):
         text = START.read_text(encoding="utf-8")
         self.assertIn("$codex-game-studios:start", text)
         self.assertIn("Initialization changeset", text)
-        self.assertIn("at most 10 path mutations", text)
+        self.assertIn("at most 10 unique path mutations", text)
         self.assertIn("No writes precede approval", text)
         self.assertIn("Forbidden roots and every descendant", text)
         self.assertIn("tools.codex_studio.start_initialization", text)

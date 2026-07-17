@@ -278,7 +278,7 @@ class TestingFrameworkTests(unittest.TestCase):
             '`review_mode = "phase-gated"`',
             '`review_mode = "solo"`',
             "Initialization changeset",
-            "at most 10 path mutations",
+            "at most 10 unique path mutations",
             "No writes precede approval",
             "Forbidden roots and every descendant",
             '`engine = "unconfigured"`',
