@@ -61,11 +61,22 @@ class StartSkillTests(unittest.TestCase):
         self.assertIn("exclude every nested `AGENTS.md`", text)
         self.assertIn("instruction-only files such as `.gitkeep`", text)
 
-    def test_start_blocks_when_canonical_studio_config_is_unreadable(self):
+    def test_start_supports_plugin_native_uninitialized_repository(self):
         text = START.read_text(encoding="utf-8")
-        self.assertIn("missing, unreadable, or invalid TOML", text)
-        self.assertIn("Verdict: **BLOCKED**", text)
-        self.assertIn("do not continue to onboarding", text)
+        self.assertIn("$codex-game-studios:start", text)
+        self.assertIn("Initialization changeset", text)
+        self.assertIn("at most 10 mutating actions", text)
+        self.assertIn("zero writes before explicit approval", text)
+        self.assertIn("must not create `.agents/skills/`", text)
+        self.assertIn("must not initialize global or plugin resources", text)
+        self.assertIn("engine/version/language are `unconfigured`", text)
+        self.assertIn('review_mode = "phase-gated"', text)
+        self.assertIn('active_engine_pack = "none"', text)
+        self.assertIn("continue read-only project detection", text)
+        self.assertIn(
+            "replaces the separate persistent proposals in Phases 4-6", text
+        )
+        self.assertNotIn("do not continue to onboarding", text)
 
     def test_start_is_native_and_detects_unconfigured_fresh_projects(self):
         text = START.read_text(encoding="utf-8")

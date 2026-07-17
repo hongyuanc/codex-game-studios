@@ -24,6 +24,38 @@ This skill is the entry point for new users. It does NOT assume you have a game 
 
 ---
 
+## Plugin-native first run
+
+Invoke this workflow as `$codex-game-studios:start` when the installed plugin is
+the available entry point. A missing repository-root `.codex/studio.toml` is not
+an error: continue read-only project detection, report that repository authority
+is absent, and let the observed artifacts determine the onboarding path. Do not
+infer a configured engine from another file.
+
+After the user selects the next step, present one **Initialization changeset**
+containing only the persistent project authority that step requires. It must
+contain at most 10 mutating actions and produce zero writes before explicit approval.
+The changeset may establish the repository authority with these
+defaults: engine/version/language are `unconfigured`; the exact TOML values are
+`engine = "unconfigured"`, `engine_version = ""`, `language = ""`,
+`review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
+On first run, this one Initialization changeset replaces the separate persistent proposals in Phases 4-6.
+It may include `production/stage.txt` only when that selected next step requires
+it; after approval, skip those separate persistent proposals.
+
+The initialization changeset must not create `.agents/skills/`, `.codex/agents/`,
+`.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine
+references, or speculative empty project directories. It must not initialize global or plugin resources.
+Do not install, copy, or initialize any resource
+outside the selected repository authority and explicitly approved project path.
+
+For a present, readable `.codex/studio.toml`, preserve the initialized-repository
+protocol below, including its separate stage and review-mode approvals. An
+unreadable or invalid TOML authority remains a repair case: show its exact repair
+changeset and stop without writing until the user approves it.
+
+---
+
 ## Phase 1: Detect Project State
 
 Before asking anything, silently gather context so you can tailor your guidance.
@@ -31,9 +63,11 @@ Do not emit a raw scan log; Phase 2 presents the relevant evidence as a concise
 project-state summary before asking the user to confirm the starting point.
 
 Check:
-- **Engine configured?** Read `.codex/studio.toml`. If it is missing, unreadable, or invalid TOML, report that the canonical studio authority is
-  unavailable, do not infer values from another file, and do not continue to onboarding. Offer restoration or an explicitly approved repair, then stop
-  with `Verdict: **BLOCKED**`. If it contains
+- **Engine configured?** Read `.codex/studio.toml`. If it is missing, continue
+  read-only project detection under the plugin-native first-run protocol. If it
+  is unreadable or invalid TOML, report that the canonical studio authority is
+  unavailable, do not infer values from another file, offer restoration or an
+  explicitly approved repair, then stop with `Verdict: **BLOCKED**`. If it contains
   `engine = "unconfigured"`, no engine pack is active. Use
   `.codex/docs/technical-preferences.md` only for the selected engine's detailed
   preferences after activation.

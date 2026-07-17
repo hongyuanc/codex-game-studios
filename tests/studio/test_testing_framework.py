@@ -276,6 +276,13 @@ class TestingFrameworkTests(unittest.TestCase):
             '`review_mode = "full"`',
             '`review_mode = "phase-gated"`',
             '`review_mode = "solo"`',
+            "Initialization changeset",
+            "at most 10 mutating actions",
+            "zero writes before explicit approval",
+            "must not create `.agents/skills/`",
+            "engine/version/language are `unconfigured`",
+            '`active_engine_pack = "none"`',
+            "replaces the separate persistent proposals in Phases 4-6",
         )
         for token in shared_runtime_contract:
             self.assertIn(token, runtime)
@@ -290,8 +297,8 @@ class TestingFrameworkTests(unittest.TestCase):
         correspondence = (
             "exclude every nested `AGENTS.md`",
             "instruction-only files such as `.gitkeep`",
-            "missing, unreadable, or invalid TOML",
-            "Verdict: **BLOCKED**",
+            "continue read-only project detection",
+            "must not initialize global or plugin resources",
             "engine configured, concept exists",
             "Skip onboarding entirely",
         )

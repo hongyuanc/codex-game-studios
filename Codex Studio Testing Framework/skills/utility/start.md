@@ -9,17 +9,21 @@
 - Discovery contract: YAML frontmatter contains exactly `name` and `description`; the name matches the skill directory and the description is nonblank and trigger-oriented.
 - Structured decisions: each `request_user_input` call contains 1–3 questions and each question contains 2–3 options. `$start` asks one decision per turn.
 - Custom-agent delegation: if needed, the maximum delegation depth is 1; the parent agent synthesizes all evidence and owns user interaction.
-- Write boundary: discovery is read-only. Before either permitted write, the parent presents the exact target path and material edit as one complete proposed changeset, then obtains approval.
+- Write boundary: discovery is read-only. Before either permitted write, the parent presents the exact target path and material edit as one complete proposed changeset, then obtains approval. For a plugin-native first run, one bounded `Initialization changeset` is shown before any write.
 
 ## Skill Summary
 
 `$start` first detects repository state, then asks two ordered decisions that
 classify the project as Path A, B, C, or D. Engine configuration authority is
 `.codex/studio.toml`; `engine = "unconfigured"` means `$setup-engine` is needed.
+When that repository authority is absent, `$codex-game-studios:start` continues
+read-only detection and presents a bounded initialization proposal only after the
+next step is selected.
 After routing, the skill may propose `production/stage.txt` and a change to the
 `review_mode` key in `.codex/studio.toml`. Each write has its own exact proposal
 and approval gate. Onboarding performs project-state routing; `$setup-engine`
 owns engine selection and configuration.
+For a first run, the one Initialization changeset replaces the separate persistent proposals in Phases 4-6.
 
 ## Static Assertions
 
@@ -33,6 +37,10 @@ owns engine selection and configuration.
 - [ ] Path A/B/C maps to stage `Concept`; Path D maps to `Concept`, `Systems Design`, or `Technical Setup` from observed artifacts.
 - [ ] Review depth offers exactly `Full`, `Phase-gated (recommended)`, and `Solo`, mapping to `review_mode = "full"`, `review_mode = "phase-gated"`, and `review_mode = "solo"`.
 - [ ] `production/stage.txt` and `.codex/studio.toml` are each written only after its exact complete proposal is approved.
+- [ ] With no repository-root `.codex/studio.toml`, continue read-only project detection and present one `Initialization changeset` only after the selected next step.
+- [ ] The initialization changeset has at most 10 mutating actions and produces zero writes before explicit approval.
+- [ ] The default authority records engine/version/language as `unconfigured`, `review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
+- [ ] Initialization must not create `.agents/skills/`, `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine references, or speculative empty project directories; it must not initialize global or plugin resources.
 
 ## Test Cases
 
@@ -61,25 +69,36 @@ owns engine selection and configuration.
 - [ ] No file is written during discovery or routing, and each later write has a separate exact approval.
 - [ ] Verdict is COMPLETE after the user is oriented and handed off.
 
-### Case 2: Blocked Preconditions — Missing configuration does not trigger a fallback file
+### Case 2: Plugin-native First Run — Missing configuration proposes bounded authority
 
 **Fixture:**
-- `.codex/studio.toml` is missing, unreadable, or invalid TOML.
-- No other artifacts establish an engine.
+- Repository-root `.codex/studio.toml` is missing.
+- The repository may contain any observed game artifacts, but no global or plugin
+  resource has been initialized.
 
 **Input:** `$start`
 
 **Expected behavior:**
-1. Report that canonical engine state cannot be determined and do not continue to onboarding.
-2. Do not infer configuration from `.codex/docs/technical-preferences.md`.
-3. Recommend restoring the canonical configuration or using `$setup-engine`.
-4. Never create a separate review-depth file as a fallback.
-5. If a repair is proposed, show one complete proposed changeset and obtain approval before any write.
+1. Continue read-only project detection and summarize the observed evidence.
+2. Let the user select the normal onboarding path; do not infer a configured
+   engine from `.codex/docs/technical-preferences.md`.
+3. After the selected next step, show one `Initialization changeset` containing
+   only persistent authority required by that step.
+4. State the default authority: engine/version/language are `unconfigured`,
+   `review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
+5. Limit the changeset to at most 10 mutating actions and produce zero writes
+   before explicit approval.
+6. Treat that one proposal as replacing the separate persistent proposals in
+   Phases 4-6; include `production/stage.txt` only when the selected next step
+   requires it.
+7. Do not initialize global or plugin resources, `.agents/skills/`,
+   `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`,
+   unselected engine references, or speculative empty project directories.
 
 **Assertions:**
-- [ ] Missing authority is not treated as a configured engine.
-- [ ] No fallback file is silently created.
-- [ ] `Verdict: **BLOCKED**` remains until the authority is readable or the user approves a repair.
+- [ ] Missing authority is not treated as a configured engine or an onboarding error.
+- [ ] No initialization write occurs before the complete changeset is explicitly approved.
+- [ ] The proposal initializes only the selected repository authority, never global or plugin resources.
 
 ### Case 3: Project-State Boundary — Defined concept routes to Path C
 
@@ -146,7 +165,7 @@ owns engine selection and configuration.
 ## Protocol Compliance
 
 - [ ] Project-state discovery precedes user questions.
-- [ ] Missing, unreadable, or invalid canonical configuration returns `Verdict: **BLOCKED**` before onboarding.
+- [ ] A missing canonical configuration continues read-only detection; unreadable or invalid canonical configuration returns `Verdict: **BLOCKED**` before onboarding.
 - [ ] A returning user with `engine configured, concept exists` skips onboarding entirely.
 - [ ] Ordered decisions map exactly to Paths A–D.
 - [ ] `.codex/studio.toml` is the engine and persistent review-depth authority; no separate review-depth file is used.

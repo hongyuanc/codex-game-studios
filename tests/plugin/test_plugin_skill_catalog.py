@@ -55,6 +55,28 @@ def _write_fixture_skill(root: Path, plugin: Path, name: str, text: str) -> None
 
 
 class PluginSkillCatalogTests(unittest.TestCase):
+    def test_start_skill_preserves_plugin_native_initialization_protocol(self):
+        # Arrange
+        source = ROOT / ".agents/skills/start/SKILL.md"
+        bundled = PLUGIN / "assets/studio/.agents/skills/start/SKILL.md"
+
+        # Act
+        source_text = source.read_text(encoding="utf-8")
+        bundled_text = bundled.read_text(encoding="utf-8")
+
+        # Assert
+        for token in (
+            "$codex-game-studios:start",
+            "Initialization changeset",
+            "at most 10 mutating actions",
+            "zero writes before explicit approval",
+            "must not create `.agents/skills/`",
+            "must not initialize global or plugin resources",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, source_text)
+                self.assertIn(token, bundled_text)
+
     def test_catalog_has_source_parity_and_valid_skills(self):
         source = ROOT / ".agents/skills"
         bundled = PLUGIN / "assets/studio/.agents/skills"
