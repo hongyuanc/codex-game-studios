@@ -6,12 +6,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from tools.codex_studio.engine_pack import load_studio_config
 from tools.codex_studio.start_initialization import (
     contract,
     contract_fingerprint,
     contract_summary,
+    audit_session,
     detect_project_state,
     preflight_session,
     validate_contract,
@@ -60,7 +62,111 @@ def valid_initialization_session(initialization_contract: dict[str, object]) -> 
     }
 
 
+def make_git_root(project: Path) -> None:
+    (project / ".git").mkdir(parents=True, exist_ok=True)
+
+
+def initialized_stage_session(stage_action: dict[str, object]) -> dict[str, object]:
+    return {
+        "authority_state": "initialized",
+        "events": [
+            {"type": "detect"},
+            {"type": "stage-proposal", "actions": [stage_action]},
+            {"type": "stage-approval"},
+            {"type": "write", "path": stage_action["path"], "kind": stage_action["kind"], "material_change": stage_action["material_change"], "sha256": stage_action["sha256"]},
+        ],
+    }
 class StartSkillTests(unittest.TestCase):
+    def test_start_initialized_groups_reject_cross_target_smuggling(self):
+        digest = hashlib.sha256(b"stage\n").hexdigest()
+        stage = {"path": "production/stage.txt", "kind": "create", "material_change": "write stage", "form": "atomic", "expanded_paths": ["production/stage.txt"], "sha256": digest}
+        authority = valid_initialization_session(contract())["events"][2]["actions"][0]
+        for proposal, actions in (("stage-proposal", [stage, authority]), ("review-mode-proposal", [authority, stage])):
+            writes = [{"type": "write", "path": action["path"], "kind": action["kind"], "material_change": action["material_change"], "sha256": action["sha256"]} for action in actions]
+            session = {"authority_state": "initialized", "events": [{"type": "detect"}, {"type": proposal, "actions": actions}, {"type": "stage-approval" if proposal == "stage-proposal" else "review-mode-approval"}, *writes]}
+            with self.subTest(proposal=proposal), self.assertRaises(ValueError):
+                validate_session(session)
+
+    def test_start_preflight_rejects_unsafe_roots_and_parent_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            for root in (base / "absent", base / "regular"):
+                if root.name == "regular":
+                    root.write_text("not a directory", encoding="utf-8")
+                with self.subTest(root=root), self.assertRaises(ValueError):
+                    detect_project_state(root)
+            project = base / "project"
+            (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
+            link_root = base / "linked-project"
+            os.symlink(project, link_root)
+            with self.assertRaises(ValueError):
+                preflight_session(valid_initialization_session(contract()), link_root)
+            (project / ".codex/studio.toml").write_text(contract()["default_authority_toml"], encoding="utf-8")
+            external = base / "external"
+            external.mkdir()
+            os.symlink(external, project / "production")
+            stage = {"path": "production/stage.txt", "kind": "create", "material_change": "write stage", "form": "atomic", "expanded_paths": ["production/stage.txt"], "sha256": hashlib.sha256(b"stage\n").hexdigest()}
+            with self.assertRaises(ValueError):
+                preflight_session(initialized_stage_session(stage), project)
+
+    def test_start_cli_closes_non_object_and_control_event_schemas(self):
+        with tempfile.TemporaryDirectory() as directory:
+            external, project = Path(directory) / "external", Path(directory) / "project"
+            (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
+            external.mkdir()
+            environment = {**os.environ, "PYTHONPATH": ""}
+            for payload in ("[]", "null", "1", '"ledger"', "{"):
+                ledger = external / "ledger.json"
+                ledger.write_text(payload, encoding="utf-8")
+                result = subprocess.run([sys.executable, "-B", str(BUNDLED_START_VALIDATOR), "--preflight", str(ledger), "--project-root", str(project)], cwd=external, env=environment, text=True, capture_output=True, check=False)
+                with self.subTest(payload=payload):
+                    self.assertEqual(2, result.returncode)
+                    self.assertNotIn("Traceback", result.stderr)
+            hidden = valid_initialization_session(contract())
+            hidden["events"][0]["hidden"] = True
+            with self.assertRaises(ValueError):
+                validate_session(hidden)
+            help_result = subprocess.run([sys.executable, "-B", str(BUNDLED_START_VALIDATOR), "--help"], cwd=external, env=environment, text=True, capture_output=True, check=False)
+            self.assertEqual(0, help_result.returncode)
+            self.assertIn("ledger schema version", help_result.stdout.lower())
+
+    def test_start_docs_publish_complete_versioned_ledger_schema(self):
+        text = START.read_text(encoding="utf-8")
+        self.assertIn("start-initialization-ledger-schema:sha256=", text)
+        self.assertIn('"ledger_schema_version":1', text)
+        self.assertIn('"required_by":"string (directory-create only)"', text)
+
+    def test_start_audit_rejects_links_and_detects_target_identity_swap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, external = Path(directory) / "project", Path(directory) / "external"
+            (project / ".codex").mkdir(parents=True); (project / "production").mkdir(); external.mkdir(); make_git_root(project)
+            authority = contract()["default_authority_toml"]
+            (project / ".codex/studio.toml").write_text(authority, encoding="utf-8")
+            digest = hashlib.sha256(b"stage\n").hexdigest()
+            stage = {"path": "production/stage.txt", "kind": "create", "material_change": "write stage", "form": "atomic", "expanded_paths": ["production/stage.txt"], "sha256": digest}
+            session = initialized_stage_session(stage)
+            (external / "stage.txt").write_text("stage\n", encoding="utf-8")
+            os.symlink(external / "stage.txt", project / "production/stage.txt")
+            with self.assertRaises(ValueError):
+                audit_session(session, project)
+            (project / "production/stage.txt").unlink()
+            os.symlink(external / "missing.txt", project / "production/stage.txt")
+            delete = {**stage, "kind": "delete", "sha256": None}
+            with self.assertRaises(ValueError):
+                audit_session(initialized_stage_session(delete), project)
+            (project / "production/stage.txt").unlink(); (project / "production/stage.txt").write_text("stage\n", encoding="utf-8")
+            original_read, swapped = os.read, False
+            def swap_after_read(descriptor, count):
+                nonlocal swapped
+                chunk = original_read(descriptor, count)
+                if chunk and not swapped:
+                    replacement = project / "replacement.txt"; replacement.write_text("stage\n", encoding="utf-8"); replacement.replace(project / "production/stage.txt"); swapped = True
+                return chunk
+            with mock.patch("tools.codex_studio.start_initialization.os.read", side_effect=swap_after_read), self.assertRaises(ValueError):
+                audit_session(session, project)
+
     def test_start_initialization_rejects_wave_three_ledger_bypasses(self):
         # Arrange
         initialization_contract = contract()
@@ -191,6 +297,7 @@ class StartSkillTests(unittest.TestCase):
                 project = Path(directory) / "project"
                 control = project / ".codex"
                 control.mkdir(parents=True)
+                make_git_root(project)
                 studio = control / "studio.toml"
                 if content is None:
                     studio.mkdir()
@@ -211,6 +318,7 @@ class StartSkillTests(unittest.TestCase):
             external = Path(directory) / "external"
             project = external / "project"
             (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
             ledger = external / "ledger.json"
             ledger.write_text(json.dumps(valid_initialization_session(initialization_contract)), encoding="utf-8")
             environment = {**os.environ, "PYTHONPATH": ""}
@@ -441,6 +549,7 @@ class StartSkillTests(unittest.TestCase):
                 "production/milestones",
             ):
                 (project / path).mkdir(parents=True, exist_ok=True)
+            make_git_root(project)
             before = sorted(path.relative_to(project).as_posix() for path in project.rglob("*"))
 
             # Act

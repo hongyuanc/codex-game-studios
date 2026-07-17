@@ -51,7 +51,7 @@ write repeats each approved action's `path`, `kind`, `material_change`, and
 run the same path with `--audit` so the bundled validator reads actual path types
 and file digests rather than trusting prospective write records.
 
-<!-- start-initialization-contract:sha256=6b4e1c5018bc00ad7c0c5b03b815d1dbb14474826b81e8b3f0176f02c89c6fad -->
+<!-- start-initialization-contract:sha256=40b856f097437b09a0fb45fd59044824c686a2def25a2f95dbc851f2be058057 -->
 <!-- start-initialization-summary:start
 - First run has exactly 1 Initialization changeset and at most 10 unique path mutations; each mutation is one filesystem path.
 - The only first-run project-owned file targets are `.codex/studio.toml`, `production/stage.txt`; a parent directory is created only when observed missing, before a required create or merge child, never for delete or speculation.
@@ -59,9 +59,13 @@ and file digests rather than trusting prospective write records.
 - Forbidden roots and every descendant are `.agents/skills`, `.codex/agents`, `.codex/agent-packs`, `Codex Studio Testing Framework`, `docs/engine-reference`; all other paths are outside selected and approved project authority.
 - No writes precede approval (0); writes match approved actions exactly in order, and a plan above the cap replans (True).
 - The six-field default authority is `active_engine_pack = "none"`; `engine = "unconfigured"`; `engine_version = ""`; `language = ""`; `model_policy = "balanced"`; `review_mode = "phase-gated"`, and missing authority must create and write its exact bytes.
-- Initialized repositories have 0 Initialization changesets and retain unique separate stage and review-mode proposal/approval/write groups.
-- Installed execution uses `tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT`. Preflight reads the observed project state; audit reads filesystem path types and SHA-256 digests after the approved writes.
+- Initialized repositories have 0 Initialization changesets and retain unique proposal-specific stage and review-mode approval/write groups.
+- Installed execution uses `tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT` and ledger schema version 1. Preflight and audit are link/reparse-safe; link-safe filesystem path types and SHA-256 digests (file mode is not part of this material contract).
 start-initialization-summary:end -->
+<!-- start-initialization-ledger-schema:sha256=5909f6cce23f1c6aa0def48572269eef827308b3d84f74514f311a894f8a0a6f -->
+<!-- start-initialization-ledger-schema:start
+{"action":{"directory_exact_keys":["expanded_paths","form","kind","material_change","path","required_by","sha256"],"expanded_paths":"[path]","file_exact_keys":["expanded_paths","form","kind","material_change","path","sha256"],"form":"atomic","kind":["create","modify","merge","delete","directory-create","managed-block-edit"],"material_change":"non-empty string","path":"normalized repository-relative approved target","required_by":"string (directory-create only)","sha256":"64 lowercase hex for file actions; null for delete and directory-create"},"control_events":{"approval":{"exact_keys":["type"]},"detect":{"exact_keys":["type"]},"review-mode-approval":{"exact_keys":["type"]},"select-next-step":{"exact_keys":["type"]},"stage-approval":{"exact_keys":["type"]}},"first_run_order":["detect","select-next-step","initialization-changeset","approval","write..."],"initialized_groups":{"review-mode-proposal":".codex/studio.toml only, optionally immediately preceded by required .codex/ directory-create","stage-proposal":"production/stage.txt only, optionally immediately preceded by required production/ directory-create"},"ledger_schema_version":1,"top_level":{"authority_state":["missing","initialized"],"events":"array","exact_keys":["authority_state","events"]},"write":{"exact_keys":["kind","material_change","path","sha256","type"],"fields":"repeat approved action path/kind/material_change/sha256 in order","type":"write"}}
+start-initialization-ledger-schema:end -->
 
 On first run, this one Initialization changeset replaces the separate persistent
 proposals in Phases 4-6. It may include `production/stage.txt` only when that
