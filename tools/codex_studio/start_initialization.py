@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import copy
 import dataclasses
 import hashlib
@@ -13,16 +14,26 @@ import re
 import stat
 import subprocess
 import sys
-from typing import Mapping, Sequence
+import tomllib
+from typing import Iterator, Mapping, Sequence
 
 if __package__ in {None, ""}:
     _BUNDLED_STUDIO_ROOT = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(_BUNDLED_STUDIO_ROOT))
 
-from tools.codex_studio.engine_pack import STUDIO_KEYS, StudioConfig, _link_kind, _serialize_config, load_studio_config
+from tools.codex_studio.engine_pack import (
+    STUDIO_KEYS,
+    SUPPORTED_ENGINES,
+    StudioConfig,
+    _link_kind,
+    _serialize_config,
+    _validate_target_values,
+    _validate_text,
+    load_studio_config,
+)
 
 
-_CONTRACT_JSON = r'''{"authority":{"active_engine_pack":"none","engine":"unconfigured","engine_version":"","language":"","model_policy":"balanced","review_mode":"phase-gated"},"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","execution":{"audit_reads":"link-safe filesystem path types and SHA-256 digests (file mode is not part of this material contract)","cli":"tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT","ledger_schema_version":1},"first_run":{"action_unit":"filesystem path","allowed_atomic_kinds":["create","modify","merge","delete","directory-create","managed-block-edit"],"allowed_parent_directories":[".codex","production"],"approved_targets":[".codex/studio.toml","production/stage.txt"],"approval_sequence":["detect","select-next-step","initialization-changeset","approval","write"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_roots":[".agents/skills",".codex/agents",".codex/agent-packs","Codex Studio Testing Framework","docs/engine-reference"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true,"speculative_empty_directories":false},"initialized":{"approval_pairs":{"review-mode-proposal":"review-mode-approval","stage-proposal":"stage-approval"},"initialization_changesets":0,"proposal_targets":{"review-mode-proposal":".codex/studio.toml","stage-proposal":"production/stage.txt"},"review_modes":["full","phase-gated","solo"],"separate_proposals":true,"zero_unapproved_writes":true},"schema_version":1}'''
+_CONTRACT_JSON = r'''{"authority":{"active_engine_pack":"none","engine":"unconfigured","engine_version":"","language":"","model_policy":"balanced","review_mode":"phase-gated"},"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","execution":{"audit_reads":"link-safe filesystem path types and SHA-256 digests (file mode is not part of this material contract)","cli":"tools/codex_studio/start_initialization.py --preflight|--audit LEDGER --project-root PROJECT","ledger_schema_version":1},"first_run":{"action_unit":"filesystem path","allowed_atomic_kinds":["create","modify","merge","delete","directory-create","managed-block-edit"],"allowed_parent_directories":[".codex","production"],"approved_targets":[".codex/studio.toml","production/stage.txt"],"approval_sequence":["detect","select-next-step","initialization-changeset","approval","write"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_roots":[".agents/skills",".codex/agents",".codex/agent-packs","Codex Studio Testing Framework","docs/engine-reference"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true,"speculative_empty_directories":false},"initialized":{"approval_pairs":{"review-mode-proposal":"review-mode-approval","stage-proposal":"stage-approval"},"initialization_changesets":0,"proposal_targets":{"review-mode-proposal":".codex/studio.toml","stage-proposal":"production/stage.txt"},"review_modes":["full","phase-gated","solo"],"separate_proposals":true,"stage_action_kinds":["create","modify","merge"],"zero_unapproved_writes":true},"schema_version":1}'''
 START_INITIALIZATION_CONTRACT: dict[str, object] = json.loads(_CONTRACT_JSON)
 _FILE_ACTION_KEYS = {"path", "kind", "material_change", "form", "expanded_paths", "sha256"}
 _DIRECTORY_ACTION_KEYS = _FILE_ACTION_KEYS | {"required_by"}
@@ -109,8 +120,8 @@ _LEDGER_SCHEMA = {
     "action": {"file_exact_keys": sorted(_FILE_ACTION_KEYS), "directory_exact_keys": sorted(_DIRECTORY_ACTION_KEYS), "path": "normalized repository-relative approved target", "kind": ["create", "modify", "merge", "delete", "directory-create", "managed-block-edit"], "form": "atomic", "expanded_paths": "[path]", "material_change": "non-empty string", "sha256": "64 lowercase hex for file actions; null for delete and directory-create", "required_by": "string (directory-create only)"},
     "write": {"exact_keys": sorted(_WRITE_KEYS), "type": "write", "fields": "repeat approved action path/kind/material_change/sha256 in order"},
     "ordering": {"first_run": {"exact_sequence": ["detect", "select-next-step", "initialization-changeset", "approval", "one write per action in action order"], "initialization_changesets": 1}, "initialized": {"exact_prefix": ["detect"], "repeating_group": ["unique proposal", "matching separate approval", "one write per action in action order"], "initialization_changesets": 0}},
-    "initialized_groups": {"stage-proposal": {"approval": "stage-approval", "target": "production/stage.txt", "optional_parent": "production"}, "review-mode-proposal": {"approval": "review-mode-approval", "target": ".codex/studio.toml", "action_kind": "modify", "optional_parent": None, "post_image": "canonical complete six-field authority_before with only review_mode changed to the closed target value; action/write SHA-256 matches exact post-image"}, "constraints": "each proposal type and mutation path appears at most once; only a stage proposal may include its observed-missing production parent immediately before the create or merge target"},
-    "selection_stage_rule": "a production/stage.txt action exists if and only if select-next-step.next_step is setup-engine; brainstorm and project-stage-detect omit it",
+    "initialized_groups": {"stage-proposal": {"approval": "stage-approval", "target": "production/stage.txt", "optional_parent": "production", "action_kind": ["create", "modify", "merge"], "preimage": "create requires missing; modify or merge requires existing regular", "post_image": "successful audit requires regular production/stage.txt whose SHA-256 matches the action and write"}, "review-mode-proposal": {"approval": "review-mode-approval", "target": ".codex/studio.toml", "action_kind": "modify", "optional_parent": None, "post_image": "canonical complete six-field authority_before with only review_mode changed from one closed current value to a different closed target value; action/write SHA-256 matches exact post-image"}, "constraints": "each proposal type and mutation path appears at most once; only a stage proposal may include its observed-missing production parent immediately before the create or merge target"},
+    "selection_stage_rule": "a production/stage.txt action exists if and only if select-next-step.next_step is setup-engine; it uses create for missing or modify/merge for existing regular and always leaves a digest-bound regular file; brainstorm and project-stage-detect omit it",
     "write_reconciliation": {"cardinality": "exactly one write per approved action", "order": "same order as actions", "exact_fields": ["path", "kind", "material_change", "sha256"], "unapproved_writes": 0},
     "example_envelope": {"exact_keys": ["initial_state", "session", "write_contents"], "initial_state": {"exact_keys": ["directories", "files"], "directories": {".codex": ["missing", "directory"], "production": ["missing", "directory"]}, "files": "exact repository-relative UTF-8 pre-images"}, "write_contents": "exact UTF-8 post-image for every non-directory, non-delete approved action"},
     "examples": {
@@ -142,7 +153,7 @@ def contract_summary(value: Mapping[str, object] | None = None) -> str:
         f"- Forbidden roots and every descendant are {quoted(_strings(first, 'forbidden_roots'))}; all other paths are outside selected and approved project authority.",
         f"- No writes precede approval ({first['pre_approval_writes']}); writes match approved actions exactly in order, and a plan above the cap replans ({first['replan_above_max_path_mutations']}).",
         "- The six-field default authority is " + "; ".join(f"`{key} = {json.dumps(item)}`" for key, item in authority.items()) + ", and missing authority must create and write its exact bytes.",
-        f"- Initialized repositories have {initialized['initialization_changesets']} Initialization changesets and retain unique proposal-specific stage and review-mode approval/write groups; review mode is a full-file `modify` to one of {quoted(_strings(initialized, 'review_modes'))}, preserving every other authority value.",
+        f"- Initialized repositories have {initialized['initialization_changesets']} Initialization changesets and retain unique proposal-specific stage and review-mode approval/write groups; stage uses {quoted(_strings(initialized, 'stage_action_kinds'))}, bound to its observed preimage, and must audit as a regular digest-matching file; review mode is a full-file `modify` from and to one of {quoted(_strings(initialized, 'review_modes'))}, preserving every other authority value.",
         f"- Installed execution uses `{execution['cli']}` and ledger schema version {execution['ledger_schema_version']}. Preflight and audit are link/reparse-safe; {execution['audit_reads']}.",
     ))
 
@@ -195,6 +206,64 @@ def _assert_root_identity(root: Path, expected: tuple[int, int]) -> None:
     if _link_kind(metadata) or not stat.S_ISDIR(metadata.st_mode) or _identity(metadata) != expected: raise ValueError(f"project root changed during validation: {root}")
 
 
+@dataclasses.dataclass
+class _PinnedRoot:
+    path: Path
+    identity: tuple[int, int]
+    descriptor: int | None
+
+
+_HAS_DIR_FD = (
+    os.open in os.supports_dir_fd
+    and os.stat in os.supports_dir_fd
+    and os.stat in os.supports_follow_symlinks
+    and os.scandir in os.supports_fd
+)
+
+
+def _assert_pinned_root(root: _PinnedRoot) -> None:
+    try:
+        lexical = os.lstat(root.path)
+        opened = os.fstat(root.descriptor) if root.descriptor is not None else lexical
+    except (FileNotFoundError, OSError):
+        raise ValueError(f"project root changed during validation: {root.path}") from None
+    if (
+        _link_kind(lexical)
+        or not stat.S_ISDIR(lexical.st_mode)
+        or not stat.S_ISDIR(opened.st_mode)
+        or _identity(lexical) != root.identity
+        or _identity(opened) != root.identity
+    ):
+        raise ValueError(f"project root changed during validation: {root.path}")
+
+
+@contextlib.contextmanager
+def _pinned_root(root: Path | _PinnedRoot) -> Iterator[_PinnedRoot]:
+    if isinstance(root, _PinnedRoot):
+        _assert_pinned_root(root)
+        yield root
+        _assert_pinned_root(root)
+        return
+    safe = _real_root(root)
+    metadata = os.lstat(safe)
+    descriptor: int | None = None
+    if _HAS_DIR_FD:
+        flags = os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0))
+        descriptor = os.open(safe, flags)
+        opened = os.fstat(descriptor)
+        if _link_kind(opened) or not stat.S_ISDIR(opened.st_mode) or _identity(opened) != _identity(metadata):
+            os.close(descriptor)
+            raise ValueError(f"project root changed while it was pinned: {safe}")
+    pinned = _PinnedRoot(safe, _identity(metadata), descriptor)
+    try:
+        _assert_pinned_root(pinned)
+        yield pinned
+        _assert_pinned_root(pinned)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def _real_root(root: Path) -> Path:
     candidate = Path(os.path.abspath(os.fspath(root)))
     _validate_root_ancestry(candidate)
@@ -218,7 +287,7 @@ def _real_root(root: Path) -> Path:
     return canonical
 
 
-def _relative_state(root: Path, relative: str) -> tuple[str, os.stat_result | None]:
+def _relative_state_lexical(root: Path, relative: str) -> tuple[str, os.stat_result | None]:
     current = root
     for index, part in enumerate(PurePosixPath(relative).parts):
         current /= part
@@ -234,13 +303,170 @@ def _relative_state(root: Path, relative: str) -> tuple[str, os.stat_result | No
     return _raise_unsafe(f"unsafe path type: {current}")
 
 
+def _missing_relative_state(relative: str, index: int, current: Path) -> tuple[str, None]:
+    parts = PurePosixPath(relative).parts
+    if parts[:index + 1] in ((".codex",), ("production",)) and relative in {".codex/studio.toml", "production/stage.txt"}:
+        return "missing", None
+    if index == len(parts) - 1:
+        return "missing", None
+    raise ValueError(f"missing parent: {current}")
+
+
+def _relative_state_pinned(root: _PinnedRoot, relative: str) -> tuple[str, os.stat_result | None]:
+    _assert_pinned_root(root)
+    if root.descriptor is None:
+        result = _relative_state_lexical(root.path, relative)
+        _assert_pinned_root(root)
+        return result
+    parts = PurePosixPath(relative).parts
+    descriptor = os.dup(root.descriptor)
+    try:
+        for index, part in enumerate(parts):
+            current = root.path.joinpath(*parts[:index + 1])
+            try:
+                metadata = os.stat(part, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                return _missing_relative_state(relative, index, current)
+            if _link_kind(metadata):
+                raise ValueError(f"unsafe link or reparse point: {current}")
+            if index < len(parts) - 1:
+                if not stat.S_ISDIR(metadata.st_mode):
+                    raise ValueError(f"non-directory parent: {current}")
+                child = os.open(
+                    part,
+                    os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+                    dir_fd=descriptor,
+                )
+                opened = os.fstat(child)
+                if _identity(metadata) != _identity(opened) or not stat.S_ISDIR(opened.st_mode):
+                    os.close(child)
+                    raise ValueError(f"path changed while it was opened: {current}")
+                os.close(descriptor)
+                descriptor = child
+        if stat.S_ISDIR(metadata.st_mode):
+            return "directory", metadata
+        if stat.S_ISREG(metadata.st_mode):
+            return "regular", metadata
+        raise ValueError(f"unsafe path type: {root.path / relative}")
+    finally:
+        os.close(descriptor)
+
+
+def _relative_state(root: Path | _PinnedRoot, relative: str) -> tuple[str, os.stat_result | None]:
+    if isinstance(root, _PinnedRoot):
+        return _relative_state_pinned(root, relative)
+    return _relative_state_lexical(root, relative)
+
+
+def _open_relative_directory(root: _PinnedRoot, relative: str) -> int | None:
+    if root.descriptor is None:
+        return None
+    descriptor = os.dup(root.descriptor)
+    for index, part in enumerate(PurePosixPath(relative).parts):
+        try:
+            before = os.stat(part, dir_fd=descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            os.close(descriptor)
+            return None
+        current = root.path.joinpath(*PurePosixPath(relative).parts[:index + 1])
+        if _link_kind(before) or not stat.S_ISDIR(before.st_mode):
+            os.close(descriptor)
+            raise ValueError(f"unsafe inventory directory: {current}")
+        child = os.open(
+            part,
+            os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+            dir_fd=descriptor,
+        )
+        opened = os.fstat(child)
+        os.close(descriptor)
+        if _identity(before) != _identity(opened) or not stat.S_ISDIR(opened.st_mode):
+            os.close(child)
+            raise ValueError(f"inventory directory changed while opened: {current}")
+        descriptor = child
+    return descriptor
+
+
+def _scan_tree_files(root: _PinnedRoot, relative: str, suffixes: set[str] | None = None) -> list[Path]:
+    _assert_pinned_root(root)
+    if root.descriptor is None:
+        base = root.path / relative
+        result = [
+            path for path in base.rglob("*")
+            if base.is_dir() and path.is_file() and path.name not in {"AGENTS.md", ".gitkeep"}
+            and (suffixes is None or path.suffix in suffixes)
+        ]
+        _assert_pinned_root(root)
+        return result
+    base_descriptor = _open_relative_directory(root, relative)
+    if base_descriptor is None:
+        return []
+    result: list[Path] = []
+
+    def visit(descriptor: int, prefix: PurePosixPath) -> None:
+        with os.scandir(descriptor) as entries:
+            for entry in entries:
+                metadata = entry.stat(follow_symlinks=False)
+                if _link_kind(metadata):
+                    continue
+                child_relative = prefix / entry.name
+                if stat.S_ISDIR(metadata.st_mode):
+                    child = os.open(
+                        entry.name,
+                        os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+                        dir_fd=descriptor,
+                    )
+                    try:
+                        opened = os.fstat(child)
+                        if _identity(metadata) != _identity(opened) or not stat.S_ISDIR(opened.st_mode):
+                            raise ValueError(f"inventory entry changed while opened: {root.path / child_relative}")
+                        visit(child, child_relative)
+                    finally:
+                        os.close(child)
+                elif (
+                    stat.S_ISREG(metadata.st_mode)
+                    and entry.name not in {"AGENTS.md", ".gitkeep"}
+                    and (suffixes is None or PurePosixPath(entry.name).suffix in suffixes)
+                ):
+                    result.append(root.path / child_relative)
+
+    try:
+        visit(base_descriptor, PurePosixPath(relative))
+    finally:
+        os.close(base_descriptor)
+    _assert_pinned_root(root)
+    return result
+
+
+def _scan_directories(root: _PinnedRoot, relative: str) -> list[Path]:
+    _assert_pinned_root(root)
+    if root.descriptor is None:
+        base = root.path / relative
+        result = [path for path in base.iterdir() if path.is_dir()] if base.is_dir() else []
+        _assert_pinned_root(root)
+        return result
+    descriptor = _open_relative_directory(root, relative)
+    if descriptor is None:
+        return []
+    try:
+        with os.scandir(descriptor) as entries:
+            return [
+                root.path / relative / entry.name for entry in entries
+                if not _link_kind(entry.stat(follow_symlinks=False))
+                and stat.S_ISDIR(entry.stat(follow_symlinks=False).st_mode)
+            ]
+    finally:
+        os.close(descriptor)
+
+
 def _raise_unsafe(message: str): raise ValueError(message)
-def observed_directories(root: Path) -> dict[str, str]:
-    safe = _real_root(root)
-    identity = _identity(os.lstat(safe))
-    observed = {path: _relative_state(safe, path)[0] for path in _strings(_mapping(START_INITIALIZATION_CONTRACT, "first_run"), "allowed_parent_directories")}
-    _assert_root_identity(safe, identity)
-    return observed
+def observed_directories(root: Path | _PinnedRoot) -> dict[str, str]:
+    with _pinned_root(root) as pinned:
+        observed = {
+            path: _relative_state(pinned, path)[0]
+            for path in _strings(_mapping(START_INITIALIZATION_CONTRACT, "first_run"), "allowed_parent_directories")
+        }
+        _assert_pinned_root(pinned)
+        return observed
 
 
 def validate_session(session: Mapping[str, object], *, directories: Mapping[str, object] | None = None, audit: bool = False) -> None:
@@ -252,58 +478,174 @@ def validate_session(session: Mapping[str, object], *, directories: Mapping[str,
 
 def preflight_session(session: Mapping[str, object], root: Path) -> dict[str, object]:
     if not isinstance(session, Mapping): raise ValueError("Start ledger must be a JSON object")
-    safe = _real_root(root); identity = _identity(os.lstat(safe)); detected = detect_project_state(safe)
-    if detected["authority_state"] == "repair-block": raise ValueError("invalid studio authority blocks Start initialization")
-    if session.get("authority_state") != detected["authority_state"]: raise ValueError("Start ledger authority state differs from the observed project")
-    validate_session(session, directories=observed_directories(safe))
-    if session["authority_state"] == "initialized": _verify_review_mode_preflight(session, load_studio_config(safe))
-    _assert_root_identity(safe, identity); return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
+    with _pinned_root(root) as pinned:
+        detected = detect_project_state(pinned)
+        if detected["authority_state"] == "repair-block": raise ValueError("invalid studio authority blocks Start initialization")
+        if session.get("authority_state") != detected["authority_state"]: raise ValueError("Start ledger authority state differs from the observed project")
+        validate_session(session, directories=observed_directories(pinned))
+        _verify_stage_preflight(session, pinned)
+        if session["authority_state"] == "initialized":
+            _verify_review_mode_preflight(session, _load_studio_config_pinned(pinned))
+        _assert_pinned_root(pinned)
+        return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "preflight", "status": "ok"}
 
 
 def audit_session(session: Mapping[str, object], root: Path) -> dict[str, object]:
     if not isinstance(session, Mapping): raise ValueError("Start ledger must be a JSON object")
-    safe = _real_root(root); identity = _identity(os.lstat(safe)); validate_session(session, directories=observed_directories(safe), audit=True); _assert_root_identity(safe, identity)
-    for write in _writes_from_session(session):
-        _assert_root_identity(safe, identity)
-        state, meta = _relative_state(safe, write["path"])
-        if write["kind"] == "delete":
-            if state != "missing": raise ValueError(f"audit deleted path still exists: {write['path']}")
-        elif write["kind"] == "directory-create":
-            if state != "directory": raise ValueError(f"audit missing created directory: {write['path']}")
-        elif state != "regular" or _secure_digest(safe, write["path"], meta) != write["sha256"]: raise ValueError(f"audit digest mismatch: {write['path']}")
-        _assert_root_identity(safe, identity)
-    if session["authority_state"] == "initialized": _verify_review_mode_audit(session, safe)
-    return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "audit", "status": "ok"}
+    with _pinned_root(root) as pinned:
+        validate_session(session, directories=observed_directories(pinned), audit=True)
+        for write in _writes_from_session(session):
+            _assert_pinned_root(pinned)
+            state, meta = _relative_state(pinned, write["path"])
+            if write["kind"] == "delete":
+                if state != "missing": raise ValueError(f"audit deleted path still exists: {write['path']}")
+            elif write["kind"] == "directory-create":
+                if state != "directory": raise ValueError(f"audit missing created directory: {write['path']}")
+            elif state != "regular" or _secure_digest(pinned, write["path"], meta) != write["sha256"]:
+                raise ValueError(f"audit digest mismatch: {write['path']}")
+            _assert_pinned_root(pinned)
+        if session["authority_state"] == "initialized":
+            _verify_review_mode_audit(session, _load_studio_config_pinned(pinned))
+        _assert_pinned_root(pinned)
+        return {"contract_sha256": contract_fingerprint(), "ledger_schema_version": 1, "mode": "audit", "status": "ok"}
 
 
-def _secure_digest(root: Path, relative: str, before: os.stat_result | None) -> str:
+def _secure_digest(root: _PinnedRoot, relative: str, before: os.stat_result | None) -> str:
     assert before is not None
-    path = root / relative; descriptor = os.open(path, os.O_RDONLY | int(getattr(os, "O_BINARY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)))
+    _assert_pinned_root(root)
+    parent, name = _open_file_parent(root, relative)
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | int(getattr(os, "O_BINARY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+        dir_fd=parent,
+    ) if parent is not None else os.open(
+        root.path / relative,
+        os.O_RDONLY | int(getattr(os, "O_BINARY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+    )
     try:
         opened = os.fstat(descriptor)
         if _link_kind(opened) or not stat.S_ISREG(opened.st_mode) or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino): raise ValueError(f"audit target changed while opened: {relative}")
         digest = hashlib.sha256()
         while chunk := os.read(descriptor, 1024 * 1024): digest.update(chunk)
-    finally: os.close(descriptor)
+    finally:
+        os.close(descriptor)
+        if parent is not None:
+            os.close(parent)
     state, after = _relative_state(root, relative)
     if state != "regular" or after is None or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino): raise ValueError(f"audit target changed after read: {relative}")
     return digest.hexdigest()
 
 
-def detect_project_state(root: Path) -> dict[str, object]:
-    root = _real_root(root); identity = _identity(os.lstat(root)); state, _ = _relative_state(root, ".codex/studio.toml")
-    authority_state, engine, error = "missing", "unconfigured", None
-    if state == "regular":
-        try: engine, authority_state = load_studio_config(root).engine, "initialized"
-        except ValueError: authority_state, engine, error = "repair-block", None, "invalid-studio-authority"
-    elif state != "missing": authority_state, engine, error = "repair-block", None, "invalid-studio-authority"
-    roots = {"source_files": (root / "src", {".gd", ".cs", ".cpp", ".h", ".rs", ".py", ".js", ".ts"}), "design_docs": (root / "design/gdd", {".md"})}
-    files = {name: [p for p in base.rglob("*") if base.is_dir() and p.is_file() and p.name not in {"AGENTS.md", ".gitkeep"} and p.suffix in suffixes] for name, (base, suffixes) in roots.items()}
-    prototypes = [p for p in (root / "prototypes").iterdir() if p.is_dir()] if (root / "prototypes").is_dir() else []
-    production = [p for base in (root / "production/sprints", root / "production/milestones") if base.is_dir() for p in base.rglob("*") if p.is_file() and p.name not in {"AGENTS.md", ".gitkeep"}]
-    result = {"engine": engine, "authority_state": authority_state, "authority_error": error, **files, "prototypes": prototypes, "production_files": production, "fresh": authority_state != "repair-block" and engine == "unconfigured" and not (root / "design/gdd/game-concept.md").is_file() and not any(files.values()) and not prototypes and not production}
-    _assert_root_identity(root, identity)
-    return result
+def _open_file_parent(root: _PinnedRoot, relative: str) -> tuple[int | None, str]:
+    parts = PurePosixPath(relative).parts
+    if root.descriptor is None:
+        return None, parts[-1]
+    descriptor = os.dup(root.descriptor)
+    for index, part in enumerate(parts[:-1]):
+        before = os.stat(part, dir_fd=descriptor, follow_symlinks=False)
+        current = root.path.joinpath(*parts[:index + 1])
+        if _link_kind(before) or not stat.S_ISDIR(before.st_mode):
+            os.close(descriptor)
+            raise ValueError(f"unsafe file parent: {current}")
+        child = os.open(
+            part,
+            os.O_RDONLY | int(getattr(os, "O_DIRECTORY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+            dir_fd=descriptor,
+        )
+        opened = os.fstat(child)
+        os.close(descriptor)
+        if _identity(before) != _identity(opened) or not stat.S_ISDIR(opened.st_mode):
+            os.close(child)
+            raise ValueError(f"file parent changed while opened: {current}")
+        descriptor = child
+    return descriptor, parts[-1]
+
+
+def _secure_bytes(root: _PinnedRoot, relative: str) -> bytes:
+    state, before = _relative_state(root, relative)
+    if state != "regular" or before is None:
+        raise ValueError(f"strict file is not regular: {relative}")
+    parent, name = _open_file_parent(root, relative)
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | int(getattr(os, "O_BINARY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+        dir_fd=parent,
+    ) if parent is not None else os.open(
+        root.path / relative,
+        os.O_RDONLY | int(getattr(os, "O_BINARY", 0)) | int(getattr(os, "O_NOFOLLOW", 0)),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if _link_kind(opened) or not stat.S_ISREG(opened.st_mode) or _identity(before) != _identity(opened):
+            raise ValueError(f"strict file changed while opened: {relative}")
+        chunks: list[bytes] = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+    finally:
+        os.close(descriptor)
+        if parent is not None:
+            os.close(parent)
+    state, after = _relative_state(root, relative)
+    if state != "regular" or after is None or _identity(before) != _identity(after):
+        raise ValueError(f"strict file changed after read: {relative}")
+    return b"".join(chunks)
+
+
+def _load_studio_config_pinned(root: _PinnedRoot) -> StudioConfig:
+    try:
+        data = tomllib.loads(_secure_bytes(root, ".codex/studio.toml").decode("utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError) as error:
+        raise ValueError(f"invalid studio config: {error}") from error
+    config = _config_from_mapping(data)
+    if config.engine not in (*SUPPORTED_ENGINES, "unconfigured"):
+        raise ValueError(f"invalid studio config engine: {config.engine}")
+    if config.active_engine_pack not in (*SUPPORTED_ENGINES, "none"):
+        raise ValueError(f"invalid studio config active_engine_pack: {config.active_engine_pack}")
+    if config.engine == "unconfigured" and config.active_engine_pack != "none":
+        raise ValueError("invalid studio config: unconfigured engine requires active_engine_pack = none")
+    if config.engine in SUPPORTED_ENGINES and config.active_engine_pack != config.engine:
+        raise ValueError("invalid studio config: engine and active_engine_pack differ")
+    if config.engine in SUPPORTED_ENGINES:
+        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=False)
+    allowed = _strings(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "review_modes")
+    _validate_text(config.review_mode, "review mode", required=True)
+    if config.review_mode not in allowed:
+        raise ValueError(f"invalid studio config review_mode: {config.review_mode}")
+    _validate_text(config.model_policy, "model policy", required=True)
+    return config
+
+
+def detect_project_state(root: Path | _PinnedRoot) -> dict[str, object]:
+    with _pinned_root(root) as pinned:
+        state, _ = _relative_state(pinned, ".codex/studio.toml")
+        authority_state, engine, error = "missing", "unconfigured", None
+        if state == "regular":
+            try:
+                engine, authority_state = _load_studio_config_pinned(pinned).engine, "initialized"
+            except ValueError:
+                authority_state, engine, error = "repair-block", None, "invalid-studio-authority"
+        elif state != "missing":
+            authority_state, engine, error = "repair-block", None, "invalid-studio-authority"
+        files = {
+            "source_files": _scan_tree_files(pinned, "src", {".gd", ".cs", ".cpp", ".h", ".rs", ".py", ".js", ".ts"}),
+            "design_docs": _scan_tree_files(pinned, "design/gdd", {".md"}),
+        }
+        prototypes = _scan_directories(pinned, "prototypes")
+        production = [
+            *_scan_tree_files(pinned, "production/sprints"),
+            *_scan_tree_files(pinned, "production/milestones"),
+        ]
+        result = {
+            "engine": engine,
+            "authority_state": authority_state,
+            "authority_error": error,
+            **files,
+            "prototypes": prototypes,
+            "production_files": production,
+            "fresh": authority_state != "repair-block" and engine == "unconfigured" and not any(files.values()) and not prototypes and not production,
+        }
+        _assert_pinned_root(pinned)
+        return result
 
 
 def _validate_first_run(events: Sequence[object], directories: Mapping[str, str], *, audit: bool) -> None:
@@ -316,6 +658,9 @@ def _validate_first_run(events: Sequence[object], directories: Mapping[str, str]
     _validate_actions(actions, directories, audit=audit)
     has_stage = any(action["path"] == "production/stage.txt" for action in actions)
     if has_stage != (typed[1]["next_step"] == "setup-engine"): raise ValueError("selected next step does not match stage proposal")
+    for action in actions:
+        if action["path"] == "production/stage.txt" and action["kind"] not in _stage_action_kinds():
+            raise ValueError("stage action must leave a regular digest-bound production/stage.txt")
     digest = hashlib.sha256(START_INITIALIZATION_CONTRACT["default_authority_toml"].encode()).hexdigest()
     if len([a for a in actions if a["path"] == ".codex/studio.toml" and a["kind"] == "create" and a["sha256"] == digest]) != 1: raise ValueError("missing authority requires exact studio.toml action")
     _reconcile_writes(actions, typed[4:])
@@ -334,7 +679,12 @@ def _validate_initialized(events: Sequence[object], directories: Mapping[str, st
         if kind == "review-mode-proposal":
             if len(actions) != 1 or actions[0]["kind"] != "modify": raise ValueError("review-mode proposal must be one full authority modify without a parent action")
             _review_mode_transition(proposal, actions[0])
-        elif len(actions) == 2 and not (actions[0]["kind"] == "directory-create" and actions[0]["required_by"] == target and actions[1]["path"] == target) or len(actions) not in {1, 2}: raise ValueError("proposal parent must immediately precede its sole target")
+        elif (
+            actions[-1]["kind"] not in _stage_action_kinds()
+            or len(actions) == 2 and not (actions[0]["kind"] == "directory-create" and actions[0]["required_by"] == target and actions[1]["path"] == target)
+            or len(actions) not in {1, 2}
+        ):
+            raise ValueError("stage proposal must leave its sole target regular and digest-bound")
         if seen_paths.intersection(a["path"] for a in actions): raise ValueError("initialized proposal repeats a mutation path")
         writes = typed[index + 2:index + 2 + len(actions)]; _reconcile_writes(actions, writes); seen_types.add(kind); seen_paths.update(a["path"] for a in actions); index += 2 + len(actions)
 
@@ -343,6 +693,8 @@ def _review_mode_transition(proposal: Mapping[str, object], action: Mapping[str,
     before = _config_from_mapping(proposal["authority_before"])
     review_mode = proposal["review_mode"]
     allowed = _strings(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "review_modes")
+    if before.review_mode not in allowed:
+        raise ValueError("review-mode authority_before must use a current allowed value")
     if not isinstance(review_mode, str) or review_mode not in allowed or review_mode == before.review_mode: raise ValueError("review-mode proposal target must be a different allowed value")
     after = dataclasses.replace(before, review_mode=review_mode)
     expected_digest = hashlib.sha256(_serialize_config(after)).hexdigest()
@@ -360,13 +712,38 @@ def _verify_review_mode_preflight(session: Mapping[str, object], current: Studio
         if before != current: raise ValueError("review-mode proposal authority_before differs from current strict authority")
 
 
-def _verify_review_mode_audit(session: Mapping[str, object], root: Path) -> None:
+def _verify_review_mode_audit(session: Mapping[str, object], actual: StudioConfig) -> None:
     proposals = _review_mode_proposals(session)
     if not proposals: return
-    actual = load_studio_config(root)
     for proposal in proposals:
         _, expected = _review_mode_transition(proposal, _action_mappings(proposal["actions"])[0])
         if actual != expected: raise ValueError("review-mode audit changed authority fields beyond the approved review_mode")
+
+
+def _stage_action_kinds() -> tuple[str, ...]:
+    return _strings(_mapping(START_INITIALIZATION_CONTRACT, "initialized"), "stage_action_kinds")
+
+
+def _verify_stage_preflight(session: Mapping[str, object], root: _PinnedRoot) -> None:
+    actions = [
+        action
+        for event in _event_mappings(session["events"])
+        if event["type"] in {"initialization-changeset", "stage-proposal"}
+        for action in _action_mappings(event["actions"])
+        if action["path"] == "production/stage.txt"
+    ]
+    if not actions:
+        return
+    if len(actions) != 1:
+        raise ValueError("Start ledger must contain at most one stage mutation")
+    state, _ = _relative_state(root, "production/stage.txt")
+    kind = actions[0]["kind"]
+    if kind == "create" and state != "missing":
+        raise ValueError("stage create requires a missing production/stage.txt")
+    if kind in {"modify", "merge"} and state != "regular":
+        raise ValueError("stage modify or merge requires an existing regular production/stage.txt")
+    if kind not in _stage_action_kinds():
+        raise ValueError("stage action must leave a regular digest-bound production/stage.txt")
 
 
 def _validate_actions(actions: Sequence[Mapping[str, object]], directories: Mapping[str, str], *, audit: bool) -> None:

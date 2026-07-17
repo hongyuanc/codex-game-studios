@@ -162,6 +162,29 @@ class StartSkillTests(unittest.TestCase):
 
             self.assertTrue((linked / ".git").is_file())
             self.assertEqual("missing", detect_project_state(linked)["authority_state"])
+            with mock.patch(
+                "tools.codex_studio.start_initialization._HAS_DIR_FD", False
+            ):
+                self.assertEqual("missing", detect_project_state(linked)["authority_state"])
+
+    def test_start_lexical_fallback_preflights_and_audits_with_identity_guards(self):
+        example = ledger_schema()["examples"]["initialized_review_mode"]
+        session = json.loads(json.dumps(example["session"]))
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
+            target = project / ".codex/studio.toml"
+            target.write_text(contract()["default_authority_toml"], encoding="utf-8")
+
+            with mock.patch(
+                "tools.codex_studio.start_initialization._HAS_DIR_FD", False
+            ):
+                self.assertEqual("ok", preflight_session(session, project)["status"])
+                target.write_text(
+                    example["write_contents"][".codex/studio.toml"], encoding="utf-8"
+                )
+                self.assertEqual("ok", audit_session(session, project)["status"])
 
     def test_start_rejects_swappable_symlink_in_project_root_ancestry(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -192,6 +215,127 @@ class StartSkillTests(unittest.TestCase):
                 side_effect=swap_after_identity_check,
             ), self.assertRaises(ValueError):
                 detect_project_state(parent_link / "project")
+
+    def test_start_preflight_and_audit_reject_real_root_a_to_b_to_a_replacement(self):
+        authority = contract()["default_authority_toml"]
+        thorough_before = authority.replace(
+            'model_policy = "balanced"', 'model_policy = "thorough"'
+        )
+        balanced_after = authority.replace(
+            'review_mode = "phase-gated"', 'review_mode = "full"'
+        )
+        thorough_after = thorough_before.replace(
+            'review_mode = "phase-gated"', 'review_mode = "full"'
+        )
+        example = ledger_schema()["examples"]["initialized_review_mode"]
+        session = json.loads(json.dumps(example["session"]))
+        proposal = session["events"][1]
+        proposal["authority_before"]["model_policy"] = "thorough"
+        digest = hashlib.sha256(thorough_after.encode()).hexdigest()
+        proposal["actions"][0]["sha256"] = digest
+        session["events"][3]["sha256"] = digest
+
+        for operation in ("preflight", "audit"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                requested = base / "project"
+                other = base / "other"
+                parked = base / "parked-a"
+                for repository in (requested, other):
+                    (repository / ".codex").mkdir(parents=True)
+                    make_git_root(repository)
+                (requested / ".codex/studio.toml").write_text(
+                    authority if operation == "preflight" else balanced_after,
+                    encoding="utf-8",
+                )
+                (other / ".codex/studio.toml").write_text(
+                    thorough_before if operation == "preflight" else thorough_after,
+                    encoding="utf-8",
+                )
+                swapped = False
+
+                def swap_to_b() -> None:
+                    nonlocal swapped
+                    requested.rename(parked)
+                    other.rename(requested)
+                    swapped = True
+
+                def restore_a() -> None:
+                    nonlocal swapped
+                    requested.rename(other)
+                    parked.rename(requested)
+                    swapped = False
+
+                if operation == "preflight":
+                    real_detect = detect_project_state
+                    real_load = load_studio_config
+                    load_count = 0
+
+                    def swapped_detect(root: object) -> dict[str, object]:
+                        swap_to_b()
+                        try:
+                            return real_detect(root)
+                        except ValueError:
+                            restore_a()
+                            raise
+
+                    def restoring_load(root: Path):
+                        nonlocal load_count
+                        loaded = real_load(root)
+                        load_count += 1
+                        if load_count == 2:
+                            restore_a()
+                        return loaded
+
+                    patches = (
+                        mock.patch(
+                            "tools.codex_studio.start_initialization.detect_project_state",
+                            side_effect=swapped_detect,
+                        ),
+                        mock.patch(
+                            "tools.codex_studio.start_initialization.load_studio_config",
+                            side_effect=restoring_load,
+                        ),
+                    )
+                else:
+                    from tools.codex_studio import start_initialization as start_module
+
+                    real_observed = start_module.observed_directories
+                    real_load = load_studio_config
+
+                    def swapped_observed(root: object) -> dict[str, str]:
+                        swap_to_b()
+                        try:
+                            return real_observed(root)
+                        except ValueError:
+                            restore_a()
+                            raise
+
+                    def restoring_load(root: Path):
+                        loaded = real_load(root)
+                        restore_a()
+                        return loaded
+
+                    patches = (
+                        mock.patch(
+                            "tools.codex_studio.start_initialization.observed_directories",
+                            side_effect=swapped_observed,
+                        ),
+                        mock.patch(
+                            "tools.codex_studio.start_initialization.load_studio_config",
+                            side_effect=restoring_load,
+                        ),
+                    )
+
+                try:
+                    with patches[0], patches[1], self.assertRaises(ValueError):
+                        if operation == "preflight":
+                            preflight_session(session, requested)
+                        else:
+                            audit_session(session, requested)
+                finally:
+                    if swapped:
+                        restore_a()
 
     def test_start_missing_ancestry_is_limited_to_approved_target_parents(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -476,6 +620,179 @@ class StartSkillTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 preflight_session(session, project)
 
+    def test_start_rejects_noncanonical_current_review_mode_in_validation_preflight_and_audit(self):
+        authority = contract()["default_authority_toml"]
+        bogus = authority.replace(
+            'review_mode = "phase-gated"', 'review_mode = "bogus"'
+        )
+        after = authority.replace(
+            'review_mode = "phase-gated"', 'review_mode = "full"'
+        )
+        session = json.loads(json.dumps(
+            ledger_schema()["examples"]["initialized_review_mode"]["session"]
+        ))
+        session["events"][1]["authority_before"]["review_mode"] = "bogus"
+
+        with self.assertRaises(ValueError):
+            validate_session(session)
+
+        for operation, content in (("preflight", bogus), ("audit", after)):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                (project / ".codex").mkdir(parents=True)
+                make_git_root(project)
+                (project / ".codex/studio.toml").write_text(content, encoding="utf-8")
+
+                if operation == "preflight":
+                    self.assertEqual("repair-block", detect_project_state(project)["authority_state"])
+                    with self.assertRaises(ValueError):
+                        preflight_session(session, project)
+                else:
+                    with self.assertRaises(ValueError):
+                        audit_session(session, project)
+
+    def test_start_bundled_cli_rejects_noncanonical_current_review_mode(self):
+        authority = contract()["default_authority_toml"]
+        bogus = authority.replace(
+            'review_mode = "phase-gated"', 'review_mode = "bogus"'
+        )
+        after = authority.replace(
+            'review_mode = "phase-gated"', 'review_mode = "full"'
+        )
+        session = json.loads(json.dumps(
+            ledger_schema()["examples"]["initialized_review_mode"]["session"]
+        ))
+        session["events"][1]["authority_before"]["review_mode"] = "bogus"
+
+        with tempfile.TemporaryDirectory() as directory:
+            external = Path(directory) / "external"
+            project = external / "project"
+            (project / ".codex").mkdir(parents=True)
+            make_git_root(project)
+            ledger = external / "ledger.json"
+            ledger.write_text(json.dumps(session), encoding="utf-8")
+            studio = project / ".codex/studio.toml"
+            environment = {**os.environ, "PYTHONPATH": ""}
+
+            for operation, content in (("--preflight", bogus), ("--audit", after)):
+                studio.write_text(content, encoding="utf-8")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-B",
+                        str(BUNDLED_START_VALIDATOR),
+                        operation,
+                        str(ledger),
+                        "--project-root",
+                        str(project),
+                    ],
+                    cwd=external,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                with self.subTest(operation=operation):
+                    self.assertEqual(2, result.returncode, result.stdout)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_start_stage_groups_never_delete_and_audit_requires_regular_digest_result(self):
+        first_run = json.loads(json.dumps(
+            ledger_schema()["examples"]["first_run_setup_engine"]["session"]
+        ))
+        first_run["events"][2]["actions"] = [
+            action for action in first_run["events"][2]["actions"]
+            if action["path"] != "production"
+        ]
+        first_run["events"] = [
+            event for event in first_run["events"]
+            if not (event["type"] == "write" and event["path"] == "production")
+        ]
+        initialized_delete = initialized_stage_session(
+            {
+                "path": "production/stage.txt",
+                "kind": "delete",
+                "material_change": "delete stage",
+                "form": "atomic",
+                "expanded_paths": ["production/stage.txt"],
+                "sha256": None,
+            }
+        )
+        for event in first_run["events"]:
+            if event["type"] == "initialization-changeset":
+                stage = next(
+                    action for action in event["actions"]
+                    if action["path"] == "production/stage.txt"
+                )
+                stage["kind"] = "delete"
+                stage["sha256"] = None
+            elif event["type"] == "write" and event["path"] == "production/stage.txt":
+                event["kind"] = "delete"
+                event["sha256"] = None
+
+        for name, session in (("first-run", first_run), ("initialized", initialized_delete)):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                validate_session(session)
+
+            with self.subTest(name=f"{name}-audit"), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                (project / ".codex").mkdir(parents=True)
+                (project / "production").mkdir()
+                make_git_root(project)
+                (project / ".codex/studio.toml").write_text(
+                    contract()["default_authority_toml"], encoding="utf-8"
+                )
+                with self.assertRaises(ValueError):
+                    audit_session(session, project)
+
+    def test_start_stage_action_kind_must_match_observed_target_state(self):
+        digest = hashlib.sha256(b"Concept\n").hexdigest()
+        cases = (
+            ("first-run-create-existing", "missing", "create", True),
+            ("first-run-modify-missing", "missing", "modify", False),
+            ("initialized-create-existing", "initialized", "create", True),
+            ("initialized-modify-missing", "initialized", "modify", False),
+        )
+        for name, authority_state, kind, stage_exists in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                (project / ".codex").mkdir(parents=True)
+                (project / "production").mkdir()
+                make_git_root(project)
+                if authority_state == "initialized":
+                    (project / ".codex/studio.toml").write_text(
+                        contract()["default_authority_toml"], encoding="utf-8"
+                    )
+                if stage_exists:
+                    (project / "production/stage.txt").write_text("Old\n", encoding="utf-8")
+
+                stage = {
+                    "path": "production/stage.txt",
+                    "kind": kind,
+                    "material_change": "write stage",
+                    "form": "atomic",
+                    "expanded_paths": ["production/stage.txt"],
+                    "sha256": digest,
+                }
+                if authority_state == "initialized":
+                    session = initialized_stage_session(stage)
+                else:
+                    session = valid_initialization_session(contract())
+                    session["events"][1]["next_step"] = "setup-engine"
+                    session["events"][2]["actions"].append(stage)
+                    session["events"].append(
+                        {
+                            "type": "write",
+                            "path": stage["path"],
+                            "kind": stage["kind"],
+                            "material_change": stage["material_change"],
+                            "sha256": stage["sha256"],
+                        }
+                    )
+
+                with self.assertRaises(ValueError):
+                    preflight_session(session, project)
+
     def test_start_initialized_review_mode_audit_rejects_invalid_or_broadened_results(self):
         authority = contract()["default_authority_toml"]
         cases = {
@@ -690,6 +1007,7 @@ class StartSkillTests(unittest.TestCase):
             "missing key": complete.replace('model_policy = "balanced"\n', ""),
             "invalid enum": complete.replace('engine = "unconfigured"', 'engine = "mystery"'),
             "cross field": complete.replace('active_engine_pack = "none"', 'active_engine_pack = "godot"'),
+            "noncanonical review mode": complete.replace('review_mode = "phase-gated"', 'review_mode = "bogus"'),
         }
 
         # Act / Assert
