@@ -38,9 +38,14 @@ For a first run, the one Initialization changeset replaces the separate persiste
 - [ ] Review depth offers exactly `Full`, `Phase-gated (recommended)`, and `Solo`, mapping to `review_mode = "full"`, `review_mode = "phase-gated"`, and `review_mode = "solo"`.
 - [ ] `production/stage.txt` and `.codex/studio.toml` are each written only after its exact complete proposal is approved.
 - [ ] With no repository-root `.codex/studio.toml`, continue read-only project detection and present one `Initialization changeset` only after the selected next step.
-- [ ] The initialization changeset has at most 10 mutating actions and produces zero writes before explicit approval.
-- [ ] The default authority records engine/version/language as `unconfigured`, `review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
+- [ ] The initialization changeset has at most 10 path mutations and produces zero writes before explicit approval.
+- [ ] The complete default authority is `engine = "unconfigured"`, `engine_version = ""`, `language = ""`, `review_mode = "phase-gated"`, `active_engine_pack = "none"`, and `model_policy = "balanced"`.
+- [ ] Every created, modified, merged, or deleted filesystem path counts as one action, including directory creation and each file or managed-block edit. Each action lists one exact target and its material change; glob, recursive, tree-copy, and bulk actions are rejected, and a changeset that would exceed ten paths stops for replanning.
 - [ ] Initialization must not create `.agents/skills/`, `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine references, or speculative empty project directories; it must not initialize global or plugin resources.
+
+<!-- start-initialization-contract:start
+{"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","first_run":{"action_unit":"filesystem path","counted_path_mutations":["create","modify","merge","delete","directory-create","managed-block-edit"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_target_prefixes":[".agents/skills/",".codex/agents/",".codex/agent-packs/","Codex Studio Testing Framework/","docs/engine-reference/"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true}}
+start-initialization-contract:end -->
 
 ## Test Cases
 
@@ -84,14 +89,19 @@ For a first run, the one Initialization changeset replaces the separate persiste
    engine from `.codex/docs/technical-preferences.md`.
 3. After the selected next step, show one `Initialization changeset` containing
    only persistent authority required by that step.
-4. State the default authority: engine/version/language are `unconfigured`,
-   `review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
-5. Limit the changeset to at most 10 mutating actions and produce zero writes
+4. State the complete default authority: `engine = "unconfigured"`,
+   `engine_version = ""`, `language = ""`, `review_mode = "phase-gated"`,
+   `active_engine_pack = "none"`, and `model_policy = "balanced"`.
+5. Count every created, modified, merged, or deleted filesystem path as one
+   action, including directory creation and each file or managed-block edit.
+   List each exact target and material change; reject glob, recursive, tree-copy,
+   and bulk actions, and stop to replan if more than ten paths would mutate.
+6. Limit the changeset to at most 10 path mutations and produce zero writes
    before explicit approval.
-6. Treat that one proposal as replacing the separate persistent proposals in
+7. Treat that one proposal as replacing the separate persistent proposals in
    Phases 4-6; include `production/stage.txt` only when the selected next step
    requires it.
-7. Do not initialize global or plugin resources, `.agents/skills/`,
+8. Do not initialize global or plugin resources, `.agents/skills/`,
    `.codex/agents/`, `.codex/agent-packs/`, `Codex Studio Testing Framework/`,
    unselected engine references, or speculative empty project directories.
 

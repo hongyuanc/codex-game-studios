@@ -1,16 +1,122 @@
 from pathlib import Path
+import json
+import re
+import tempfile
 import tomllib
 import unittest
 
+from tools.codex_studio.engine_pack import load_studio_config
 from tools.codex_studio.validate import validate_skill
 
 
 ROOT = Path(__file__).resolve().parents[2]
 START = ROOT / ".agents/skills/start/SKILL.md"
+CONTRACT_PATTERN = re.compile(
+    r"<!-- start-initialization-contract:start\n(?P<contract>.*?)\n"
+    r"start-initialization-contract:end -->",
+    re.DOTALL,
+)
+
+
+def load_initialization_contract(text: str) -> dict[str, object]:
+    match = CONTRACT_PATTERN.search(text)
+    if match is None:
+        raise AssertionError("Start initialization contract is missing")
+    return json.loads(match.group("contract"))
+
+
+class InitializationContractHarness:
+    """Fail-closed test executor for Start's declared first-run contract."""
+
+    def __init__(self, contract: dict[str, object]):
+        self.contract = contract
+        self.first_run = contract["first_run"]
+
+    def validate_session(self, session: dict[str, object]) -> None:
+        events = session["events"]
+        authority_state = session["authority_state"]
+        changesets = [event for event in events if event["type"] == "changeset"]
+
+        if authority_state == "initialized":
+            if changesets:
+                raise ValueError("initialized repositories must not receive initialization changesets")
+            return
+        if authority_state != "missing":
+            raise ValueError("authority state is invalid")
+        if self.first_run["action_unit"] != "filesystem path":
+            raise ValueError("initialization action unit must be one filesystem path")
+        if not self.first_run["replan_above_max_path_mutations"]:
+            raise ValueError("initialization cap must require replanning")
+        if len(changesets) != self.first_run["initialization_changesets"]:
+            raise ValueError("missing authority requires exactly one initialization changeset")
+
+        approval_indexes = [
+            index for index, event in enumerate(events) if event["type"] == "approval"
+        ]
+        if len(approval_indexes) != 1:
+            raise ValueError("initialization changeset requires exactly one approval")
+        approval_index = approval_indexes[0]
+        for index, event in enumerate(events):
+            if event["type"] == "write" and index < approval_index:
+                raise ValueError("initialization writes require prior approval")
+
+        changeset = changesets[0]
+        if not any(event["type"] == "select-next-step" for event in events):
+            raise ValueError("initialization changeset requires a selected next step")
+        if changeset["authority_toml"] != self.contract["default_authority_toml"]:
+            raise ValueError("initialization authority differs from the complete default")
+        actions = changeset["actions"]
+        if not actions or len(actions) > self.first_run["max_path_mutations"]:
+            raise ValueError("initialization changeset path-mutation cap is violated")
+        for action in actions:
+            self._validate_action(action)
+
+    def _validate_action(self, action: dict[str, object]) -> None:
+        path = action["path"]
+        if not isinstance(path, str) or not path or any(token in path for token in "*?[]{}"):
+            raise ValueError("initialization action path must be exact")
+        if action["kind"] not in self.first_run["counted_path_mutations"]:
+            raise ValueError("initialization action kind is not atomic")
+        if not action["material_change"]:
+            raise ValueError("initialization action must describe its material change")
+        if any(
+            path.startswith(target)
+            for target in self.first_run["forbidden_target_prefixes"]
+        ):
+            raise ValueError("initialization action targets a forbidden resource")
+
+
+def valid_initialization_session(contract: dict[str, object]) -> dict[str, object]:
+    return {
+        "authority_state": "missing",
+        "events": [
+            {"type": "detect"},
+            {"type": "select-next-step"},
+            {
+                "type": "changeset",
+                "authority_toml": contract["default_authority_toml"],
+                "actions": [
+                    {
+                        "path": ".codex/studio.toml",
+                        "kind": "create",
+                        "material_change": "write the complete default authority",
+                    }
+                ],
+            },
+            {"type": "approval"},
+            {"type": "write", "path": ".codex/studio.toml"},
+        ],
+    }
 
 
 def detect_start_state(root: Path) -> dict[str, object]:
-    studio = tomllib.loads((root / ".codex/studio.toml").read_text(encoding="utf-8"))
+    studio_path = root / ".codex/studio.toml"
+    authority_state = "initialized" if studio_path.is_file() else "missing"
+    studio = (
+        tomllib.loads(studio_path.read_text(encoding="utf-8"))
+        if authority_state == "initialized"
+        else {"engine": "unconfigured"}
+    )
     instruction_only = {"AGENTS.md", ".gitkeep"}
     source_suffixes = {".gd", ".cs", ".cpp", ".h", ".rs", ".py", ".js", ".ts"}
     source_files = [
@@ -40,6 +146,7 @@ def detect_start_state(root: Path) -> dict[str, object]:
     )
     return {
         "engine": studio["engine"],
+        "authority_state": authority_state,
         "source_files": source_files,
         "design_docs": design_docs,
         "prototypes": prototypes,
@@ -49,6 +156,260 @@ def detect_start_state(root: Path) -> dict[str, object]:
 
 
 class StartSkillTests(unittest.TestCase):
+    def test_start_initialization_contract_loads_complete_default_authority(self):
+        # Arrange
+        contract = load_initialization_contract(START.read_text(encoding="utf-8"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            control = project / ".codex"
+            control.mkdir(parents=True)
+
+            # Act
+            (control / "studio.toml").write_text(
+                contract["default_authority_toml"], encoding="utf-8"
+            )
+            config = load_studio_config(project)
+
+            # Assert
+            self.assertEqual("unconfigured", config.engine)
+            self.assertEqual("", config.engine_version)
+            self.assertEqual("", config.language)
+            self.assertEqual("phase-gated", config.review_mode)
+            self.assertEqual("none", config.active_engine_pack)
+            self.assertEqual("balanced", config.model_policy)
+
+    def test_start_initialization_contract_executes_missing_authority_read_only_until_approval(self):
+        # Arrange
+        contract = load_initialization_contract(START.read_text(encoding="utf-8"))
+        harness = InitializationContractHarness(contract)
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            for path in (
+                ".codex",
+                "src",
+                "design/gdd",
+                "prototypes",
+                "production/sprints",
+                "production/milestones",
+            ):
+                (project / path).mkdir(parents=True, exist_ok=True)
+            before = sorted(path.relative_to(project).as_posix() for path in project.rglob("*"))
+
+            # Act
+            state = detect_start_state(project)
+            harness.validate_session(valid_initialization_session(contract))
+            after = sorted(path.relative_to(project).as_posix() for path in project.rglob("*"))
+
+            # Assert
+            self.assertEqual("missing", state["authority_state"])
+            self.assertTrue(state["fresh"])
+            self.assertEqual(before, after)
+
+    def test_start_initialization_contract_rejects_invalid_sessions(self):
+        # Arrange
+        contract = load_initialization_contract(START.read_text(encoding="utf-8"))
+        harness = InitializationContractHarness(contract)
+        valid = valid_initialization_session(contract)
+        eleven_actions = [
+            {
+                "path": f"production/path-{index}.txt",
+                "kind": "create",
+                "material_change": "create one explicit file",
+            }
+            for index in range(11)
+        ]
+        cases = {
+            "pre-approval write": {
+                **valid,
+                "events": [
+                    {"type": "detect"},
+                    {"type": "write", "path": ".codex/studio.toml"},
+                    *valid["events"][1:],
+                ],
+            },
+            "zero changesets": {
+                **valid,
+                "events": [{"type": "detect"}, {"type": "approval"}],
+            },
+            "multiple changesets": {
+                **valid,
+                "events": [
+                    *valid["events"][:3],
+                    valid["events"][2],
+                    *valid["events"][3:],
+                ],
+            },
+            "eleven paths": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": eleven_actions,
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "glob action": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": "production/*.txt",
+                                "kind": "create",
+                                "material_change": "bulk glob",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "recursive action": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": "production/recurse",
+                                "kind": "recursive",
+                                "material_change": "recursive mutation",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "tree action": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": "production/tree",
+                                "kind": "tree-copy",
+                                "material_change": "copy a tree",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "bulk action": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": "production/bulk",
+                                "kind": "bulk",
+                                "material_change": "bulk mutation",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "global target": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": ".agents/skills/start/SKILL.md",
+                                "kind": "create",
+                                "material_change": "install a global skill",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "unselected engine reference": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "actions": [
+                            {
+                                "path": "docs/engine-reference/unreal/VERSION.md",
+                                "kind": "create",
+                                "material_change": "initialize an unselected reference",
+                            }
+                        ],
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "incomplete authority": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "authority_toml": 'engine = "unconfigured"\n',
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+            "invalid authority": {
+                **valid,
+                "events": [
+                    *valid["events"][:2],
+                    {
+                        **valid["events"][2],
+                        "authority_toml": (
+                            'engine = "unconfigured"\n'
+                            'engine_version = ""\n'
+                            'language = ""\n'
+                            'review_mode = "phase-gated"\n'
+                            'active_engine_pack = "none"\n'
+                            'model_policy = ""\n'
+                        ),
+                    },
+                    *valid["events"][3:],
+                ],
+            },
+        }
+
+        # Act / Assert
+        for name, session in cases.items():
+            with self.subTest(name=name):
+                with self.assertRaises(ValueError):
+                    harness.validate_session(session)
+
+    def test_start_initialization_contract_preserves_initialized_repositories(self):
+        # Arrange
+        contract = load_initialization_contract(START.read_text(encoding="utf-8"))
+        harness = InitializationContractHarness(contract)
+
+        # Act / Assert
+        harness.validate_session(
+            {
+                "authority_state": "initialized",
+                "events": [{"type": "detect"}, {"type": "phase-4-6-proposals"}],
+            }
+        )
+        with self.assertRaises(ValueError):
+            harness.validate_session(
+                {
+                    "authority_state": "initialized",
+                    "events": valid_initialization_session(contract)["events"],
+                }
+            )
+
     def test_clean_template_heuristic_ignores_instruction_only_files(self):
         state = detect_start_state(ROOT)
         self.assertEqual("unconfigured", state["engine"])
@@ -69,9 +430,12 @@ class StartSkillTests(unittest.TestCase):
         self.assertIn("zero writes before explicit approval", text)
         self.assertIn("must not create `.agents/skills/`", text)
         self.assertIn("must not initialize global or plugin resources", text)
-        self.assertIn("engine/version/language are `unconfigured`", text)
+        self.assertIn('engine = "unconfigured"', text)
+        self.assertIn('engine_version = ""', text)
+        self.assertIn('language = ""', text)
         self.assertIn('review_mode = "phase-gated"', text)
         self.assertIn('active_engine_pack = "none"', text)
+        self.assertIn('model_policy = "balanced"', text)
         self.assertIn("continue read-only project detection", text)
         self.assertIn(
             "replaces the separate persistent proposals in Phases 4-6", text

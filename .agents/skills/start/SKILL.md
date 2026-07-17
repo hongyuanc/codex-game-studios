@@ -34,20 +34,33 @@ infer a configured engine from another file.
 
 After the user selects the next step, present one **Initialization changeset**
 containing only the persistent project authority that step requires. It must
-contain at most 10 mutating actions and produce zero writes before explicit approval.
-The changeset may establish the repository authority with these
-defaults: engine/version/language are `unconfigured`; the exact TOML values are
-`engine = "unconfigured"`, `engine_version = ""`, `language = ""`,
-`review_mode = "phase-gated"`, and `active_engine_pack = "none"`.
+contain at most 10 mutating actions, meaning at most 10 path mutations, and
+produce zero writes before explicit approval.
+The changeset may establish the repository authority with this complete default:
+`engine = "unconfigured"`; `engine_version = ""`; `language = ""`;
+`review_mode = "phase-gated"`; `active_engine_pack = "none"`; and
+`model_policy = "balanced"`. The concrete unconfigured engine version and
+language values are empty strings, not the text `unconfigured`.
 On first run, this one Initialization changeset replaces the separate persistent proposals in Phases 4-6.
 It may include `production/stage.txt` only when that selected next step requires
 it; after approval, skip those separate persistent proposals.
+
+Count each created, modified, merged, or deleted filesystem path as one
+mutating action. Directory creation and each file or managed-block edit count
+as separate actions. List every exact target path and its material change; never
+use recursive, glob, tree-copy, bulk, or otherwise expanded actions. If
+enumerating the complete changeset would exceed ten path mutations, stop and
+replan before seeking approval.
 
 The initialization changeset must not create `.agents/skills/`, `.codex/agents/`,
 `.codex/agent-packs/`, `Codex Studio Testing Framework/`, unselected engine
 references, or speculative empty project directories. It must not initialize global or plugin resources.
 Do not install, copy, or initialize any resource
 outside the selected repository authority and explicitly approved project path.
+
+<!-- start-initialization-contract:start
+{"default_authority_toml":"engine = \"unconfigured\"\nengine_version = \"\"\nlanguage = \"\"\nreview_mode = \"phase-gated\"\nactive_engine_pack = \"none\"\nmodel_policy = \"balanced\"\n","first_run":{"action_unit":"filesystem path","counted_path_mutations":["create","modify","merge","delete","directory-create","managed-block-edit"],"forbidden_action_forms":["glob","recursive","tree-copy","bulk"],"forbidden_target_prefixes":[".agents/skills/",".codex/agents/",".codex/agent-packs/","Codex Studio Testing Framework/","docs/engine-reference/"],"initialization_changesets":1,"max_path_mutations":10,"pre_approval_writes":0,"replan_above_max_path_mutations":true}}
+start-initialization-contract:end -->
 
 For a present, readable `.codex/studio.toml`, preserve the initialized-repository
 protocol below, including its separate stage and review-mode approvals. An

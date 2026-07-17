@@ -277,11 +277,14 @@ class TestingFrameworkTests(unittest.TestCase):
             '`review_mode = "phase-gated"`',
             '`review_mode = "solo"`',
             "Initialization changeset",
-            "at most 10 mutating actions",
+            "at most 10 path mutations",
             "zero writes before explicit approval",
             "must not create `.agents/skills/`",
-            "engine/version/language are `unconfigured`",
+            '`engine = "unconfigured"`',
+            '`engine_version = ""`',
+            '`language = ""`',
             '`active_engine_pack = "none"`',
+            '`model_policy = "balanced"`',
             "replaces the separate persistent proposals in Phases 4-6",
         )
         for token in shared_runtime_contract:
@@ -305,6 +308,25 @@ class TestingFrameworkTests(unittest.TestCase):
         for token in correspondence:
             self.assertIn(token, runtime)
             self.assertIn(token, text)
+
+    def test_start_spec_matches_runtime_executable_initialization_contract(self):
+        # Arrange
+        marker = re.compile(
+            r"<!-- start-initialization-contract:start\n(?P<contract>.*?)\n"
+            r"start-initialization-contract:end -->",
+            re.DOTALL,
+        )
+        runtime = (ROOT / ".agents/skills/start/SKILL.md").read_text(encoding="utf-8")
+        spec = (NEW / "skills/utility/start.md").read_text(encoding="utf-8")
+
+        # Act
+        runtime_match = marker.search(runtime)
+        spec_match = marker.search(spec)
+
+        # Assert
+        self.assertIsNotNone(runtime_match)
+        self.assertIsNotNone(spec_match)
+        self.assertEqual(runtime_match.group("contract"), spec_match.group("contract"))
 
     def test_incremental_authoring_specs_match_runtime_section_approval(self):
         incremental = (
