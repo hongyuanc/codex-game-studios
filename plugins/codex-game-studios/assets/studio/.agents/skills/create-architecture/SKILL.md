@@ -3,6 +3,9 @@ name: create-architecture
 description: Author the master technical architecture from approved design requirements and engine constraints.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Each displayed and approved section is its bounded changeset and may be written immediately to the already identified architecture path without per-file or per-line reapproval. Multi-file or non-section changes still require one complete proposed changeset listing every path and material edit before approval.

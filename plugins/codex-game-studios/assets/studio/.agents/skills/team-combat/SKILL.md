@@ -3,6 +3,9 @@ name: team-combat
 description: "Use when a combat feature needs coordinated design, implementation, integration, and QA validation."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Combat
 
 ## Codex Interaction Contract

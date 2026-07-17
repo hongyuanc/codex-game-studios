@@ -26,6 +26,11 @@ EXPECTED_DEPENDENCIES = {
     "test-helpers": ("setup-engine", "skill-test"),
     "test-setup": ("setup-engine",),
 }
+DELEGATION_PATTERN = re.compile(r"\b(?:delegate|spawn|subagent|custom-agent)\b")
+DELEGATION_PREFLIGHT = (
+    "Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;\n"
+    "do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree."
+)
 
 
 def _dependency_gate(dependency: str) -> str:
@@ -55,6 +60,38 @@ def _write_fixture_skill(root: Path, plugin: Path, name: str, text: str) -> None
 
 
 class PluginSkillCatalogTests(unittest.TestCase):
+    def test_plugin_bundles_shared_agent_delegation_protocol(self):
+        # Arrange
+        source = ROOT / ".codex/docs/plugin-agent-delegation.md"
+        bundled = PLUGIN / "assets/studio/.codex/docs/plugin-agent-delegation.md"
+
+        # Act / Assert
+        self.assertEqual(source.read_bytes(), bundled.read_bytes())
+
+    def test_bundled_delegating_skills_use_shared_agent_preflight(self):
+        # Arrange
+        source = ROOT / ".agents/skills"
+        bundled = PLUGIN / "assets/studio/.agents/skills"
+
+        # Act
+        paths = tuple(
+            path
+            for path in sorted(source.glob("*/SKILL.md"))
+            if DELEGATION_PATTERN.search(path.read_text(encoding="utf-8"))
+        )
+
+        # Assert
+        self.assertTrue(paths)
+        for path in paths:
+            bundled_path = bundled / path.parent.name / "SKILL.md"
+            with self.subTest(skill=path.parent.name):
+                self.assertEqual(
+                    1,
+                    bundled_path.read_text(encoding="utf-8").count(
+                        DELEGATION_PREFLIGHT
+                    ),
+                )
+
     def test_start_skill_preserves_plugin_native_initialization_protocol(self):
         # Arrange
         source = ROOT / ".agents/skills/start/SKILL.md"

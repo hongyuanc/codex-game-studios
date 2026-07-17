@@ -3,6 +3,9 @@ name: design-system
 description: Collaboratively author or resume a game-system GDD one approved section at a time.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material design sections. Identify the GDD and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed GDD, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.

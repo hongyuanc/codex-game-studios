@@ -3,6 +3,9 @@ name: day-one-patch
 description: "Use when a bounded launch patch must be scoped, implemented, QA-gated, and prepared for separately authorized release steps."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.

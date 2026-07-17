@@ -3,6 +3,9 @@ name: team-narrative
 description: "Use when story content, world lore, writing, and level narrative need coordinated development."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Narrative
 
 ## Codex Interaction Contract

@@ -3,6 +3,9 @@ name: story-done
 description: "Use when an implemented story needs evidence-backed acceptance, deviation, test, review, and completion gating."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.

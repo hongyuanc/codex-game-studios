@@ -3,6 +3,9 @@ name: create-control-manifest
 description: Generate the programmer control manifest from accepted ADRs, technical preferences, and engine rules.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Before writing, show the complete approved artifact changeset and paths once; then write that approved changeset without per-line prompts.

@@ -3,6 +3,9 @@ name: propagate-design-change
 description: Trace an approved GDD change through ADRs and architecture artifacts and report affected decisions.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and manifest-version contracts. Keep reviewed source artifacts read-only, cite repository evidence, and delegate material architecture conflicts to the `technical-director` Sol Codex custom-agent role. Ask one question per turn. Write only an approved report changeset; source fixes require separate explicit authorization.

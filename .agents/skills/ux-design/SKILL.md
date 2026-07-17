@@ -3,6 +3,9 @@ name: ux-design
 description: Collaboratively author a UX specification, HUD design, player journey, or interaction pattern artifact.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material UX sections. Identify the UX artifact and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed artifact, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.

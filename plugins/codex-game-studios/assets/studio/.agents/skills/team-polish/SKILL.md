@@ -3,6 +3,9 @@ name: team-polish
 description: "Use when a feature or area needs coordinated performance, visual, audio, and QA hardening."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Polish
 
 ## Codex Interaction Contract

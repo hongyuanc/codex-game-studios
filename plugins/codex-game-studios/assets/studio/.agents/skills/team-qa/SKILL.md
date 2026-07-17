@@ -3,6 +3,9 @@ name: team-qa
 description: "Use when a sprint or feature needs a coordinated QA strategy, test cases, execution, and sign-off package."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Qa
 
 ## Codex Interaction Contract

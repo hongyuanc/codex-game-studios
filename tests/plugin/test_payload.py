@@ -89,7 +89,7 @@ class PayloadGenerationTests(unittest.TestCase):
         digest = hashlib.sha256((json.dumps(projection, separators=(",", ":")) + "\n").encode()).hexdigest()
 
         # Assert
-        self.assertEqual(514, len(projection))
+        self.assertEqual(515, len(projection))
         self.assertIn(f'_INSTALLED_INVENTORY_ENTRY_COUNT = {len(projection)}', validator)
         self.assertIn(f'_INSTALLED_INVENTORY_SHA256 = "{digest}"', validator)
 

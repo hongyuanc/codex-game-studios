@@ -3,6 +3,9 @@ name: map-systems
 description: Decompose an approved game concept into systems, dependencies, priorities, and design order.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring. Before the initial write, present one complete proposed changeset covering the systems index and session-state create/update, then obtain approval before either write. A later creative-director revision is a separate bounded changeset. Pause again for a new design decision or scope expansion.

@@ -3,6 +3,9 @@ name: team-level
 description: "Use when a level or area needs coordinated narrative, world, art, systems, layout, and QA design."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Level
 
 ## Codex Interaction Contract

@@ -3,6 +3,9 @@ name: team-live-ops
 description: "Use when a season, event, or live content update needs coordinated design, economy, analytics, communication, writing, and narrative planning."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Live Ops
 
 ## Codex Interaction Contract

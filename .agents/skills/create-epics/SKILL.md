@@ -3,6 +3,9 @@ name: create-epics
 description: "Use when approved GDDs and architecture need translation into bounded, traceable implementation epics."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.

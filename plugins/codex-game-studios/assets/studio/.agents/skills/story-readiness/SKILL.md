@@ -3,6 +3,9 @@ name: story-readiness
 description: "Use when a story must be checked for implementation readiness, traceability, dependencies, acceptance clarity, or open design questions."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.

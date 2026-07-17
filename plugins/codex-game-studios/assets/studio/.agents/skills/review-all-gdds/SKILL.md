@@ -3,6 +3,9 @@ name: review-all-gdds
 description: Review all game design documents together for cross-system consistency and design-theory risks.
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 ## Codex-native operating rules
 
 Keep repository source artifacts read-only during analysis and cite concrete file evidence for every finding. Ask at most one user question per turn and wait for the answer. A report, tracking record, or phase-state update may be written only after its exact changeset and paths are approved. Do not fix reviewed source artifacts unless the user gives separate explicit authorization.

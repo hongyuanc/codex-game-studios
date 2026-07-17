@@ -114,6 +114,7 @@ REQUIRED_DOCS = {
     "director-gates.md",
     "directory-structure.md",
     "hooks-reference.md",
+    "plugin-agent-delegation.md",
     "quick-start.md",
     "review-workflow.md",
     "rules-reference.md",
@@ -1339,8 +1340,8 @@ _INSTALLED_STATE_KEYS = {
 }
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
-_INSTALLED_INVENTORY_ENTRY_COUNT = 514
-_INSTALLED_INVENTORY_SHA256 = "f607bfe0b5c0407180a3841f6df090136c95907db309114adbaf0a759ccc8818"
+_INSTALLED_INVENTORY_ENTRY_COUNT = 515
+_INSTALLED_INVENTORY_SHA256 = "be0bd13fbd023058b1a9d659e4fe9f372254c92150536cad0e80fe6a3ea51a8d"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

@@ -6,12 +6,68 @@ from tools.codex_studio.validate import validate_skill
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DELEGATION_PATTERN = re.compile(r"\b(?:delegate|spawn|subagent|custom-agent)\b")
+DELEGATION_PREFLIGHT = (
+    "Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;\n"
+    "do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree."
+)
+EXPECTED_DELEGATING_SKILLS = {
+    "architecture-decision",
+    "architecture-review",
+    "art-bible",
+    "asset-spec",
+    "brainstorm",
+    "code-review",
+    "create-architecture",
+    "create-control-manifest",
+    "create-epics",
+    "create-stories",
+    "day-one-patch",
+    "design-review",
+    "design-system",
+    "dev-story",
+    "gate-check",
+    "hotfix",
+    "localize",
+    "map-systems",
+    "milestone-review",
+    "playtest-report",
+    "propagate-design-change",
+    "prototype",
+    "review-all-gdds",
+    "security-audit",
+    "sprint-plan",
+    "story-done",
+    "story-readiness",
+    "team-audio",
+    "team-combat",
+    "team-level",
+    "team-live-ops",
+    "team-narrative",
+    "team-polish",
+    "team-qa",
+    "team-release",
+    "team-ui",
+    "ux-design",
+    "vertical-slice",
+}
 NAMES = set(
     """bug-report bug-triage code-review create-epics create-stories dev-story estimate
 milestone-review playtest-report qa-plan regression-suite retrospective smoke-check
 soak-test sprint-plan sprint-status story-done story-readiness test-evidence-review
 test-flakiness test-helpers test-setup""".split()
 )
+
+
+def delegating_skill_paths():
+    """Return the exact canonical skills selected by the Task 4 keyword query."""
+
+    paths = sorted((ROOT / ".agents/skills").glob("*/SKILL.md"))
+    return tuple(
+        path
+        for path in paths
+        if DELEGATION_PATTERN.search(path.read_text(encoding="utf-8"))
+    )
 
 
 class DeliverySkillTests(unittest.TestCase):
@@ -27,6 +83,23 @@ class DeliverySkillTests(unittest.TestCase):
         )
         packaged = set(re.findall(r"\.agents/skills/([^/]+)/SKILL\.md", report))
         self.assertEqual(NAMES, packaged)
+
+    def test_delegation_discovery_has_no_false_omissions(self):
+        # Arrange / Act
+        discovered = {path.parent.name for path in delegating_skill_paths()}
+
+        # Assert
+        self.assertEqual(EXPECTED_DELEGATING_SKILLS, discovered)
+
+    def test_delegating_skills_use_plugin_portable_role_protocol(self):
+        # Arrange / Act / Assert
+        for path in delegating_skill_paths():
+            with self.subTest(skill=path.parent.name):
+                self.assertEqual(
+                    1,
+                    path.read_text(encoding="utf-8").count(DELEGATION_PREFLIGHT),
+                    path,
+                )
 
     def test_review_mode_uses_only_canonical_studio_config(self):
         for name in sorted(NAMES):

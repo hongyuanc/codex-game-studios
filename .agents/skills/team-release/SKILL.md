@@ -3,6 +3,9 @@ name: team-release
 description: "Use when a release candidate needs coordinated planning, QA, build, go or no-go, and separately authorized deployment steps."
 ---
 
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+
 # Team Release
 
 ## Codex Interaction Contract
