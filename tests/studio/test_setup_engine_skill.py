@@ -6,9 +6,92 @@ from tools.codex_studio.validate import validate_skill
 
 
 ROOT = Path(__file__).resolve().parents[2]
+BUNDLED_SKILL = (
+    ROOT
+    / "plugins/codex-game-studios/assets/studio/.agents/skills/setup-engine/SKILL.md"
+)
+
+
+def setup_engine_texts() -> tuple[str, str]:
+    return (
+        (ROOT / ".agents/skills/setup-engine/SKILL.md").read_text(encoding="utf-8"),
+        BUNDLED_SKILL.read_text(encoding="utf-8"),
+    )
 
 
 class SetupEngineSkillTests(unittest.TestCase):
+    def test_setup_engine_complete_config_offers_safe_section_specific_reconfiguration(self):
+        # Arrange / Act
+        texts = setup_engine_texts()
+
+        # Assert
+        for text in texts:
+            self.assertIn("Engine already configured as", text)
+            self.assertIn("Reconfigure all", text)
+            self.assertIn("Reconfigure a specific section", text)
+            self.assertIn("Performance Budgets only", text)
+            self.assertIn("preserve every unselected field and path byte-for-byte", text)
+            self.assertIn("Do not run pack activation", text)
+            self.assertIn("one complete proposed changeset", text)
+            self.assertIn("fresh explicit approval", text)
+            for section in (
+                "Engine / Language",
+                "Naming Conventions",
+                "Specialists / File Routing",
+                "Platform / Input",
+                "Testing",
+                "Performance Budgets",
+            ):
+                self.assertIn(section, text)
+
+    def test_setup_engine_documents_engine_specific_naming_and_file_routes(self):
+        # Arrange / Act
+        texts = setup_engine_texts()
+
+        # Assert
+        expected = (
+            "GDScript uses `snake_case`",
+            "`.gd` → `godot-gdscript-specialist`",
+            "`.gdshader` → `godot-shader-specialist`",
+            "`.tscn` → `godot-specialist`",
+            "C# classes use `PascalCase`",
+            "fields use `camelCase`",
+            "`.cs` → `unity-specialist`",
+            "`.unity` → `unity-specialist`",
+            "Blueprint (Visual Scripting)",
+            "`.uasset` → `ue-blueprint-specialist`",
+            "`.umap` → `unreal-specialist`",
+            "exactly the five active profiles",
+        )
+        for text in texts:
+            for token in expected:
+                self.assertIn(token, text)
+
+    def test_setup_engine_reports_complete_with_contextual_handoff_and_no_gate(self):
+        # Arrange / Act
+        texts = setup_engine_texts()
+
+        # Assert
+        for text in texts:
+            self.assertIn("Verdict: COMPLETE", text)
+            self.assertIn("Contextual next step", text)
+            self.assertIn("`$brainstorm`", text)
+            self.assertIn("`$map-systems`", text)
+            self.assertIn("No director gates apply", text)
+            self.assertIn("No director agents participate", text)
+            self.assertIn("does not emit a gate ID", text)
+            self.assertIn("gate-skip message", text)
+
+    def test_setup_engine_supplied_engine_argument_skips_engine_selection(self):
+        # Arrange / Act
+        texts = setup_engine_texts()
+
+        # Assert
+        for text in texts:
+            self.assertIn("Supplied engine argument", text)
+            self.assertIn("skip the Engine selection step", text)
+            self.assertIn("do not ask the user to select an engine again", text)
+
     def test_setup_engine_is_native_transactional_and_approval_gated(self):
         path = ROOT / ".agents/skills/setup-engine/SKILL.md"
         self.assertEqual([], validate_skill(path))

@@ -17,9 +17,62 @@ Exactly one of these packs may be active:
 
 Each immutable source pack contains exactly five Codex agent profiles under `.codex/agent-packs/<engine>/`. Activation copies those profiles into `.codex/agents/`; `.codex/active-engine.json` records their hashes and ownership. Never edit a source pack during setup.
 
+## Utility boundary
+
+No director gates apply. `$setup-engine` is a technical configuration utility.
+No director agents participate; the workflow does not emit a gate ID or
+gate-skip message in any review mode. The parent agent owns every question, approval request,
+changeset, validation result, and final handoff.
+
 ## Gather decisions
 
-Read `design/gdd/game-concept.md`, `AGENTS.md`, `.codex/studio.toml`, and `.codex/docs/technical-preferences.md` when present. Gather only missing information in this exact order:
+Read `design/gdd/game-concept.md`, `AGENTS.md`, `.codex/studio.toml`,
+`.codex/active-engine.json`, and `.codex/docs/technical-preferences.md` when
+present.
+
+**Supplied engine argument:** normalize a supplied `godot`, `unity`, or
+`unreal` argument, use it as the Engine decision, and skip the Engine selection step;
+do not ask the user to select an engine again. Reject any other argument with
+the three supported values. The argument does not authorize
+writes; all remaining missing decisions and the complete changeset still
+require the normal approval flow.
+
+Before asking missing decisions, detect whether engine configuration is
+complete. Complete means the six-field studio authority is valid, the active
+manifest and exactly five profiles validate, and the engine/version/language,
+rendering/physics, platform/input, naming, specialist routing, testing, and
+performance sections contain no placeholders. With no supplied engine argument,
+report `Engine already configured as <engine/version> + <language>` and offer:
+
+- **Reconfigure all** — gather all seven decisions and use the full activation
+  and integration flow.
+- **Reconfigure a specific section** — offer `Engine / Language`,
+  `Rendering / Physics`, `Naming Conventions`, `Specialists / File Routing`,
+  `Platform / Input`, `Testing`, or `Performance Budgets`.
+
+For a specific section, read the complete pre-image; preserve every unselected field and path byte-for-byte.
+Limit questions, the proposed diff, and writes to that section. Present one complete proposed changeset containing
+every target path and material edit, then obtain fresh approval before
+writing. A newly discovered dependent edit is scope expansion and requires a
+new complete changeset and approval.
+
+- **Performance Budgets only:** change only the performance-budget lines in
+  `.codex/docs/technical-preferences.md`. Do not run pack activation, do not
+  touch `AGENTS.md`, studio authority, the manifest, profiles, naming, routing,
+  testing, platform/input, rendering, or physics.
+- **Naming Conventions**, **Rendering / Physics**, **Platform / Input**, or
+  **Testing:** change only the selected section of technical preferences. Do
+  not run pack activation.
+- **Specialists / File Routing:** change only specialist assignments and the
+  routing table; every route must resolve to one of exactly the five active
+  profiles. Do not run pack activation.
+- **Engine / Language:** gather the exact engine/version/language delta. Use
+  the activation transaction only when engine pack, version, language, or
+  source-profile state changes; otherwise preserve the active profiles and use
+  a configuration-only approved edit.
+
+When configuration is incomplete or **Reconfigure all** was selected, gather
+only missing information in this exact order:
 
 1. **Engine** — Godot, Unity, or Unreal.
 2. **Exact engine version** — verify the stable version against official engine documentation when the user has not supplied one.
@@ -30,6 +83,29 @@ Read `design/gdd/game-concept.md`, `AGENTS.md`, `.codex/studio.toml`, and `.code
 7. **Performance budget** — accept defaults or gather the target frame/memory budget.
 
 Ask exactly one unresolved decision, then stop and wait. Use `request_user_input` when it is available and appropriate. Ask a concise direct question otherwise. Never bundle independent decisions or silently choose an engine/version.
+
+## Engine-specific configuration contract
+
+Populate naming and routing explicitly for the selected engine. All routes
+must name one of exactly the five active profiles recorded by the manifest.
+
+- **Godot + GDScript:** GDScript uses `snake_case` for files, functions, and
+  variables. Route `.gd` → `godot-gdscript-specialist`,
+  `.gdshader` → `godot-shader-specialist`, and `.tscn` → `godot-specialist`.
+  The active set is `godot-specialist`, `godot-gdscript-specialist`,
+  `godot-csharp-specialist`, `godot-gdextension-specialist`, and
+  `godot-shader-specialist`. For Godot C#, use C# naming and route `.cs` to
+  `godot-csharp-specialist` without changing the five-profile set.
+- **Unity + C#:** C# classes use `PascalCase`; fields use `camelCase`. Route
+  `.cs` → `unity-specialist` and `.unity` → `unity-specialist` (and shader
+  assets to `unity-shader-specialist`). The active set is `unity-specialist`,
+  `unity-addressables-specialist`, `unity-dots-specialist`,
+  `unity-shader-specialist`, and `unity-ui-specialist`.
+- **Unreal + Blueprint:** record `Blueprint (Visual Scripting)` as the primary
+  language. Route `.uasset` → `ue-blueprint-specialist` for Blueprint assets
+  (otherwise `unreal-specialist`) and `.umap` → `unreal-specialist`. The active
+  set is `unreal-specialist`, `ue-blueprint-specialist`, `ue-gas-specialist`,
+  `ue-replication-specialist`, and `ue-umg-specialist`.
 
 ## Plan before mutation
 
@@ -43,8 +119,9 @@ do not fall back to CWD, search or guess for resources, inspect environment
 hints, or copy plugin resources into the project.
 
 `BUNDLE` is immutable read-only plugin material. `TARGET` is the only location
-the transaction may lock, write, recover, or repair. Run a read-only plan with
-the chosen values:
+the transaction may lock, write, recover, or repair. For full configuration,
+**Reconfigure all**, or an **Engine / Language** change that requires
+activation, run a read-only plan with the chosen values:
 
 ```bash
 python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --source-root <resolved BUNDLE> --engine <engine> --version <exact-version> --language <primary-language> --dry-run
@@ -54,9 +131,16 @@ Replace the example values with the user's selection. The command must exit succ
 
 Request explicit approval for that complete changeset. No project write is allowed before this approval. Do not run the apply command, edit preferences, or update references before approval. A dry run is not approval.
 
+For a non-authority section-specific update, replace the activation plan with
+the complete selected-section diff and explicit preservation list. The same
+approval rule applies: obtain fresh explicit approval, skip activation, and
+proceed only with the approved edit.
+
 ## Apply the approved pack
 
-After explicit approval, run the exact corresponding transaction:
+After explicit approval, run the exact corresponding transaction only for the
+full/engine-change branch. A non-authority section-specific update skips this
+entire activation step.
 
 ```bash
 python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --source-root <resolved BUNDLE> --engine <engine> --version <exact-version> --language <primary-language> --apply
@@ -77,7 +161,8 @@ If activation fails:
 
 ## Complete approved integration
 
-Only after activation succeeds, apply the complete approved write scope:
+Only after activation succeeds—or after approval in a section-specific branch
+where activation is not required—apply the complete approved write scope:
 
 - Update the Technology Stack and bundled engine-reference provenance in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.
@@ -103,6 +188,22 @@ Confirm that:
 - The approved `AGENTS.md` and technical-preference updates exist, and the bundled engine reference remains readable and unchanged.
 
 Report the engine/version/language, the five active profiles, build/test commands, bundled reference provenance/status, and test results. Never claim success without post-apply validation.
+
+## Completion and handoff
+
+After every approved write is present, plugin-native validation passes, the
+five-profile manifest is valid, and the final dry run is a no-op, report
+`Verdict: COMPLETE`. Do not use COMPLETE for a failed, rolled-back, unapproved,
+or partially applied configuration.
+
+Include a **Contextual next step**:
+
+- If project initialization is incomplete, hand back to `$start`.
+- If no approved game concept exists, offer `$brainstorm`.
+- If an approved concept exists but systems are not mapped, offer
+  `$map-systems`.
+- After a section-specific reconfiguration, return to the invoking workflow
+  and name the preserved configuration; do not invent unrelated work.
 
 ## Refresh and upgrade
 
