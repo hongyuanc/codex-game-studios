@@ -1,11 +1,26 @@
 """Contract tests for plugin documentation and licensing."""
 
 from pathlib import Path
+import re
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
+
+
+def markdown_section(text: str, heading: str) -> str:
+    """Return one Markdown heading body through the next peer/parent heading."""
+
+    marker = re.search(rf"(?m)^(?P<level>#+) {re.escape(heading)}\s*$", text)
+    if marker is None:
+        raise AssertionError(f"missing Markdown section: {heading}")
+    level = len(marker.group("level"))
+    following = re.search(rf"(?m)^#{{1,{level}}} ", text[marker.end() :])
+    end = marker.end() + following.start() if following else len(text)
+    return text[marker.end() : end]
+
+
 class PluginDocumentationTests(unittest.TestCase):
     """Verify user-facing plugin and skill contracts."""
 
@@ -64,19 +79,38 @@ class PluginDocumentationTests(unittest.TestCase):
 
         # Act
         readme = readme_path.read_text(encoding="utf-8")
+        app = markdown_section(readme, "Codex app")
+        cli = markdown_section(readme, "Codex CLI")
+        fresh, legacy = readme.split("## Legacy 1.0.0 lifecycle support", maxsplit=1)
 
         # Assert
-        self.assertIn("Install Codex Game Studios from the repository marketplace", readme)
-        self.assertIn("Start a new Codex task", readme)
-        self.assertIn("$codex-game-studios:start", readme)
-        self.assertIn("all 73 studio skills", readme.lower())
-        self.assertIn("zero writes to the game repository", readme)
-        self.assertIn("small project-specific state", readme)
-        self.assertIn("## Legacy 1.0.0 lifecycle support", readme)
+        for section in (app, cli):
+            self.assertIn("repository marketplace", section)
+            self.assertIn("Start a new Codex task", section)
+            self.assertIn("in-Codex", section)
+            self.assertIn("$codex-game-studios:start", section)
+        self.assertIn("Clone", app)
+        self.assertIn("open", app.lower())
+        self.assertIn("Plugins", app)
+        self.assertNotIn("codex plugin", app)
+        self.assertIn("codex plugin marketplace add", cli)
+        self.assertIn("codex plugin add", cli)
+        self.assertIn("all 73 studio skills", fresh.lower())
+        self.assertIn("zero writes to the game repository", fresh)
+        self.assertIn("small project-specific state", fresh)
+        self.assertIn("at most ten", fresh)
+        self.assertIn("never", fresh)
+        self.assertIn("`.agents/skills/`", fresh)
         self.assertNotIn("$codex-game-studios install", readme)
         self.assertNotIn("$codex-game-studios update", readme)
-        for operation in ("verify", "repair", "migrate", "uninstall"):
-            self.assertIn(operation, readme)
+        for operation in (
+            "verify legacy installation",
+            "repair legacy installation",
+            "migrate to plugin-native",
+            "uninstall legacy installation",
+        ):
+            self.assertNotIn(operation, fresh)
+            self.assertIn(operation, legacy)
         self.assertIn("Git repository", readme)
 
 if __name__ == "__main__":

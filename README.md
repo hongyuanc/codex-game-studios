@@ -15,31 +15,30 @@ marketplace. It is not yet listed in the public Codex Plugins Directory.
 
 ### Codex app
 
-1. Install Codex Game Studios from the repository marketplace.
-2. Start a new Codex task in the game repository.
-3. Run:
+1. Clone this repository and open the source repository in the Codex app.
+2. Open **Plugins**, select the **Codex Game Studios** repository marketplace,
+   and install **Codex Game Studios**.
+3. Open the game repository. Start a new Codex task so Codex loads the plugin.
+4. Run this in-Codex skill invocation (not a shell command):
 
 ```text
 $codex-game-studios:start
 ```
 
-Open **Plugins**, select the **Codex Game Studios** repository marketplace, and
-install **Codex Game Studios**. Start the new task after installation so Codex
-loads the plugin there. You can close the source repository after installation.
+You can close the source repository after the plugin is installed.
 
 ### Codex CLI
 
-Install Codex Game Studios from the repository marketplace, then start a new
-Codex task in the game repository and run `$codex-game-studios:start`. If you
-use the Codex CLI, add this repository's marketplace and install the plugin
-from the published `main` branch:
+Install Codex Game Studios from the repository marketplace by adding it and the
+plugin from the published `main` branch:
 
 ```bash
 codex plugin marketplace add hongyuanc/codex-game-studios --ref main
 codex plugin add codex-game-studios@codex-game-studios
 ```
 
-The final step is an in-Codex skill invocation, not a shell command:
+Start a new Codex task in the game repository after installation. Then use this
+in-Codex skill invocation, not a shell command:
 
 ```text
 $codex-game-studios:start

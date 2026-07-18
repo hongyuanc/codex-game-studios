@@ -232,20 +232,45 @@ class ReleaseContractTests(unittest.TestCase):
     def test_release_documentation_advertises_only_plugin_native_fresh_start(self):
         # Arrange
         documents = (ROOT / "README.md", PLUGIN / "README.md")
+        manifest = PLUGIN / ".codex-plugin/plugin.json"
 
         # Act
         document_text = {
             document: document.read_text(encoding="utf-8") for document in documents
         }
         text = "\n".join(document_text.values())
+        metadata = json.loads(manifest.read_text(encoding="utf-8"))
+        metadata_text = " ".join(
+            (
+                metadata["description"],
+                metadata["interface"]["shortDescription"],
+                metadata["interface"]["longDescription"],
+            )
+        )
 
         # Assert
-        self.assertTrue(
-            all("$codex-game-studios:start" in value for value in document_text.values())
-        )
+        for value in document_text.values():
+            fresh, legacy = value.split(
+                "## Legacy 1.0.0 lifecycle support", maxsplit=1
+            )
+            self.assertIn("$codex-game-studios:start", fresh)
+            self.assertIn("at most ten", fresh)
+            self.assertIn("zero writes to the game repository", fresh)
+            self.assertIn("`.agents/skills/`", fresh)
+            for operation in (
+                "verify legacy installation",
+                "repair legacy installation",
+                "migrate to plugin-native",
+                "uninstall legacy installation",
+            ):
+                self.assertNotIn(operation, fresh)
+                self.assertIn(operation, legacy)
         self.assertNotIn("$codex-game-studios install", text)
         self.assertNotIn("$codex-game-studios update", text)
-        self.assertIn("Legacy 1.0.0 lifecycle support", text)
+        self.assertIn("73 bundled skills", metadata_text)
+        self.assertIn("$codex-game-studios:start", metadata_text)
+        self.assertIn("bounded", metadata_text)
+        self.assertNotIn("install and manage", metadata_text.lower())
 
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange

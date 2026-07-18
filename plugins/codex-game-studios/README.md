@@ -21,19 +21,28 @@ Use the same fresh-project sequence in the Codex app and Codex CLI:
 2. Start a new Codex task in the game repository.
 3. Run `$codex-game-studios:start`.
 
-In the Codex app, open **Plugins**, select the **Codex Game Studios** repository
-marketplace, and install the plugin. Start the new task after installation so
-Codex loads the plugin there.
+### Codex app
 
-For the Codex CLI, add the repository marketplace and install from the published
-`main` branch:
+1. Clone and open the
+   [Codex Game Studios source repository](https://github.com/hongyuanc/codex-game-studios)
+   in the Codex app.
+2. Open **Plugins**, select the **Codex Game Studios** repository marketplace,
+   and install the plugin.
+3. Open the game repository. Start a new Codex task so Codex loads the plugin.
+4. Run `$codex-game-studios:start` as an in-Codex skill invocation, not a shell
+   command.
+
+### Codex CLI
+
+Add the repository marketplace and install from the published `main` branch:
 
 ```bash
 codex plugin marketplace add hongyuanc/codex-game-studios --ref main
 codex plugin add codex-game-studios@codex-game-studios
 ```
 
-`$codex-game-studios:start` is an in-Codex skill invocation, not a shell command.
+Start a new Codex task in the game repository after installation. Then run
+`$codex-game-studios:start` as an in-Codex skill invocation, not a shell command.
 The plugin makes all 73 studio skills immediately available after installation, and
 plugin installation and skill discovery make zero writes to the game repository.
 Start detects the repository read-only first and asks for approval only for a
@@ -46,11 +55,17 @@ or Unreal toolchain.
 ## Legacy 1.0.0 lifecycle support
 
 Fresh repositories use Start only. When Start detects an authenticated schema-1
-installation record, it offers legacy verify, repair, migrate, and uninstall
-choices. Verification is read-only. Every mutating legacy choice presents a
-complete digest-bound plan and requires explicit approval; customized and
-project-owned files remain preserved. This help remains available only through
-Start during the 1.0.0 migration window.
+installation record, it offers four choices:
+
+- verify legacy installation;
+- repair legacy installation;
+- migrate to plugin-native; or
+- uninstall legacy installation.
+
+Verification is read-only. Every mutating legacy choice presents a complete
+digest-bound plan and requires explicit approval; customized and project-owned
+files remain preserved. This help remains available only through Start during
+the 1.0.0 migration window.
 
 ## License and attribution
 

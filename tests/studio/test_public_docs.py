@@ -54,6 +54,18 @@ def local_markdown_links(path: Path) -> list[str]:
     return [link for link in links if link]
 
 
+def markdown_section(text: str, heading: str) -> str:
+    """Return one Markdown heading body through the next peer/parent heading."""
+
+    marker = re.search(rf"(?m)^(?P<level>#+) {re.escape(heading)}\s*$", text)
+    if marker is None:
+        raise AssertionError(f"missing Markdown section: {heading}")
+    level = len(marker.group("level"))
+    following = re.search(rf"(?m)^#{{1,{level}}} ", text[marker.end() :])
+    end = marker.end() + following.start() if following else len(text)
+    return text[marker.end() : end]
+
+
 def readme_upstream_attribution(text: str) -> tuple[str, str]:
     start = "<!-- upstream-" + "attribution-start -->"
     end = "<!-- upstream-" + "attribution-end -->"
@@ -130,11 +142,36 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("### Codex app", text)
         self.assertIn("### Codex CLI", text)
         self.assertIn("Install Codex Game Studios from the repository marketplace", text)
-        self.assertIn("Start a new Codex task", text)
-        self.assertIn("$codex-game-studios:start", text)
-        self.assertIn("all 73 studio skills", text.lower())
-        self.assertIn("zero writes to the game repository", text)
-        self.assertIn("small project-specific state", text)
+        app = markdown_section(text, "Codex app")
+        cli = markdown_section(text, "Codex CLI")
+        fresh, legacy = text.split("## Legacy 1.0.0 lifecycle support", maxsplit=1)
+
+        self.assertIn("Clone", app)
+        self.assertIn("open", app.lower())
+        self.assertIn("Plugins", app)
+        self.assertIn("repository marketplace", app)
+        self.assertIn("Start a new Codex task", app)
+        self.assertIn("in-Codex", app)
+        self.assertIn("$codex-game-studios:start", app)
+        self.assertNotIn("codex plugin", app)
+        self.assertIn("codex plugin marketplace add", cli)
+        self.assertIn("codex plugin add", cli)
+        self.assertIn("Start a new Codex task", cli)
+        self.assertIn("in-Codex", cli)
+        self.assertIn("$codex-game-studios:start", cli)
+        self.assertIn("all 73 studio skills", fresh.lower())
+        self.assertIn("zero writes to the game repository", fresh)
+        self.assertIn("at most ten", fresh)
+        self.assertIn("never", fresh)
+        self.assertIn("`.agents/skills/`", fresh)
+        for operation in (
+            "verify legacy installation",
+            "repair legacy installation",
+            "migrate to plugin-native",
+            "uninstall legacy installation",
+        ):
+            self.assertNotIn(operation, fresh)
+            self.assertIn(operation, legacy)
         self.assertNotIn("$codex-game-studios install", text)
         self.assertNotIn("$codex-game-studios update", text)
         self.assertIn(
@@ -162,29 +199,34 @@ class PublicDocumentationTests(unittest.TestCase):
         plugin_readme = (
             ROOT / "plugins/codex-game-studios/README.md"
         ).read_text(encoding="utf-8")
-        combined = root_readme + "\n" + plugin_readme
-
         # Assert
-        for required in (
-            "digest-bound",
-            "explicitly approve",
-            "Legacy 1.0.0 lifecycle support",
-            "$codex-game-studios:start",
-            "all 73 studio skills",
-            "zero writes to the game repository",
-            "small project-specific state",
-            "migrate to plugin-native",
-            "$setup-engine",
-            "verify legacy installation",
-            "repair legacy installation",
-            "uninstall legacy installation",
-            "Donchitos/Claude-Code-Game-Studios",  # enforcement-literal
-            "Godot",
-            "Unity",
-            "Unreal",
-            "installed separately",
-        ):
-            self.assertIn(required, combined)
+        for text in (root_readme, plugin_readme):
+            with self.subTest(document=text[:40]):
+                fresh, legacy = text.split(
+                    "## Legacy 1.0.0 lifecycle support", maxsplit=1
+                )
+                for required in (
+                    "$codex-game-studios:start",
+                    "all 73 studio skills",
+                    "zero writes to the game repository",
+                    "small project-specific state",
+                    "at most ten",
+                    "`.agents/skills/`",
+                    "$setup-engine",
+                    "Godot",
+                    "Unity",
+                    "Unreal",
+                    "installed separately",
+                ):
+                    self.assertIn(required, fresh)
+                for required in (
+                    "digest-bound",
+                    "verify legacy installation",
+                    "repair legacy installation",
+                    "migrate to plugin-native",
+                    "uninstall legacy installation",
+                ):
+                    self.assertIn(required, legacy)
 
     def test_root_entry_links_and_native_instruction_contract_resolve(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -240,12 +282,9 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("Codex Game Studios", text)
         self.assertIn("49 agents", text)
         self.assertIn("73 skills", text)
-        expected = (
-            "1. Install Codex Game Studios from the repository marketplace.\n"
-            "2. Start a new Codex task in the game repository.\n"
-            "3. Run:"
-        )
-        self.assertIn(expected, text)
+        app = markdown_section(text, "Codex app")
+        self.assertIn("repository marketplace", app)
+        self.assertIn("start a new codex task", app.lower())
         self.assertIn("$codex-game-studios:start", text)
         self.assertNotIn("Use the source checkout directly", text)
         for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):

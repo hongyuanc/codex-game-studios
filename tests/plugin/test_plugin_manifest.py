@@ -39,36 +39,41 @@ class PluginManifestTests(unittest.TestCase):
     def test_plugin_manifest_publishes_approved_metadata(self):
         # Arrange
         manifest = PLUGIN / ".codex-plugin/plugin.json"
-        expected_interface = {
-            "displayName": "Codex Game Studios",
-            "shortDescription": "Install a complete Codex-native game studio.",
-            "longDescription": (
-                "Safely install, update, verify, repair, and remove a coordinated "
-                "Codex game-development studio in Git repositories."
-            ),
-            "developerName": "hongyuanc",
-            "category": "Developer Tools",
-            "capabilities": ["Read", "Write"],
-            "websiteURL": "https://github.com/hongyuanc/codex-game-studios",
-            "defaultPrompt": [
-                "Use $codex-game-studios:start to begin in this game repository."
-            ],
-        }
-
         # Act
         data = json.loads(manifest.read_text(encoding="utf-8"))
+        metadata = " ".join(
+            (
+                data["description"],
+                data["interface"]["shortDescription"],
+                data["interface"]["longDescription"],
+            )
+        )
 
         # Assert
-        self.assertEqual(
-            "Install and manage a complete Codex-native game-development studio in a repository.",
-            data["description"],
-        )
+        self.assertIn("73", metadata)
+        self.assertIn("bundled skills", metadata)
+        self.assertIn("$codex-game-studios:start", metadata)
+        self.assertIn("bounded", metadata)
+        self.assertIn("project", metadata)
+        for manager_first in ("install and manage", "install, update", "remove"):
+            self.assertNotIn(manager_first, metadata.lower())
         self.assertEqual({"name": "hongyuanc"}, data["author"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["repository"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["homepage"])
         self.assertEqual("MIT", data["license"])
         self.assertEqual(["codex", "game-development", "godot", "unity", "unreal"], data["keywords"])
-        self.assertEqual(expected_interface, data["interface"])
+        self.assertEqual("Codex Game Studios", data["interface"]["displayName"])
+        self.assertEqual("hongyuanc", data["interface"]["developerName"])
+        self.assertEqual("Developer Tools", data["interface"]["category"])
+        self.assertEqual(["Read", "Write"], data["interface"]["capabilities"])
+        self.assertEqual(
+            "https://github.com/hongyuanc/codex-game-studios",
+            data["interface"]["websiteURL"],
+        )
+        self.assertEqual(
+            ["Use $codex-game-studios:start to begin in this game repository."],
+            data["interface"]["defaultPrompt"],
+        )
 
     def test_marketplace_points_to_local_plugin(self):
         # Arrange
