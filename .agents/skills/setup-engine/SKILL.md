@@ -97,8 +97,9 @@ must name one of exactly the five active profiles recorded by the manifest.
   `godot-shader-specialist`. For Godot C#, use C# naming and route `.cs` to
   `godot-csharp-specialist` without changing the five-profile set.
 - **Unity + C#:** C# classes use `PascalCase`; fields use `camelCase`. Route
-  `.cs` → `unity-specialist` and `.unity` → `unity-specialist` (and shader
-  assets to `unity-shader-specialist`). The active set is `unity-specialist`,
+  `.cs` → `unity-specialist`, `.asmdef` → `unity-specialist`, and
+  `.unity` → `unity-specialist` (and shader assets to `unity-shader-specialist`).
+  The active set is `unity-specialist`,
   `unity-addressables-specialist`, `unity-dots-specialist`,
   `unity-shader-specialist`, and `unity-ui-specialist`.
 - **Unreal + Blueprint:** record `Blueprint (Visual Scripting)` as the primary
@@ -161,8 +162,10 @@ If activation fails:
 
 ## Complete approved integration
 
-Only after activation succeeds—or after approval in a section-specific branch
-where activation is not required—apply the complete approved write scope:
+For full configuration or **Reconfigure all**, apply the complete approved write scope below only after activation succeeds.
+These full-configuration bullets do not apply to section-specific branches.
+
+For a section-specific branch where activation is not required, apply only the approved selected-section diff and its preservation list after approval.
 
 - Update the Technology Stack and bundled engine-reference provenance in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.

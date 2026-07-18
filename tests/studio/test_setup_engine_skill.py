@@ -34,6 +34,11 @@ class SetupEngineSkillTests(unittest.TestCase):
             self.assertIn("Do not run pack activation", text)
             self.assertIn("one complete proposed changeset", text)
             self.assertIn("fresh explicit approval", text)
+            self.assertIn(
+                "full-configuration bullets do not apply to section-specific branches",
+                text,
+            )
+            self.assertIn("apply only the approved selected-section diff", text)
             for section in (
                 "Engine / Language",
                 "Naming Conventions",
@@ -57,6 +62,7 @@ class SetupEngineSkillTests(unittest.TestCase):
             "C# classes use `PascalCase`",
             "fields use `camelCase`",
             "`.cs` → `unity-specialist`",
+            "`.asmdef` → `unity-specialist`",
             "`.unity` → `unity-specialist`",
             "Blueprint (Visual Scripting)",
             "`.uasset` → `ue-blueprint-specialist`",
