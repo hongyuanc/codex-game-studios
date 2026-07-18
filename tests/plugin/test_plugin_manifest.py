@@ -4,37 +4,11 @@ import json
 from pathlib import Path
 import unittest
 
+from tests.plugin.docs_contract_helpers import assert_plugin_native_descriptions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
-
-
-def assert_plugin_native_descriptions(testcase: unittest.TestCase, data: dict) -> None:
-    """Assert the public description fields present the plugin-native product."""
-
-    metadata = " ".join(
-        (
-            data["description"],
-            data["interface"]["shortDescription"],
-            data["interface"]["longDescription"],
-        )
-    )
-    testcase.assertIn("73", metadata)
-    testcase.assertIn("bundled skills", metadata)
-    testcase.assertIn("$codex-game-studios:start", metadata)
-    testcase.assertIn("bounded", metadata)
-    testcase.assertIn("project", metadata)
-    descriptions = {
-        "description": data["description"],
-        "shortDescription": data["interface"]["shortDescription"],
-        "longDescription": data["interface"]["longDescription"],
-    }
-    for field, value in descriptions.items():
-        testcase.assertNotRegex(
-            value.lower(),
-            r"\b(?:manager|manage|install|update|verify|repair|remove)\b",
-            msg=f"{field} must not advertise the legacy lifecycle as fresh",
-        )
 
 
 class PluginManifestTests(unittest.TestCase):
@@ -90,15 +64,28 @@ class PluginManifestTests(unittest.TestCase):
             data["interface"]["defaultPrompt"],
         )
 
-    def test_plugin_manifest_rejects_manager_first_description_field_mutant(self):
+    def test_plugin_manifest_rejects_legacy_lifecycle_description_field_mutants(self):
         # Arrange
         manifest = PLUGIN / ".codex-plugin/plugin.json"
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        data["interface"]["shortDescription"] = "Manage a complete repository studio."
+        original = json.loads(manifest.read_text(encoding="utf-8"))
+        fields = ("description", "shortDescription", "longDescription")
+        bad_phrases = (
+            "Installing and managing a complete repository studio.",
+            "Updating, verifying, and repairing a complete repository studio.",
+            "Migrate or uninstall a repository studio.",
+        )
 
         # Act / Assert
-        with self.assertRaises(AssertionError):
-            assert_plugin_native_descriptions(self, data)
+        for field in fields:
+            for phrase in bad_phrases:
+                data = json.loads(json.dumps(original))
+                target = data if field == "description" else data["interface"]
+                target[field] = phrase
+                with (
+                    self.subTest(field=field, phrase=phrase),
+                    self.assertRaises(AssertionError),
+                ):
+                    assert_plugin_native_descriptions(self, data)
 
     def test_marketplace_points_to_local_plugin(self):
         # Arrange

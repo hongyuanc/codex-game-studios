@@ -15,6 +15,8 @@ import unittest
 from unittest import mock
 import zipfile
 
+from tests.plugin.docs_contract_helpers import assert_plugin_native_descriptions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
@@ -288,17 +290,7 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn("73 bundled skills", metadata_text)
         self.assertIn("$codex-game-studios:start", metadata_text)
         self.assertIn("bounded", metadata_text)
-        for field in ("description", "shortDescription", "longDescription"):
-            value = (
-                metadata[field]
-                if field == "description"
-                else metadata["interface"][field]
-            )
-            with self.subTest(description_field=field):
-                self.assertNotRegex(
-                    value.lower(),
-                    r"\b(?:manager|manage|install|update|verify|repair|remove)\b",
-                )
+        assert_plugin_native_descriptions(self, metadata)
 
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange

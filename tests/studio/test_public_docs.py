@@ -246,12 +246,17 @@ class PublicDocumentationTests(unittest.TestCase):
     def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
         # Arrange
         invalid_mutants = {
-            "cap_and_path": (
+            "cap_only": (
                 "Plugin installation and skill discovery make zero writes to the "
-                "game repository. Start asks at most ten questions. It may create "
+                "game repository. Start asks at most ten questions. It never creates "
+                "`.agents/skills/`."
+            ),
+            "path_only": (
+                "Plugin installation and skill discovery make zero writes to the "
+                "game repository. Start uses at most ten mutations. It may create "
                 "`.agents/skills/`, but never overwrites existing files."
             ),
-            "unbound_zero_writes": (
+            "zero_only": (
                 "Plugin installation writes project files. The help screen makes zero "
                 "writes to the game repository. Start uses at most ten mutations. "
                 "It never creates `.agents/skills/`."

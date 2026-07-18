@@ -132,15 +132,28 @@ class PluginDocumentationTests(unittest.TestCase):
 
     def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
         # Arrange
-        mutant = (
-            "Plugin installation and skill discovery make zero writes to the game "
-            "repository. Start asks at most ten questions. It may create "
-            "`.agents/skills/`, but never overwrites existing files."
-        )
+        invalid_mutants = {
+            "cap_only": (
+                "Plugin installation and skill discovery make zero writes to the game "
+                "repository. Start asks at most ten questions. It never creates "
+                "`.agents/skills/`."
+            ),
+            "path_only": (
+                "Plugin installation and skill discovery make zero writes to the game "
+                "repository. Start uses at most ten mutations. It may create "
+                "`.agents/skills/`, but never overwrites existing files."
+            ),
+            "zero_only": (
+                "Plugin installation writes project files. The help screen makes zero "
+                "writes to the game repository. Start uses at most ten mutations. "
+                "It never creates `.agents/skills/`."
+            ),
+        }
 
         # Act / Assert
-        with self.assertRaises(AssertionError):
-            assert_fresh_repository_contract(self, mutant)
+        for name, mutant in invalid_mutants.items():
+            with self.subTest(mutant=name), self.assertRaises(AssertionError):
+                assert_fresh_repository_contract(self, mutant)
 
 if __name__ == "__main__":
     unittest.main()
