@@ -51,9 +51,11 @@ needs a small project-specific state changeset (at most ten mutations). It
 never installs a project-local skill catalog or creates `.agents/skills/`.
 Codex permissions, explicit approvals, and durable project instructions remain
 the authorization boundary.
-Use `$setup-engine` after Start when you are ready to choose Godot, Unity, or
-Unreal. The selected engine itself must be installed separately to run or export
-a game.
+Marketplace-installed commands use the explicit
+`$codex-game-studios:<skill>` form. Use
+`$codex-game-studios:setup-engine` after Start when you are ready to choose
+Godot, Unity, or Unreal. The selected engine itself must be installed separately
+to run or export a game.
 
 ## Legacy 1.0.0 lifecycle support
 
@@ -95,8 +97,9 @@ community, visit the
   and small repository-owned configuration created only when needed.
 - **GPT studio routing:** the 49 roles are organized as Sol, Terra, and Luna
   profiles with explicit model, reasoning, sandbox, and delegation policies.
-- **Native workflow semantics:** all workflows use `$skill-name` invocation,
-  phase-gated collaboration, and explicit approval boundaries.
+- **Native workflow semantics:** marketplace-installed workflows use explicit
+  `$codex-game-studios:<skill>` invocations, phase-gated collaboration, and
+  approval boundaries.
 - **Hardened lifecycle hooks:** 10 Python-based Codex hook actions provide
   session continuity, gap detection, asset/skill validation, command guardrails,
   and atomic repository I/O without the former shell runtime.
@@ -137,10 +140,17 @@ The persistent setting lives only in `.codex/studio.toml`. Its default
 consultations may be skipped, but phase-transition and other mandatory director
 gates still run.
 
-Skills use `$name` invocation syntax. Common entry points include `$brainstorm`,
-`$map-systems`, `$design-system`, `$prototype`, `$create-architecture`,
-`$create-epics`, `$create-stories`, `$dev-story`, `$story-done`, `$qa-plan`, and
-`$gate-check`. `$help` reads project state and recommends the next workflow.
+Marketplace-installed skills use `$codex-game-studios:<skill>` invocation
+syntax. Common entry points include `$codex-game-studios:brainstorm`,
+`$codex-game-studios:map-systems`, `$codex-game-studios:design-system`,
+`$codex-game-studios:prototype`, `$codex-game-studios:create-architecture`,
+`$codex-game-studios:create-epics`, `$codex-game-studios:create-stories`,
+`$codex-game-studios:dev-story`, `$codex-game-studios:story-done`,
+`$codex-game-studios:qa-plan`, and `$codex-game-studios:gate-check`.
+`$codex-game-studios:help` reads project state and recommends the next workflow.
+When working directly in this source checkout with repository-local skill
+discovery, local commands may use the `$<skill>` shorthand; do not use that
+shorthand for marketplace-installed plugin instructions.
 
 ## Repository layout
 

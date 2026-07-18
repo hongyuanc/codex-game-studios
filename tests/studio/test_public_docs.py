@@ -180,6 +180,9 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("in-Codex", cli)
         self.assertIn("$codex-game-studios:start", cli)
         self.assertIn("all 73 studio skills", fresh.lower())
+        self.assertIn("$codex-game-studios:setup-engine", fresh)
+        self.assertIn("$codex-game-studios:<skill>", fresh)
+        self.assertNotIn("Use `$setup-engine`", fresh)
         assert_fresh_repository_contract(self, fresh)
         for operation in (
             "verify legacy installation",
@@ -224,9 +227,10 @@ class PublicDocumentationTests(unittest.TestCase):
                 )
                 for required in (
                     "$codex-game-studios:start",
+                    "$codex-game-studios:setup-engine",
+                    "$codex-game-studios:<skill>",
                     "all 73 studio skills",
                     "small project-specific state",
-                    "$setup-engine",
                     "Godot",
                     "Unity",
                     "Unreal",
@@ -242,6 +246,27 @@ class PublicDocumentationTests(unittest.TestCase):
                     "uninstall legacy installation",
                 ):
                     self.assertIn(required, legacy)
+
+        self.assertIn("source checkout", root_readme.lower())
+        self.assertIn("`$<skill>`", root_readme)
+        for command in (
+            "setup-engine",
+            "brainstorm",
+            "map-systems",
+            "design-system",
+            "prototype",
+            "create-architecture",
+            "create-epics",
+            "create-stories",
+            "dev-story",
+            "story-done",
+            "qa-plan",
+            "gate-check",
+            "help",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(f"$codex-game-studios:{command}", root_readme)
+                self.assertNotIn(f"${command}", root_readme)
 
     def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
         # Arrange
