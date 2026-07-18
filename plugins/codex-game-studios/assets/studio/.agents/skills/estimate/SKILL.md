@@ -128,9 +128,9 @@ This skill is read-only — no files are written or edited. It may recommend pla
 
 ## Phase 5: Next Steps
 
-- If confidence is Low: recommend a time-boxed spike (`$prototype`) before committing.
-- If the task is > 10 days: recommend breaking it into smaller stories via `$create-stories`.
-- To schedule the task: run `$sprint-plan update` to add it to the next sprint.
+- If confidence is Low: recommend a time-boxed spike (`$codex-game-studios:prototype`) before committing.
+- If the task is > 10 days: recommend breaking it into smaller stories via `$codex-game-studios:create-stories`.
+- To schedule the task: run `$codex-game-studios:sprint-plan update` to add it to the next sprint.
 
 ### Guidelines
 

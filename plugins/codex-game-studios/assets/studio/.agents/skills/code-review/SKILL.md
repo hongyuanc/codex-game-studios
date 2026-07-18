@@ -36,7 +36,7 @@ If the section reads `[TO BE CONFIGURED]`, no engine is pinned — skip engine s
 
 ## Phase 3: ADR Compliance Check
 
-**Argument:** `$code-review [file(s)]` may optionally include a story file path as the last argument (e.g., `$code-review src/combat/attack.gd production/epics/combat/story-001.md`). If a story path is provided, read it to extract the governing ADR reference.
+**Argument:** `$codex-game-studios:code-review [file(s)]` may optionally include a story file path as the last argument (e.g., `$codex-game-studios:code-review src/combat/attack.gd production/epics/combat/story-001.md`). If a story path is provided, read it to extract the governing ADR reference.
 
 Search for ADR references in, in priority order:
 1. The story file (if provided as argument)
@@ -45,7 +45,7 @@ Search for ADR references in, in priority order:
 
 Look for patterns like `ADR-NNN` or `docs/architecture/ADR-`.
 
-If no ADR references found, note: "No ADR references found — ADR compliance check skipped. For full ADR compliance review, provide the story path: `$code-review [files] [story-path]`."
+If no ADR references found, note: "No ADR references found — ADR compliance check skipped. For full ADR compliance review, provide the story path: `$codex-game-studios:code-review [files] [story-path]`."
 
 For each referenced ADR: read the file, extract the **Decision** and **Consequences** sections, then classify any deviation:
 
@@ -180,12 +180,12 @@ Use `request_user_input`:
 - Prompt: "Code review complete — verdict: [APPROVED / CHANGES REQUIRED / MAJOR REVISION]. How would you like to proceed?"
 - Options (adjust based on verdict):
   - If APPROVED:
-    - `[A] Run $story-done to mark the story complete`
+    - `[A] Run $codex-game-studios:story-done to mark the story complete`
     - `[B] Stop here`
   - If CHANGES REQUIRED or MAJOR REVISION:
     - `[A] Prepare a proposed fix changeset for separate authorization`
     - `[B] Stop here`
 
 If an ARCHITECTURAL VIOLATION is found:
-- If the violation contradicts an **existing ADR**: recommend a separately authorized fix changeset that restores compliance with `docs/architecture/[adr-file].md`. If the design has legitimately changed, recommend `$architecture-decision` to formally *revise* the existing ADR — do not create a competing one.
-- If **no ADR exists** for the pattern that was violated: recommend `$architecture-decision` before any separately authorized source fix.
+- If the violation contradicts an **existing ADR**: recommend a separately authorized fix changeset that restores compliance with `docs/architecture/[adr-file].md`. If the design has legitimately changed, recommend `$codex-game-studios:architecture-decision` to formally *revise* the existing ADR — do not create a competing one.
+- If **no ADR exists** for the pattern that was violated: recommend `$codex-game-studios:architecture-decision` before any separately authorized source fix.

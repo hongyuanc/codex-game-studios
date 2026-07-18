@@ -41,8 +41,8 @@ If no version is provided, ask the user before proceeding.
 **If no changelog data is available** (neither `production/releases/[version]/changelog.md`
 nor a `docs/CHANGELOG.md` entry for this version exists, and git log is empty or unavailable):
 
-> "No changelog data found for [version]. Run `$changelog [version]` first to generate the
-> internal changelog, then re-run `$patch-notes [version]`."
+> "No changelog data found for [version]. Run `$codex-game-studios:changelog [version]` first to generate the
+> internal changelog, then re-run `$codex-game-studios:patch-notes [version]`."
 
 Verdict: **BLOCKED** — stop here without generating notes.
 
@@ -194,5 +194,5 @@ If both approved files were written: Verdict: **SAVED** — patch notes generate
 
 If approval was declined or no file was written: Verdict: **DRAFT COMPLETE — NOT SAVED** — patch notes remain in conversation only.
 
-- Run `$release-checklist` to verify all other release gates are met before publishing.
+- Run `$codex-game-studios:release-checklist` to verify all other release gates are met before publishing.
 - Share the patch notes draft with the community-manager for tone review before posting publicly.

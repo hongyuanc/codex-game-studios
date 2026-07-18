@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 ## Invocation
 
-Usage: `$team-audio [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-audio [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
@@ -121,8 +121,8 @@ Verdict: **BLOCKED** — [reason]
 ## Next Steps
 
 - Review the audio design doc with the audio-director before implementation begins.
-- Use `$dev-story` to implement the audio manager and event system once the design is approved.
-- Run `$asset-audit` after audio assets are created to verify naming and format compliance.
+- Use `$codex-game-studios:dev-story` to implement the audio manager and event system once the design is approved.
+- Run `$codex-game-studios:asset-audit` after audio assets are created to verify naming and format compliance.
 
 ## Error Recovery Protocol
 
@@ -138,6 +138,6 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess

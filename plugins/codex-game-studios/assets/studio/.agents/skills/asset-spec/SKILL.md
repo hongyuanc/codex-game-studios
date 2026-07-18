@@ -101,9 +101,9 @@ Write the file:
 
 After writing, tell the user:
 > "Entity inventory saved. Next steps:
-> - Run `$ux-design [screen name]` for each UI screen in the inventory
-> - Run `$asset-spec entity:[name]` to spec each visual entity
-> - Or run `$asset-spec` again to work through the inventory one item at a time"
+> - Run `$codex-game-studios:ux-design [screen name]` for each UI screen in the inventory
+> - Run `$codex-game-studios:asset-spec entity:[name]` to spec each visual entity
+> - Or run `$codex-game-studios:asset-spec` again to work through the inventory one item at a time"
 
 ---
 
@@ -127,14 +127,14 @@ Read all source material **before** asking the user anything.
 
 ### Required reads:
 - **Art bible**: Read `design/art/art-bible.md` — fail if missing:
-  > "No art bible found. Run `$art-bible` first — asset specs are anchored to the art bible's visual rules and asset standards."
+  > "No art bible found. Run `$codex-game-studios:art-bible` first — asset specs are anchored to the art bible's visual rules and asset standards."
   Extract: Visual Identity Statement, Color System (semantic colors), Shape Language, Asset Standards (Section 8 — dimensions, formats, polycount budgets, texture resolution tiers).
 
 - **Technical preferences**: Read `.codex/docs/technical-preferences.md` — extract performance budgets and naming conventions.
 
 ### Source doc reads (by target type):
 - **system**: Read `design/gdd/[target-name].md`. Extract the **Visual/Audio Requirements** section. If it doesn't exist or reads `[To be designed]`:
-  > "The Visual/Audio section of `design/gdd/[target-name].md` is empty. Either run `$design-system [target-name]` to complete the GDD, or describe the visual needs manually."
+  > "The Visual/Audio section of `design/gdd/[target-name].md` is empty. Either run `$codex-game-studios:design-system [target-name]` to complete the GDD, or describe the visual needs manually."
   Ask one concise question and wait for the answer: `[A] Describe needs manually` / `[B] Stop — complete the GDD first`
 - **level**: Read `design/levels/[target-name].md`. Extract art requirements, asset list, VFX needs, and the art-director's production concept specs from Step 4.
 - **character** or **entity**: Read `design/narrative/characters/[target-name].md` or search `design/narrative/` and `design/assets/entity-inventory.md` for a matching entry. Extract visual description, role, and any specified distinguishing features.
@@ -293,10 +293,10 @@ The Phase 4 full-changeset approval also authorizes this manifest update.
 Ask one concise question and wait for the answer:
 - Prompt: "Asset specs complete for **[target]**. What's next?"
 - Options:
-  - `[A] Spec another system — $asset-spec system:[next-system]`
-  - `[B] Spec a level — $asset-spec level:[level-name]`
-  - `[C] Spec a character — $asset-spec character:[character-name]`
-  - `[D] Run $asset-audit — validate delivered assets against specs`
+  - `[A] Spec another system — $codex-game-studios:asset-spec system:[next-system]`
+  - `[B] Spec a level — $codex-game-studios:asset-spec level:[level-name]`
+  - `[C] Spec a character — $codex-game-studios:asset-spec character:[character-name]`
+  - `[D] Run $codex-game-studios:asset-audit — validate delivered assets against specs`
   - `[E] Stop here`
 
 ---
@@ -354,5 +354,5 @@ Every phase follows: **Identify → Confirm → Generate → Review → Approve 
 
 ## Recommended Next Steps
 
-- Run `$asset-spec [next-context]` to continue speccing remaining systems, levels, or characters
-- Run `$asset-audit` to validate delivered assets against the written specs and identify gaps or mismatches
+- Run `$codex-game-studios:asset-spec [next-context]` to continue speccing remaining systems, levels, or characters
+- Run `$codex-game-studios:asset-audit` to validate delivered assets against the written specs and identify gaps or mismatches

@@ -27,8 +27,8 @@ then Core, and so on — matching the dependency order.
 
 **Output:** `production/epics/[epic-slug]/story-NNN-[slug].md` files
 
-**Previous step:** `$create-epics [system]`
-**Next step after stories exist:** `$story-readiness [story-path]` then `$dev-story [story-path]`
+**Previous step:** `$codex-game-studios:create-epics [system]`
+**Next step after stories exist:** `$codex-game-studios:story-readiness [story-path]` then `$codex-game-studios:dev-story [story-path]`
 
 ---
 
@@ -40,8 +40,8 @@ optional-review depth while mandatory director gates still run. This resolved mo
 apply `../../../.codex/docs/director-gates.md` before every gate invocation. Never create
 or consult a second persistent review-mode setting.
 
-- `$create-stories [epic-slug]` — e.g. `$create-stories combat`
-- `$create-stories production/epics/combat/EPIC.md` — full path also accepted
+- `$codex-game-studios:create-stories [epic-slug]` — e.g. `$codex-game-studios:create-stories combat`
+- `$codex-game-studios:create-stories production/epics/combat/EPIC.md` — full path also accepted
 - No argument — ask: "Which epic would you like to break into stories?"
 
 Before generating, inspect the target epic directory for existing `story-*.md` files. Do not regenerate existing stories solely because they lack newer optional metadata. Existing stories missing newer optional metadata remain readable; report the gap and offer a separately authorized migration if it materially matters.
@@ -62,7 +62,7 @@ Read in full:
 **ADR existence validation**: After reading the governing ADRs list from the epic, confirm each ADR file exists on disk. If any ADR file cannot be found, **stop immediately** before decomposing any story:
 
 > "Epic references [ADR-NNNN: title] but `docs/architecture/[adr-file].md` was not found.
-> Check the filename in the epic's Governing ADRs list, or run `$architecture-decision`
+> Check the filename in the epic's Governing ADRs list, or run `$codex-game-studios:architecture-decision`
 > to create it. Cannot create stories until all referenced ADR files are present."
 
 Do not proceed to Step 3 until all referenced ADR files are confirmed present.
@@ -84,7 +84,7 @@ Report: "Loaded epic [name], GDD [filename], [N] governing ADRs (all confirmed p
 | **Config/Data** | Balance tuning values, data file changes only — no new code logic |
 
 Mixed stories: assign the type that carries the highest implementation risk.
-The type determines what test evidence is required before `$story-done` can close the story.
+The type determines what test evidence is required before `$codex-game-studios:story-done` can close the story.
 
 ---
 
@@ -101,10 +101,10 @@ group of criteria would take longer, split into two stories.
 
 For each story, determine:
 - **GDD requirement**: which acceptance criterion(ia) does this satisfy?
-- **TR-ID**: look up the requirement in `tr-registry.yaml` and use its stable active ID. Missing registry or TR-ID is a blocking traceability gap: set the generated story to `Status: Blocked`, record `Requirement: BLOCKED — stable TR-ID required`, and direct the user to `$architecture-review`. Never invent or write a placeholder TR-ID, and never emit a Ready story without an active registered TR-ID.
+- **TR-ID**: look up the requirement in `tr-registry.yaml` and use its stable active ID. Missing registry or TR-ID is a blocking traceability gap: set the generated story to `Status: Blocked`, record `Requirement: BLOCKED — stable TR-ID required`, and direct the user to `$codex-game-studios:architecture-review`. Never invent or write a placeholder TR-ID, and never emit a Ready story without an active registered TR-ID.
 - **Governing ADR**: which ADR governs how to implement this?
   - `Status: Accepted` → embed normally
-  - `Status: Proposed` → set story `Status: Blocked` with note: "BLOCKED: ADR-NNNN is Proposed — run `$architecture-decision` to advance it"
+  - `Status: Proposed` → set story `Status: Blocked` with note: "BLOCKED: ADR-NNNN is Proposed — run `$codex-game-studios:architecture-decision` to advance it"
   - **Multiple ADRs apply**: List all governing ADRs in the story's `Governing ADRs:` field. Designate the one most directly controlling the implementation pattern as primary (first in the list). Others are listed as secondary references.
   - **No ADR applies at all**: Write `ADR: N/A — [brief reason, e.g. "pure data configuration, no architectural pattern required"]` in the story's ADR field. Do NOT leave the field blank — a blank ADR field means "not checked", not "not applicable".
 - **Story Type**: from Step 3 classification
@@ -134,7 +134,7 @@ Present the QA lead's assessment. For each story flagged as GAPS or INADEQUATE, 
     - `Skip test spec generation — I'll fill in ## QA Test Cases manually`
 - If "Use existing specs": extract the test case specs from the qa-plan for each matching story and embed them directly into the `## QA Test Cases` section. No qa-lead spawn needed for those stories. Only spawn qa-lead for stories with no coverage in the qa-plan.
 - If "Generate fresh": proceed with the qa-lead spawn below as normal.
-- If "Skip": leave `## QA Test Cases` with a placeholder: `*Test cases not yet defined — run $qa-plan to generate them.*`
+- If "Skip": leave `## QA Test Cases` with a placeholder: `*Test cases not yet defined — run $codex-game-studios:qa-plan to generate them.*`
 
 **After ADEQUATE** (or after qa-plan import): for every Logic and Integration story, ask the qa-lead to produce concrete test case specifications — one per acceptance criterion — in this format:
 
@@ -199,7 +199,7 @@ For each story, write `production/epics/[epic-slug]/story-[NNN]-[slug].md`:
 > **Type**: [Logic | Integration | Visual/Feel | UI | Config/Data]
 > **Estimate**: [hours or t-shirt size — fill before sprint planning]
 > **Manifest Version**: [date from control-manifest.md header]
-> **Last Updated**: [set by $dev-story when implementation begins]
+> **Last Updated**: [set by $codex-game-studios:dev-story when implementation begins]
 
 ## Context
 
@@ -313,14 +313,14 @@ Close with context-aware next steps. Ask at most one decision question and provi
 
 Check:
 - Are there other epics in `production/epics/` without stories yet? List them.
-- Is this the last epic? If so, include `$sprint-plan` as an option.
+- Is this the last epic? If so, include `$codex-game-studios:sprint-plan` as an option.
 
 Decision prompt:
 - Prompt: "[N] stories written to `production/epics/[epic-slug]/`. What next?"
 - Options (include all that apply):
-  - `[A] Start implementing — run $story-readiness [first-story-path]` (Recommended)
-  - `[B] Create stories for [next-epic-slug] — run $create-stories [slug]` (only if other epics have no stories yet)
-  - `[C] Plan the sprint — run $sprint-plan new` (only if all epics have stories)
+  - `[A] Start implementing — run $codex-game-studios:story-readiness [first-story-path]` (Recommended)
+  - `[B] Create stories for [next-epic-slug] — run $codex-game-studios:create-stories [slug]` (only if other epics have no stories yet)
+  - `[C] Plan the sprint — run $codex-game-studios:sprint-plan new` (only if all epics have stories)
   - If neither continuation applies, offer `[C] Stop here for this session`
 
 Note in output: "Work through stories in order — each story's `Depends on:` field tells you what must be DONE before you can start it."
@@ -338,5 +338,5 @@ Note in output: "Work through stories in order — each story's `Depends on:` fi
 
 After writing (or declining):
 
-- **Verdict: COMPLETE** — [N] stories written to `production/epics/[epic-slug]/`. Run `$story-readiness` → `$dev-story` to begin implementation.
+- **Verdict: COMPLETE** — [N] stories written to `production/epics/[epic-slug]/`. Run `$codex-game-studios:story-readiness` → `$codex-game-studios:dev-story` to begin implementation.
 - **Verdict: BLOCKED** — user declined. No story files written.

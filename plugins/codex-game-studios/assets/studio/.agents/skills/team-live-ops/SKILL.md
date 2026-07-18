@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 ## Invocation
 
-Usage: `$team-live-ops [season name or event] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-live-ops [season name or event] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
@@ -110,7 +110,7 @@ Present a summary to the user with:
 - **Analytics readiness**: are success criteria defined and instrumented?
 - **Ethics review**: check the Phase 3 economy design against `design/live-ops/ethics-policy.md`
   - If the file does not exist: flag "ETHICS REVIEW SKIPPED: `design/live-ops/ethics-policy.md` not found. Economy design was not reviewed against an ethics policy. Recommend creating one before production begins." Include this flag in the season design output document. Add to next steps: create `design/live-ops/ethics-policy.md`.
-  - If the file exists and a violation is found: flag "ETHICS FLAG: [element] in Phase 3 economy design violates [policy rule]. Approval is blocked until this is resolved." Do NOT issue a COMPLETE verdict or write output documents. Use `request_user_input` with options: revise economy design / override with documented rationale / cancel. If user chooses to revise: re-delegate to economy-designer to produce a corrected design, then return to Phase 7 review. If user selects Cancel: end with Verdict: BLOCKED — "Live ops design cancelled due to unresolved ethics violation. Resolve the flagged issues and re-run $team-live-ops."
+  - If the file exists and a violation is found: flag "ETHICS FLAG: [element] in Phase 3 economy design violates [policy rule]. Approval is blocked until this is resolved." Do NOT issue a COMPLETE verdict or write output documents. Use `request_user_input` with options: revise economy design / override with documented rationale / cancel. If user chooses to revise: re-delegate to economy-designer to produce a corrected design, then return to Phase 7 review. If user selects Cancel: end with Verdict: BLOCKED — "Live ops design cancelled due to unresolved ethics violation. Resolve the flagged issues and re-run $codex-game-studios:team-live-ops."
 - **Open questions**: decisions still needed before production begins
 
 Ask the user to approve the season plan before delegating to production teams. Issue the COMPLETE verdict only after the user approves and no unresolved ethics violations remain. If an ethics violation is unresolved, end with Verdict: **BLOCKED**.
@@ -147,6 +147,6 @@ Verdict: **COMPLETE** — season plan produced and handed off for production.
 
 ## Next Steps
 
-- Run `$design-review` on the season design document for consistency validation.
-- Run `$sprint-plan` to schedule content creation work for the season.
-- Run `$team-release` when the season content is ready to deploy.
+- Run `$codex-game-studios:design-review` on the season design document for consistency validation.
+- Run `$codex-game-studios:sprint-plan` to schedule content creation work for the season.
+- Run `$codex-game-studios:team-release` when the season content is ready to deploy.

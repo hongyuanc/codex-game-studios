@@ -15,10 +15,10 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$team-qa`
+### Native readiness gate for `$codex-game-studios:team-qa`
 
-Before invoking or routing to `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, do not route to `$team-qa`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$codex-game-studios:team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:team-qa is not available`, defer the handoff, do not invoke `$codex-game-studios:team-qa`, do not route to `$codex-game-studios:team-qa`, and do not search for or copy a repository-local skill file.
 
 # Dev Story
 
@@ -28,14 +28,14 @@ drives implementation to completion — including writing the test.
 
 **The loop for every story:**
 ```
-$qa-plan sprint           ← define test requirements before sprint begins
-$story-readiness [path]   ← validate before starting
-$dev-story [path]         ← implement it  (this skill)
-$code-review [files]      ← review it
-$story-done [path]        ← verify and close it
+$codex-game-studios:qa-plan sprint           ← define test requirements before sprint begins
+$codex-game-studios:story-readiness [path]   ← validate before starting
+$codex-game-studios:dev-story [path]         ← implement it  (this skill)
+$codex-game-studios:code-review [files]      ← review it
+$codex-game-studios:story-done [path]        ← verify and close it
 ```
 
-**After all sprint stories are done:** run `$team-qa sprint` to execute the full QA cycle and get a sign-off verdict before advancing the project stage.
+**After all sprint stories are done:** run `$codex-game-studios:team-qa sprint` to execute the full QA cycle and get a sign-off verdict before advancing the project stage.
 
 **Output:** Source code + test file in the project's `src/` and `tests/` directories.
 
@@ -58,9 +58,9 @@ If not found, ask: "Which story are we implementing?" file search
 
 | File | Path | If missing |
 |------|------|------------|
-| TR registry | `docs/architecture/tr-registry.yaml` | **STOP** — "TR registry not found at `docs/architecture/tr-registry.yaml`. Run `$architecture-review` to bootstrap the registry from your GDDs and ADRs." |
-| Governing ADR | path from story's ADR field | **STOP** — "ADR file [path] not found. Run `$architecture-decision` to create it, or correct the filename in the story's ADR field." |
-| Control manifest | `docs/architecture/control-manifest.md` | **WARN and continue** — "Control manifest not found — layer rules cannot be checked. Run `$create-control-manifest`." |
+| TR registry | `docs/architecture/tr-registry.yaml` | **STOP** — "TR registry not found at `docs/architecture/tr-registry.yaml`. Run `$codex-game-studios:architecture-review` to bootstrap the registry from your GDDs and ADRs." |
+| Governing ADR | path from story's ADR field | **STOP** — "ADR file [path] not found. Run `$codex-game-studios:architecture-decision` to create it, or correct the filename in the story's ADR field." |
+| Control manifest | `docs/architecture/control-manifest.md` | **WARN and continue** — "Control manifest not found — layer rules cannot be checked. Run `$codex-game-studios:create-control-manifest`." |
 
 If the TR registry or governing ADR is missing, report the story as **BLOCKED** and stop. Do not change the story, sprint status, or session state.
 
@@ -106,7 +106,7 @@ If they differ, use `request_user_input` before proceeding:
 
 If [A]: use the current rules and include the intended `Manifest Version:` story update in the complete Implementation Preflight. Do not edit yet.
 If [B]: record the accepted risk as a planned `Manifest-Note:` in the complete Implementation Preflight. Do not edit yet. Read the current manifest and include any resulting risk in the preflight.
-If [C]: stop. Do not spawn any agent. Let the user review and re-run `$dev-story`.
+If [C]: stop. Do not spawn any agent. Let the user review and re-run `$codex-game-studios:dev-story`.
 
 ### Dependency validation
 
@@ -120,14 +120,14 @@ After extracting the **Dependencies** list from the story file, validate each:
      - Options:
        - `[A] Proceed anyway — I accept the dependency risk`
        - `[B] Stop — I'll complete the dependency first`
-       - `[C] The dependency is done but status is stale — verify it through $story-done first`
+       - `[C] The dependency is done but status is stale — verify it through $codex-game-studios:story-done first`
    - If [B]: report the current story as BLOCKED and stop without changing any file.
-   - If [C]: stop and route completion through `$story-done [dependency path]`; re-run `$dev-story` only after that workflow completes.
+   - If [C]: stop and route completion through `$codex-game-studios:story-done [dependency path]`; re-run `$codex-game-studios:dev-story` only after that workflow completes.
    - If [A]: include "Implement with incomplete dependency: [dependency title] — [status]" as a risk in the complete Implementation Preflight. Do not write it anywhere yet.
 
 If a dependency file cannot be found: warn "Dependency story not found: [path]. Verify the path or create the story file."
 
-All prerequisite, manifest-mismatch, and dependency choices before the preflight are read-only resolution decisions. No story, dependency, sprint-status, session-state, evidence, or source file may change before approval of the complete Implementation Preflight. Never mark another story Complete in this workflow; route completion through `$story-done`.
+All prerequisite, manifest-mismatch, and dependency choices before the preflight are read-only resolution decisions. No story, dependency, sprint-status, session-state, evidence, or source file may change before approval of the complete Implementation Preflight. Never mark another story Complete in this workflow; route completion through `$codex-game-studios:story-done`.
 
 ---
 
@@ -218,7 +218,7 @@ Brief the agent with file paths and targeted reading instructions — do not ser
 4. **Control manifest**: `docs/architecture/control-manifest.md` — read rules for the **[layer]** layer only
 5. **Engine preferences**: `.codex/docs/technical-preferences.md` — read naming conventions and performance budgets
 6. **Test file path**: `[path from story's Test Evidence section]` — this file must be created as part of implementation
-7. **Test requirement** (Logic and Integration stories only): The test file MUST be created at `[path from the story's Test Evidence section]`. Write the test alongside the implementation — do not defer it. The story cannot be closed via `$story-done` without this file present. Each acceptance criterion must have at least one test function covering it. Test file naming: `[system]_[feature]_test.[ext]`. Function naming: `test_[scenario]_[expected_outcome]`. No random seeds, no time-dependent assertions, no external I/O.
+7. **Test requirement** (Logic and Integration stories only): The test file MUST be created at `[path from the story's Test Evidence section]`. Write the test alongside the implementation — do not defer it. The story cannot be closed via `$codex-game-studios:story-done` without this file present. Each acceptance criterion must have at least one test function covering it. Test file naming: `[system]_[feature]_test.[ext]`. Function naming: `test_[scenario]_[expected_outcome]`. No random seeds, no time-dependent assertions, no external I/O.
 8. **Explicit instruction**: implement this story following the ADR guidelines, respect the manifest rules, stay within the story's Out of Scope boundaries. Write clean, doc-commented public APIs.
 
 The agent should:
@@ -238,7 +238,7 @@ changed from/to.
 
 Spawn `gameplay-programmer` to implement the code/animation calls. Note that
 Visual/Feel acceptance criteria cannot be auto-verified — the "does it feel right?"
-check happens in `$story-done` via manual confirmation.
+check happens in `$codex-game-studios:story-done` via manual confirmation.
 
 ---
 
@@ -286,9 +286,9 @@ Present a concise implementation summary:
 **Engine risks flagged**: [None] or [specialist finding]
 **Blockers**: [None] or [describe]
 
-**Before running `$story-done`:** run your test suite locally and confirm the tests you wrote pass. `$story-done` will re-run them automatically, but a failing test discovered there means returning to implementation context.
+**Before running `$codex-game-studios:story-done`:** run your test suite locally and confirm the tests you wrote pass. `$codex-game-studios:story-done` will re-run them automatically, but a failing test discovered there means returning to implementation context.
 
-Ready for: `$code-review [file1] [file2]` then `$story-done [story-path]`
+Ready for: `$codex-game-studios:code-review [file1] [file2]` then `$codex-game-studios:story-done [story-path]`
 ```
 
 ---
@@ -298,12 +298,12 @@ Ready for: `$code-review [file1] [file2]` then `$story-done [story-path]`
 Append to the already listed and approved `production/session-state/active.md` path:
 
 ```
-## Session Extract — $dev-story [date]
+## Session Extract — $codex-game-studios:dev-story [date]
 - Story: [story-path] — [story title]
 - Files changed: [comma-separated list]
 - Test written: [path, or "None — Visual/Feel/Config story"]
 - Blockers: [None, or description]
-- Next: $code-review [files] then $story-done [story-path]
+- Next: $codex-game-studios:code-review [files] then $codex-game-studios:story-done [story-path]
 ```
 
 Create `active.md` if it does not exist. Confirm: "Session state updated."
@@ -324,8 +324,8 @@ If any spawned agent (through Codex custom-agent delegation) returns BLOCKED, er
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 - Manifest version mismatch → show diff to user, ask whether to proceed with old rules or update story first
 
@@ -345,7 +345,7 @@ Common blockers:
 - **Test is not optional for Logic/Integration** — do not mark implementation
   complete without the test file existing
 - **Visual/Feel criteria are deferred, not skipped** — mark them as DEFERRED
-  in the summary; they will be manually verified in `$story-done`
+  in the summary; they will be manually verified in `$codex-game-studios:story-done`
 - **Ask before large structural decisions** — if the story requires an
   architectural pattern not covered by the ADR, surface it before implementing:
   "The ADR doesn't specify how to handle [case]. My plan is [X]. Proceed?"
@@ -354,6 +354,6 @@ Common blockers:
 
 ## Recommended Next Steps
 
-- Run `$code-review [file1] [file2]` to review the implementation before closing the story
-- Run `$story-done [story-path]` to verify acceptance criteria and mark the story complete
-- After all sprint stories are done: run `$team-qa sprint` for the full QA cycle before advancing the project stage
+- Run `$codex-game-studios:code-review [file1] [file2]` to review the implementation before closing the story
+- Run `$codex-game-studios:story-done [story-path]` to verify acceptance criteria and mark the story complete
+- After all sprint stories are done: run `$codex-game-studios:team-qa sprint` for the full QA cycle before advancing the project stage

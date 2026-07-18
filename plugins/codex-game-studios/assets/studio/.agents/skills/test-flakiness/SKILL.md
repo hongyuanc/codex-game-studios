@@ -28,17 +28,17 @@ explains likely causes, and recommends whether to quarantine or fix each one.
 **When to run:**
 - Polish phase (tests have had many runs; statistical signal is reliable)
 - When developers start dismissing CI failures as "probably flaky"
-- After `$regression-suite` identifies quarantined tests that need diagnosis
+- After `$codex-game-studios:regression-suite` identifies quarantined tests that need diagnosis
 
 ---
 
 ## 1. Parse Arguments
 
 **Modes:**
-- `$test-flakiness [ci-log-path]` — analyse a specific CI run log file
-- `$test-flakiness scan` — scan all available CI logs in `.github/` or
+- `$codex-game-studios:test-flakiness [ci-log-path]` — analyse a specific CI run log file
+- `$codex-game-studios:test-flakiness scan` — scan all available CI logs in `.github/` or
   standard log output directories
-- `$test-flakiness registry` — read existing regression-suite.md quarantine
+- `$codex-game-studios:test-flakiness registry` — read existing regression-suite.md quarantine
   section and provide remediation guidance for already-known flaky tests
 - No argument — auto-detect: run `scan` if CI logs are accessible, else
   `registry`
@@ -75,7 +75,7 @@ If no logs found:
 > history from multiple runs. Options:
 > 1. Run the test suite at least 3 times and collect the output logs
 > 2. Check CI pipeline output and save a log to `test-results/`
-> 3. Run `$test-flakiness registry` to review tests already flagged as flaky
+> 3. Run `$codex-game-studios:test-flakiness registry` to review tests already flagged as flaky
 >    in `tests/regression-suite.md`"
 
 Stop and ask the user which option to pursue.

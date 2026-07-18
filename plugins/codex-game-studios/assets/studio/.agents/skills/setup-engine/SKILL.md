@@ -19,7 +19,7 @@ Each immutable source pack contains exactly five Codex agent profiles under `.co
 
 ## Utility boundary
 
-No director gates apply. `$setup-engine` is a technical configuration utility.
+No director gates apply. `$codex-game-studios:setup-engine` is a technical configuration utility.
 No director agents participate; the workflow does not emit a gate ID or
 gate-skip message in any review mode. The parent agent owns every question, approval request,
 changeset, validation result, and final handoff.
@@ -201,10 +201,10 @@ or partially applied configuration.
 
 Include a **Contextual next step**:
 
-- If project initialization is incomplete, hand back to `$start`.
-- If no approved game concept exists, offer `$brainstorm`.
+- If project initialization is incomplete, hand back to `$codex-game-studios:start`.
+- If no approved game concept exists, offer `$codex-game-studios:brainstorm`.
 - If an approved concept exists but systems are not mapped, offer
-  `$map-systems`.
+  `$codex-game-studios:map-systems`.
 - After a section-specific reconfiguration, return to the invoking workflow
   and name the preserved configuration; do not invent unrelated work.
 

@@ -205,18 +205,22 @@ class SetupEngineSkillTests(unittest.TestCase):
 
     def test_setup_engine_reports_complete_with_contextual_handoff_and_no_gate(self):
         # Arrange / Act
-        texts = setup_engine_texts()
+        canonical, bundled = setup_engine_texts()
 
         # Assert
-        for text in texts:
+        for text in (canonical, bundled):
             self.assertIn("Verdict: COMPLETE", text)
             self.assertIn("Contextual next step", text)
-            self.assertIn("`$brainstorm`", text)
-            self.assertIn("`$map-systems`", text)
             self.assertIn("No director gates apply", text)
             self.assertIn("No director agents participate", text)
             self.assertIn("does not emit a gate ID", text)
             self.assertIn("gate-skip message", text)
+        for command in ("start", "brainstorm", "map-systems"):
+            with self.subTest(mode="source", command=command):
+                self.assertIn(f"`${command}`", canonical)
+                self.assertNotIn(f"`$codex-game-studios:{command}`", canonical)
+            with self.subTest(mode="plugin", command=command):
+                self.assertIn(f"`$codex-game-studios:{command}`", bundled)
 
     def test_setup_engine_supplied_engine_argument_skips_engine_selection(self):
         # Arrange / Act

@@ -127,7 +127,7 @@ String freeze: [Active / Not yet called / Lifted]
 | [locale] | [N] | [N] | [N] | [N] | [X]% |
 
 ### Issues
-- [N] hardcoded strings found in source code (run $localize scan)
+- [N] hardcoded strings found in source code (run $codex-game-studios:localize scan)
 - [N] strings exceeding character limits
 - [N] placeholder mismatches
 - [N] orphaned keys
@@ -346,8 +346,8 @@ Pre-Freeze Checklist
 [ ] All planned UI screens are implemented
 [ ] All dialogue lines are final (no further narrative revisions planned)
 [ ] All system strings (error messages, tutorial text) are complete
-[ ] $localize scan shows zero hardcoded strings
-[ ] $localize validate shows no placeholder mismatches in source (en)
+[ ] $codex-game-studios:localize scan shows zero hardcoded strings
+[ ] $codex-game-studios:localize validate shows no placeholder mismatches in source (en)
 [ ] Marketing strings (store description, achievements) are final
 ```
 
@@ -366,7 +366,7 @@ If [A]: Write `production/localization/freeze-status.md`:
 **Total strings at freeze**: [N]
 
 ## Post-Freeze Changes
-[Any strings added or modified after freeze are listed here automatically by $localize extract]
+[Any strings added or modified after freeze are listed here automatically by $codex-game-studios:localize extract]
 ```
 
 ### freeze lift
@@ -383,13 +383,13 @@ When `extract` mode finds new or modified strings and `freeze-status.md` shows S
 ## Phase 2J: QA Mode
 
 Localization QA is a dedicated pass that runs after translations are delivered but
-before any locale ships. This is not the same as `$localize validate` (which checks completeness)
+before any locale ships. This is not the same as `$codex-game-studios:localize validate` (which checks completeness)
 — this is a structured playthrough-based quality check.
 
 Delegate to `localization-lead` through Codex custom-agent delegation with:
 - The target locale(s) to QA
-- The list of all screens/flows in the game (from `design/gdd/` or `$content-audit` output)
-- The current `$localize validate` report
+- The list of all screens/flows in the game (from `design/gdd/` or `$codex-game-studios:content-audit` output)
+- The current `$codex-game-studios:localize validate` report
 - The cultural review report (if it exists)
 
 Ask the localization-lead to produce a QA plan covering:
@@ -445,16 +445,16 @@ Present the localization QA report path and content as the complete proposed cha
 ### Recommended Workflow
 
 ```
-$localize scan            → find hardcoded strings
-$localize extract         → build string table
-$localize freeze          → lock source before sending to translators
-$localize brief           → generate translator briefing document
+$codex-game-studios:localize scan            → find hardcoded strings
+$codex-game-studios:localize extract         → build string table
+$codex-game-studios:localize freeze          → lock source before sending to translators
+$codex-game-studios:localize brief           → generate translator briefing document
 [Send to translators]
-$localize validate        → check returned translations
-$localize cultural-review → flag culturally sensitive content
-$localize rtl-check       → if shipping Arabic / Hebrew / Persian
-$localize vo-pipeline     → if shipping dubbed VO
-$localize qa              → full localization QA pass
+$codex-game-studios:localize validate        → check returned translations
+$codex-game-studios:localize cultural-review → flag culturally sensitive content
+$codex-game-studios:localize rtl-check       → if shipping Arabic / Hebrew / Persian
+$codex-game-studios:localize vo-pipeline     → if shipping dubbed VO
+$codex-game-studios:localize qa              → full localization QA pass
 ```
 
-After `qa` returns PASS for all shipping locales, include the QA report path when running `$gate-check release`.
+After `qa` returns PASS for all shipping locales, include the QA report path when running `$codex-game-studios:gate-check release`.

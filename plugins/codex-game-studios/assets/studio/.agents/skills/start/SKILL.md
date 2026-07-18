@@ -9,8 +9,8 @@ Ask one decision per turn and wait for the answer before asking another. A
 `request_user_input` call contains 1-3 questions only when genuinely independent,
 and each question contains 2-3 mutually exclusive options. Discovery is read-only
 until a documented artifact changeset and target path are shown and approved.
-Fresh projects route from `$start`; engine-dependent work with no configured
-engine routes to `$setup-engine`.
+Fresh projects route from `$codex-game-studios:start`; engine-dependent work with no configured
+engine routes to `$codex-game-studios:setup-engine`.
 
 # Guided Onboarding
 
@@ -128,7 +128,7 @@ Check:
 
 Store these findings internally to validate the user's self-assessment and tailor recommendations.
 
-When the engine is unconfigured and there are **No concept, source, prototype, design, or production artifacts**, classify the repository as fresh and route to `$brainstorm` after the onboarding decision below.
+When the engine is unconfigured and there are **No concept, source, prototype, design, or production artifacts**, classify the repository as fresh and route to `$codex-game-studios:brainstorm` after the onboarding decision below.
 
 ---
 
@@ -169,60 +169,60 @@ Wait for the second selection before routing. Never batch the two decisions.
 The user needs creative exploration before anything else.
 
 1. Acknowledge that starting from zero is completely fine
-2. Briefly explain what `$brainstorm` does (guided ideation using professional frameworks — MDA, player psychology, verb-first design). Mention that it has two modes: `$brainstorm open` for fully open exploration, or `$brainstorm [hint]` if they have even a vague theme (e.g., "space", "cozy", "horror").
-3. Recommend running `$brainstorm open` as the next step, but invite them to use a hint if something comes to mind
+2. Briefly explain what `$codex-game-studios:brainstorm` does (guided ideation using professional frameworks — MDA, player psychology, verb-first design). Mention that it has two modes: `$codex-game-studios:brainstorm open` for fully open exploration, or `$codex-game-studios:brainstorm [hint]` if they have even a vague theme (e.g., "space", "cozy", "horror").
+3. Recommend running `$codex-game-studios:brainstorm open` as the next step, but invite them to use a hint if something comes to mind
 4. Show the recommended path:
    **Concept phase:**
-   - `$brainstorm open` — discover your game concept
-   - `$setup-engine` — configure the engine (brainstorm will recommend one)
-   - `$prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
-   - `$art-bible` — define visual identity (uses the Visual Identity Anchor brainstorm produces)
-   - `$map-systems` — decompose the concept into systems
-   - `$design-system` — author a GDD for each MVP system
-   - `$review-all-gdds` — cross-system consistency check
-   - `$gate-check` — validate readiness before architecture work
+   - `$codex-game-studios:brainstorm open` — discover your game concept
+   - `$codex-game-studios:setup-engine` — configure the engine (brainstorm will recommend one)
+   - `$codex-game-studios:prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
+   - `$codex-game-studios:art-bible` — define visual identity (uses the Visual Identity Anchor brainstorm produces)
+   - `$codex-game-studios:map-systems` — decompose the concept into systems
+   - `$codex-game-studios:design-system` — author a GDD for each MVP system
+   - `$codex-game-studios:review-all-gdds` — cross-system consistency check
+   - `$codex-game-studios:gate-check` — validate readiness before architecture work
    **Architecture phase:**
-   - `$create-architecture` — produce the master architecture blueprint and Required ADR list
-   - `$architecture-decision (×N)` — record key technical decisions, following the Required ADR list
-   - `$create-control-manifest` — compile decisions into an actionable rules sheet
-   - `$architecture-review` — validate architecture coverage
+   - `$codex-game-studios:create-architecture` — produce the master architecture blueprint and Required ADR list
+   - `$codex-game-studios:architecture-decision (×N)` — record key technical decisions, following the Required ADR list
+   - `$codex-game-studios:create-control-manifest` — compile decisions into an actionable rules sheet
+   - `$codex-game-studios:architecture-review` — validate architecture coverage
    **Pre-Production phase:**
-   - `$ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
-   - `$vertical-slice` — production-quality end-to-end build to validate the full game loop
-   - `$playtest-report (×1+)` — document each vertical slice playtest session
-   - `$create-epics` — map systems to epics
-   - `$create-stories` — break epics into implementable stories
-   - `$sprint-plan` — plan the first sprint
-   **Production phase:** → pick up stories with `$dev-story`
+   - `$codex-game-studios:ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
+   - `$codex-game-studios:vertical-slice` — production-quality end-to-end build to validate the full game loop
+   - `$codex-game-studios:playtest-report (×1+)` — document each vertical slice playtest session
+   - `$codex-game-studios:create-epics` — map systems to epics
+   - `$codex-game-studios:create-stories` — break epics into implementable stories
+   - `$codex-game-studios:sprint-plan` — plan the first sprint
+   **Production phase:** → pick up stories with `$codex-game-studios:dev-story`
 
 #### If B: Vague idea
 
 1. Ask them to share their vague idea — even a few words is enough
 2. Validate the idea as a starting point (don't judge or redirect)
-3. Recommend running `$brainstorm [their hint]` to develop it
+3. Recommend running `$codex-game-studios:brainstorm [their hint]` to develop it
 4. Show the recommended path:
    **Concept phase:**
-   - `$brainstorm [hint]` — develop the idea into a full concept
-   - `$setup-engine` — configure the engine
-   - `$prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
-   - `$art-bible` — define visual identity (uses the Visual Identity Anchor brainstorm produces)
-   - `$map-systems` — decompose the concept into systems
-   - `$design-system` — author a GDD for each MVP system
-   - `$review-all-gdds` — cross-system consistency check
-   - `$gate-check` — validate readiness before architecture work
+   - `$codex-game-studios:brainstorm [hint]` — develop the idea into a full concept
+   - `$codex-game-studios:setup-engine` — configure the engine
+   - `$codex-game-studios:prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
+   - `$codex-game-studios:art-bible` — define visual identity (uses the Visual Identity Anchor brainstorm produces)
+   - `$codex-game-studios:map-systems` — decompose the concept into systems
+   - `$codex-game-studios:design-system` — author a GDD for each MVP system
+   - `$codex-game-studios:review-all-gdds` — cross-system consistency check
+   - `$codex-game-studios:gate-check` — validate readiness before architecture work
    **Architecture phase:**
-   - `$create-architecture` — produce the master architecture blueprint and Required ADR list
-   - `$architecture-decision (×N)` — record key technical decisions, following the Required ADR list
-   - `$create-control-manifest` — compile decisions into an actionable rules sheet
-   - `$architecture-review` — validate architecture coverage
+   - `$codex-game-studios:create-architecture` — produce the master architecture blueprint and Required ADR list
+   - `$codex-game-studios:architecture-decision (×N)` — record key technical decisions, following the Required ADR list
+   - `$codex-game-studios:create-control-manifest` — compile decisions into an actionable rules sheet
+   - `$codex-game-studios:architecture-review` — validate architecture coverage
    **Pre-Production phase:**
-   - `$ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
-   - `$vertical-slice` — production-quality end-to-end build to validate the full game loop
-   - `$playtest-report (×1+)` — document each vertical slice playtest session
-   - `$create-epics` — map systems to epics
-   - `$create-stories` — break epics into implementable stories
-   - `$sprint-plan` — plan the first sprint
-   **Production phase:** → pick up stories with `$dev-story`
+   - `$codex-game-studios:ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
+   - `$codex-game-studios:vertical-slice` — production-quality end-to-end build to validate the full game loop
+   - `$codex-game-studios:playtest-report (×1+)` — document each vertical slice playtest session
+   - `$codex-game-studios:create-epics` — map systems to epics
+   - `$codex-game-studios:create-stories` — break epics into implementable stories
+   - `$codex-game-studios:sprint-plan` — plan the first sprint
+   **Production phase:** → pick up stories with `$codex-game-studios:dev-story`
 
 #### If C: Clear concept
 
@@ -230,31 +230,31 @@ The user needs creative exploration before anything else.
 2. Acknowledge the concept, then ask one concise question and wait for the answer to offer two paths:
    - **Prompt**: "How would you like to proceed?"
    - **Options**:
-     - `Formalize it first` — Run `$brainstorm [concept]` to structure it into a proper game concept document
-     - `Jump straight in` — Go to `$setup-engine` now and write the GDD manually afterward
+     - `Formalize it first` — Run `$codex-game-studios:brainstorm [concept]` to structure it into a proper game concept document
+     - `Jump straight in` — Go to `$codex-game-studios:setup-engine` now and write the GDD manually afterward
 3. Show the recommended path:
    **Concept phase:**
-   - `$brainstorm` or `$setup-engine` — (their pick from step 2)
-   - `$prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
-   - `$art-bible` — define visual identity (after brainstorm if run, or after concept doc exists)
-   - `$design-review` — validate the concept doc
-   - `$map-systems` — decompose the concept into individual systems
-   - `$design-system` — author a GDD for each MVP system
-   - `$review-all-gdds` — cross-system consistency check
-   - `$gate-check` — validate readiness before architecture work
+   - `$codex-game-studios:brainstorm` or `$codex-game-studios:setup-engine` — (their pick from step 2)
+   - `$codex-game-studios:prototype` — throwaway concept build: validate the core idea is fun before designing (1–3 days)
+   - `$codex-game-studios:art-bible` — define visual identity (after brainstorm if run, or after concept doc exists)
+   - `$codex-game-studios:design-review` — validate the concept doc
+   - `$codex-game-studios:map-systems` — decompose the concept into individual systems
+   - `$codex-game-studios:design-system` — author a GDD for each MVP system
+   - `$codex-game-studios:review-all-gdds` — cross-system consistency check
+   - `$codex-game-studios:gate-check` — validate readiness before architecture work
    **Architecture phase:**
-   - `$create-architecture` — produce the master architecture blueprint and Required ADR list
-   - `$architecture-decision (×N)` — record key technical decisions, following the Required ADR list
-   - `$create-control-manifest` — compile decisions into an actionable rules sheet
-   - `$architecture-review` — validate architecture coverage
+   - `$codex-game-studios:create-architecture` — produce the master architecture blueprint and Required ADR list
+   - `$codex-game-studios:architecture-decision (×N)` — record key technical decisions, following the Required ADR list
+   - `$codex-game-studios:create-control-manifest` — compile decisions into an actionable rules sheet
+   - `$codex-game-studios:architecture-review` — validate architecture coverage
    **Pre-Production phase:**
-   - `$ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
-   - `$vertical-slice` — production-quality end-to-end build to validate the full game loop
-   - `$playtest-report (×1+)` — document each vertical slice playtest session
-   - `$create-epics` — map systems to epics
-   - `$create-stories` — break epics into implementable stories
-   - `$sprint-plan` — plan the first sprint
-   **Production phase:** → pick up stories with `$dev-story`
+   - `$codex-game-studios:ux-design` — author UX specs for key screens (main menu, HUD, core interactions)
+   - `$codex-game-studios:vertical-slice` — production-quality end-to-end build to validate the full game loop
+   - `$codex-game-studios:playtest-report (×1+)` — document each vertical slice playtest session
+   - `$codex-game-studios:create-epics` — map systems to epics
+   - `$codex-game-studios:create-stories` — break epics into implementable stories
+   - `$codex-game-studios:sprint-plan` — plan the first sprint
+   **Production phase:** → pick up stories with `$codex-game-studios:dev-story`
 
 #### If D: Existing work
 
@@ -263,23 +263,23 @@ The user needs creative exploration before anything else.
    - "Your engine is [configured as X / not yet configured]..."
 
 2. **Sub-case D1 — Early stage** (engine not configured or only a game concept exists):
-   - Recommend `$setup-engine` first if engine not configured
-   - Then `$project-stage-detect` for a gap inventory
+   - Recommend `$codex-game-studios:setup-engine` first if engine not configured
+   - Then `$codex-game-studios:project-stage-detect` for a gap inventory
 
    **Sub-case D2 — GDDs, ADRs, or stories already exist:**
-   - Explain: "Having files isn't the same as the template's skills being able to use them. GDDs might be missing required sections. `$adopt` checks this specifically."
+   - Explain: "Having files isn't the same as the template's skills being able to use them. GDDs might be missing required sections. `$codex-game-studios:adopt` checks this specifically."
    - Recommend:
-     1. `$project-stage-detect` — understand what phase and what's missing entirely
-     2. `$adopt` — audit whether existing artifacts are in the right internal format
+     1. `$codex-game-studios:project-stage-detect` — understand what phase and what's missing entirely
+     2. `$codex-game-studios:adopt` — audit whether existing artifacts are in the right internal format
 
 3. Show the recommended path for D2:
-   - `$project-stage-detect` — phase detection + existence gaps
-   - `$adopt` — format compliance audit + migration plan
-   - `$setup-engine` — if engine not configured
-   - `$design-system retrofit [path]` — fill missing GDD sections
-   - `$architecture-decision retrofit [path]` — add missing ADR sections
-   - `$architecture-review` — bootstrap the TR requirement registry
-   - `$gate-check` — validate readiness for next phase
+   - `$codex-game-studios:project-stage-detect` — phase detection + existence gaps
+   - `$codex-game-studios:adopt` — format compliance audit + migration plan
+   - `$codex-game-studios:setup-engine` — if engine not configured
+   - `$codex-game-studios:design-system retrofit [path]` — fill missing GDD sections
+   - `$codex-game-studios:architecture-decision retrofit [path]` — add missing ADR sections
+   - `$codex-game-studios:architecture-review` — bootstrap the TR requirement registry
+   - `$codex-game-studios:gate-check` — validate readiness for next phase
 
 ---
 
@@ -303,7 +303,7 @@ the installed Start validator with `--audit` after the write. If declined,
 leave the file unchanged and continue without claiming the stage was saved.
 
 Say: "I've set `production/stage.txt` to `[stage]` — this anchors project-stage
-detection and `$help` routing."
+detection and `$codex-game-studios:help` routing."
 
 ---
 
@@ -358,7 +358,7 @@ After presenting the recommended path, ask one concise question and wait for the
 
 ## Phase 8: Hand Off
 
-When the user confirms their next step, respond with a single short line: "Type `[skill command]` to begin." Nothing else. Do not re-explain the skill or add encouragement. The `$start` skill's job is done.
+When the user confirms their next step, respond with a single short line: "Type `[skill command]` to begin." Nothing else. Do not re-explain the skill or add encouragement. The `$codex-game-studios:start` skill's job is done.
 
 Verdict: **COMPLETE** — user oriented and handed off to next step.
 
@@ -368,7 +368,7 @@ Verdict: **COMPLETE** — user oriented and handed off to next step.
 
 - **User picks D but project is empty**: Gently redirect — "It looks like the project is a fresh template with no artifacts yet. Would Path A or B be a better fit?"
 - **User picks A but project has code**: Mention what you found — "I noticed there's already code in `src/`. Did you mean to pick D (existing work)?"
-- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[configured review mode]`. Want to pick up where you left off? Try `$sprint-plan` or just tell me what you'd like to work on."
+- **User is returning (engine configured, concept exists)**: Skip onboarding entirely — "It looks like you're already set up! Your engine is [X] and you have a game concept at `design/gdd/game-concept.md`. Review mode: `[configured review mode]`. Want to pick up where you left off? Try `$codex-game-studios:sprint-plan` or just tell me what you'd like to work on."
 - **User doesn't fit any option**: Let them describe their situation in their own words and adapt.
 
 ---

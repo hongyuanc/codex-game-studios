@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 This evaluator is read-only. It reports evidence, blockers, conditional items, and sign-offs in conversation and does not change project or release state. Any remediation or saved artifact is a separately authorized complete proposed changeset.
 
-> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$launch-checklist`. Do not auto-invoke based on context matching.
+> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$codex-game-studios:launch-checklist`. Do not auto-invoke based on context matching.
 
 ## Phase 1: Parse Arguments
 
@@ -242,5 +242,5 @@ Generated: [Date]
 Present the completed checklist, evidence summary, blockers, conditional items, and sign-offs in conversation. This read-only evaluation does not write a checklist or change release state. If the user later asks to save it, present that file as a separately authorized complete proposed changeset.
 ## Phase 6: Next Steps
 
-- Run `$gate-check` to get a formal PASS/CONCERNS/FAIL verdict before launch.
-- Coordinate sign-offs via `$team-release`.
+- Run `$codex-game-studios:gate-check` to get a formal PASS/CONCERNS/FAIL verdict before launch.
+- Coordinate sign-offs via `$codex-game-studios:team-release`.

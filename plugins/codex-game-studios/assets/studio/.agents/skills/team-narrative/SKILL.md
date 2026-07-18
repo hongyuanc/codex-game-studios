@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 ## Invocation
 
-Usage: `$team-narrative [narrative content] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-narrative [narrative content] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
@@ -94,8 +94,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Changeset Gate
@@ -113,6 +113,6 @@ Verdict: **BLOCKED** — [reason]
 
 ## Next Steps
 
-- Run `$design-review` on the narrative documents for consistency validation.
-- Run `$localize extract` to extract new strings for translation after dialogue is finalized.
-- Run `$dev-story` to implement dialogue triggers and narrative events in-engine.
+- Run `$codex-game-studios:design-review` on the narrative documents for consistency validation.
+- Run `$codex-game-studios:localize extract` to extract new strings for translation after dialogue is finalized.
+- Run `$codex-game-studios:dev-story` to implement dialogue triggers and narrative events in-engine.

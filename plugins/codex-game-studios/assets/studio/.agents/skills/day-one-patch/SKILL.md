@@ -91,7 +91,7 @@ Use `request_user_input`:
 - Show: table of deferred bugs (ID, severity, reason deferred)
 - Options: `[A] Approve this scope` / `[B] Adjust — I want to add or remove items` / `[C] No day-one patch needed`
 
-If [C]: output "No day-one patch required. Proceed to `$launch-checklist`." Stop.
+If [C]: output "No day-one patch required. Proceed to `$codex-game-studios:launch-checklist`." Stop.
 
 ### Step 2c — Check total scope
 
@@ -135,7 +135,7 @@ For config/data-only fixes: make the change directly (no programmer agent needed
 
 ## Phase 5: Patch QA Gate
 
-This is a lightweight QA pass — not a full `$team-qa`. The patch is already QA-approved from the release gate; we are only re-verifying the changed areas.
+This is a lightweight QA pass — not a full `$codex-game-studios:team-qa`. The patch is already QA-approved from the release gate; we are only re-verifying the changed areas.
 
 Delegate to `qa-lead` through Codex custom-agent delegation with:
 - List of all changed files
@@ -145,7 +145,7 @@ Delegate to `qa-lead` through Codex custom-agent delegation with:
 Ask qa-lead to determine: **Is a targeted smoke check sufficient, or do any fixes touch systems that require a broader regression?**
 
 Run the required QA scope:
-- **Targeted smoke check** — run `$smoke-check [affected-systems]`
+- **Targeted smoke check** — run `$codex-game-studios:smoke-check [affected-systems]`
 - **Broader regression** — run targeted tests in `tests/unit/` and `tests/integration/` for affected systems
 
 QA verdict must be PASS or PASS WITH WARNINGS before proceeding. If FAIL: scope the failing fix out of the day-one patch and defer to 1.1.
@@ -221,10 +221,10 @@ The approved complete proposed changeset must include both `production/releases/
 
 After the patch record is written:
 
-1. Run `$patch-notes` to generate the player-facing version of the patch notes
-2. Run `$bug-report verify [BUG-ID]` for each fixed bug after the patch is live
-3. Run `$bug-report close [BUG-ID]` for each verified fix
-4. Schedule a post-launch review 48–72 hours after launch using `$retrospective launch`
+1. Run `$codex-game-studios:patch-notes` to generate the player-facing version of the patch notes
+2. Run `$codex-game-studios:bug-report verify [BUG-ID]` for each fixed bug after the patch is live
+3. Run `$codex-game-studios:bug-report close [BUG-ID]` for each verified fix
+4. Schedule a post-launch review 48–72 hours after launch using `$codex-game-studios:retrospective launch`
 
 **If any S1 bugs remain open after the patch:**
 > "⚠️ S1 bugs remain open and were not patched. These are accepted risks. Document them in the rollback plan trigger conditions — if they occur at scale, rollback may be preferable to a follow-up patch."
@@ -232,8 +232,8 @@ After the patch record is written:
 Use `request_user_input`:
 - Prompt: "Day-one patch complete. What's next?"
 - Options:
-  - `[A] Run $patch-notes — generate player-facing patch notes`
-  - `[B] Run $bug-report to log any issues found post-deploy`
+  - `[A] Run $codex-game-studios:patch-notes — generate player-facing patch notes`
+  - `[B] Run $codex-game-studios:bug-report to log any issues found post-deploy`
   - `[C] Stop here`
 
 ---
@@ -243,4 +243,4 @@ Use `request_user_input`:
 - **Scope discipline is everything** — resist scope creep; every addition increases risk
 - **Rollback plan first, always** — a patch without a rollback plan is irresponsible
 - **Deferred is not forgotten** — every deferred bug gets a 1.1 ticket automatically
-- **Player communication is part of the patch** — `$patch-notes` is a required output, not optional
+- **Player communication is part of the patch** — `$codex-game-studios:patch-notes` is a required output, not optional

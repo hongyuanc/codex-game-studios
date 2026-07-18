@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 ## Invocation
 
-Usage: `$team-ui [UI feature] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-ui [UI feature] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
@@ -101,7 +101,7 @@ The parent synthesizes the UX, visual, engine, implementation, and pattern-libra
 
 Only after approval may the parent execute or delegate the exact approved changes. No subagent commits, publishes, or expands scope. Every delegate receives only its approved paths, diffs, tests, and acceptance criteria.
 
-First, the parent writes the approved UX artifact and any approved pattern-library artifact to their exact paths. Then run the read-only `$ux-review` on the saved UX path. If review requires material revision, stop and return the revised exact diff to `## Parent Changeset Gate`; do not continue implementation under stale approval.
+First, the parent writes the approved UX artifact and any approved pattern-library artifact to their exact paths. Then run the read-only `$codex-game-studios:ux-review` on the saved UX path. If review requires material revision, stop and return the revised exact diff to `## Parent Changeset Gate`; do not continue implementation under stale approval.
 
 ### Phase 3: Implementation
 
@@ -144,10 +144,10 @@ All three review streams must report before proceeding to Phase 5.
 
 ## Quick Reference — When to Use Which Skill
 
-- `$ux-design` — Author a new UX spec for a screen, flow, or HUD from scratch
-- `$ux-review` — Validate a completed UX spec before implementation
-- `$team-ui [feature]` — Full pipeline that drafts, approves, and uses an approved UX spec before implementation and polish
-- `$quick-design` — Small UI changes that don't need a full new UX spec
+- `$codex-game-studios:ux-design` — Author a new UX spec for a screen, flow, or HUD from scratch
+- `$codex-game-studios:ux-review` — Validate a completed UX spec before implementation
+- `$codex-game-studios:team-ui [feature]` — Full pipeline that drafts, approves, and uses an approved UX spec before implementation and polish
+- `$codex-game-studios:quick-design` — Small UI changes that don't need a full new UX spec
 
 ## Error Recovery Protocol
 
@@ -163,8 +163,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Output
@@ -176,6 +176,6 @@ Verdict: **BLOCKED** — pipeline halted; surface the blocker and its phase befo
 
 ## Next Steps
 
-- Run `$ux-review` on the final spec if not yet approved.
-- Run `$code-review` on the UI implementation before closing stories.
-- Run `$team-polish` if visual or audio polish pass is needed.
+- Run `$codex-game-studios:ux-review` on the final spec if not yet approved.
+- Run `$codex-game-studios:code-review` on the UI implementation before closing stories.
+- Run `$codex-game-studios:team-polish` if visual or audio polish pass is needed.

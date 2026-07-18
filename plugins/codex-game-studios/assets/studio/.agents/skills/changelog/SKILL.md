@@ -157,7 +157,7 @@ Present the internal and player-facing drafts first. The canonical saved output 
 
 - If `docs/CHANGELOG.md` exists, append the new version section without replacing prior history and place newest entries first at the top of the version list.
 - If it does not exist, create it with the new version section.
-- Keep the player-facing variant in conversation for `$patch-notes`; do not invent a second changelog path.
+- Keep the player-facing variant in conversation for `$codex-game-studios:patch-notes`; do not invent a second changelog path.
 - Write only the approved insertion. Any different path or changed content requires revised approval.
 
 After an approved write: Verdict: **CHANGELOG WRITTEN**. If declined: Verdict: **COMPLETE** — changelog generated in conversation.
@@ -165,8 +165,8 @@ After an approved write: Verdict: **CHANGELOG WRITTEN**. If declined: Verdict: *
 
 ## Phase 7: Next Steps
 
-- Use `$patch-notes [version]` to generate a styled, saved version for public release.
-- Use `$release-checklist` before publishing the changelog externally.
+- Use `$codex-game-studios:patch-notes [version]` to generate a styled, saved version for public release.
+- Use `$codex-game-studios:release-checklist` before publishing the changelog externally.
 
 ### Guidelines
 

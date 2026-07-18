@@ -22,7 +22,7 @@ reference docs. Where ADRs explain *why*, the manifest tells you *what*.
 
 **Output:** `docs/architecture/control-manifest.md`
 
-**When to run:** After `$architecture-review` passes and ADRs are in Accepted
+**When to run:** After `$codex-game-studios:architecture-review` passes and ADRs are in Accepted
 status. Re-run whenever new ADRs are accepted or existing ADRs are revised.
 
 ---
@@ -175,10 +175,10 @@ Format:
 > **Last Updated**: [date]
 > **Manifest Version**: [date]
 > **ADRs Covered**: [ADR-NNNN, ADR-MMMM, ...]
-> **Status**: [Active — regenerate with `$create-control-manifest update` when ADRs change]
+> **Status**: [Active — regenerate with `$codex-game-studios:create-control-manifest update` when ADRs change]
 
 `Manifest Version` is the date this manifest was generated. Story files embed
-this date when created. `$story-readiness` compares a story's embedded version
+this date when created. `$codex-game-studios:story-readiness` compares a story's embedded version
 to this field to detect stories written against stale rules. Always matches
 `Last Updated` — they are the same date, serving different consumers.
 
@@ -280,7 +280,7 @@ These APIs are deprecated or unverified for [engine + version]:
 
 After writing the manifest:
 
-- If epics/stories don't exist yet: "Run `$create-epics layer: foundation` then `$create-stories [epic-slug]` — programmers
+- If epics/stories don't exist yet: "Run `$codex-game-studios:create-epics layer: foundation` then `$codex-game-studios:create-stories [epic-slug]` — programmers
   can now use this manifest when writing story implementation notes."
 - If this is a regeneration (manifest already existed): "Updated. Recommend
   notifying the team of changed rules — especially any new Forbidden entries."

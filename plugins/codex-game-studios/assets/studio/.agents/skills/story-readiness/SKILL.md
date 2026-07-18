@@ -45,7 +45,7 @@ See `../../../.codex/docs/director-gates.md` for the full check pattern and mode
 
 **Scope:** use the first value supplied with the skill invocation (blank = ask the user).
 
-- **Specific path** (e.g., `$story-readiness production/epics/combat/story-001-basic-attack.md`):
+- **Specific path** (e.g., `$codex-game-studios:story-readiness production/epics/combat/story-001-basic-attack.md`):
   validate that single story file.
 - **`sprint`**: read the current sprint plan from `production/sprints/` (most
   recent file), extract every story path it references, validate each one.
@@ -129,8 +129,8 @@ items pass or are explicitly marked N/A with a stated reason.
     NEEDS WORK: the requirement was removed or replaced.
     Fix: update the story to reference the current requirement ID or remove if no longer applicable.
   - If the ID does not exist in the registry → NEEDS WORK: ID was not registered
-    (story may predate registry, or registry needs an `$architecture-review` run).
-  - **Missing TR registry** → BLOCKED: traceability cannot be verified; run `$architecture-review` to create or repair the registry.
+    (story may predate registry, or registry needs an `$codex-game-studios:architecture-review` run).
+  - **Missing TR registry** → BLOCKED: traceability cannot be verified; run `$codex-game-studios:architecture-review` to create or repair the registry.
   - **Missing or unregistered TR-ID** → BLOCKED: add an active registry ID through the design/architecture workflow before implementation.
   - A story with either condition cannot receive READY. Never infer traceability from quoted prose or a GDD filename alone.
 - [ ] **Manifest version is current**: If the story has a `Manifest Version:` date
@@ -277,7 +277,7 @@ add a prominent warning at the top of the output:
 ```
 WARNING: [N] Must Have stories are not implementation-ready.
 [List them with their primary gap or blocker.]
-Resolve these before the sprint begins or replan with `$sprint-plan update`.
+Resolve these before the sprint begins or replan with `$codex-game-studios:sprint-plan update`.
 ```
 
 ---
@@ -292,15 +292,15 @@ After reporting findings, offer:
 draft the missing sections for your approval."
 
 If the user says yes for a specific story, draft only the missing sections
-in conversation. Do not edit files — the user or `$create-stories` handles the
+in conversation. Do not edit files — the user or `$codex-game-studios:create-stories` handles the
 separately authorized write.
 
 **Redirect rules:**
 - If a story file does not exist at all: "This story file is missing entirely.
-  Run `$create-epics [layer]` then `$create-stories [epic-slug]` to generate stories from the GDD and ADR."
+  Run `$codex-game-studios:create-epics [layer]` then `$codex-game-studios:create-stories [epic-slug]` to generate stories from the GDD and ADR."
 - If a story has no GDD reference and the work appears small: "This story has
   no GDD reference. If the change is small (under ~4 hours), run
-  `$quick-design [description]` to create a Quick Design Spec, then reference
+  `$codex-game-studios:quick-design [description]` to create a Quick Design Spec, then reference
   that spec in the story."
 - If a story's scope has grown beyond its original sizing: "This story appears
   to have expanded in scope. Consider splitting it or escalating to the producer
@@ -327,7 +327,7 @@ If any are found, surface up to 3:
 1. [Story name] — [1-line description] — Est: [X hrs]
 2. [Story name] — [1-line description] — Est: [X hrs]
 
-Run `$story-readiness [path]` to validate before starting.
+Run `$codex-game-studios:story-readiness [path]` to validate before starting.
 ```
 
 If no sprint file exists or no other ready stories are found, skip this section silently.
@@ -359,6 +359,6 @@ Handle the verdict per standard rules in `director-gates.md`:
 
 ## Recommended Next Steps
 
-- Run `$dev-story [story-path]` to begin implementation once the story is READY
-- Run `$story-readiness sprint` to check all stories in the current sprint at once
-- Run `$create-stories [epic-slug]` if a story file is missing entirely
+- Run `$codex-game-studios:dev-story [story-path]` to begin implementation once the story is READY
+- Run `$codex-game-studios:story-readiness sprint` to check all stories in the current sprint at once
+- Run `$codex-game-studios:create-stories [epic-slug]` if a story file is missing entirely

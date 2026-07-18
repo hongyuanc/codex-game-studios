@@ -40,7 +40,59 @@ from legacy_payload import (  # noqa: E402
     verified_legacy_snapshot,
 )
 import legacy_payload  # noqa: E402
+import payload  # noqa: E402
 from safe_fs import list_immediate_secure  # noqa: E402
+
+
+def _namespace_api(testcase: unittest.TestCase):
+    transform = getattr(payload, "namespace_skill_invocations", None)
+    catalog = getattr(payload, "approved_skill_names", None)
+    testcase.assertTrue(callable(transform), "payload namespace transform is missing")
+    testcase.assertTrue(callable(catalog), "approved skill-name derivation is missing")
+    return transform, catalog
+
+
+class SkillInvocationNamespaceTests(unittest.TestCase):
+    """Verify the pure installed-plugin command namespace transform."""
+
+    def test_approved_skill_names_come_only_from_exact_catalog_entries(self):
+        # Arrange
+        _transform, catalog = _namespace_api(self)
+        policy = json.loads(
+            (PLUGIN / "assets/payload-policy.json").read_text(encoding="utf-8")
+        )
+        expected = tuple(
+            sorted(path.parent.name for path in (ROOT / ".agents/skills").glob("*/SKILL.md"))
+        )
+
+        # Act
+        names = catalog(policy)
+
+        # Assert
+        self.assertEqual(73, len(names))
+        self.assertEqual(expected, names)
+
+    def test_namespace_transform_is_exact_idempotent_and_placeholder_safe(self):
+        # Arrange
+        transform, _catalog = _namespace_api(self)
+        source = (
+            b"$start `$skill-test spec start` $start, Next:$start $unknown ${start} $START "
+            b"$start_name $start-extra $$start $codex-game-studios:start\n"
+        )
+        expected = (
+            b"$codex-game-studios:start "
+            b"`$codex-game-studios:skill-test spec start` "
+            b"$codex-game-studios:start, Next:$codex-game-studios:start "
+            b"$unknown ${start} $START "
+            b"$start_name $start-extra $$start $codex-game-studios:start\n"
+        )
+
+        # Act
+        transformed = transform(source, ("skill-test", "start"))
+
+        # Assert
+        self.assertEqual(expected, transformed)
+        self.assertEqual(expected, transform(transformed, ("skill-test", "start")))
 
 
 class PayloadPathTests(unittest.TestCase):
@@ -530,11 +582,16 @@ class PayloadGenerationTests(unittest.TestCase):
             ordinary_entries,
         )
 
-    def test_payload_build_is_deterministic_and_source_identical(self):
+    def test_payload_build_is_deterministic_with_only_skill_namespace_transform(self):
         # Arrange
         with tempfile.TemporaryDirectory() as temporary_directory:
             plugin = Path(temporary_directory) / "codex-game-studios"
             shutil.copytree(PLUGIN, plugin)
+            transform, catalog = _namespace_api(self)
+            policy = json.loads(
+                (plugin / "assets/payload-policy.json").read_text(encoding="utf-8")
+            )
+            skill_names = catalog(policy)
 
             # Act
             first_manifest = build_payload(ROOT, plugin)
@@ -555,7 +612,29 @@ class PayloadGenerationTests(unittest.TestCase):
                     source_bytes = (PLUGIN / "ATTRIBUTION.md").read_bytes()
                 else:
                     source_bytes = (ROOT / entry.path).read_bytes()
+                if (
+                    entry.path.startswith(".agents/skills/")
+                    and entry.path.endswith("/SKILL.md")
+                ):
+                    source_bytes = transform(source_bytes, skill_names)
                 self.assertEqual(source_bytes, payload_bytes, entry.path)
+
+    def test_payload_check_rejects_an_untransformed_generated_skill(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            plugin = Path(temporary_directory) / "codex-game-studios"
+            shutil.copytree(PLUGIN, plugin)
+            generated = plugin / "assets/studio/.agents/skills/setup-engine/SKILL.md"
+            original = generated.read_bytes()
+            mutated = original.replace(
+                b"$codex-game-studios:brainstorm", b"$brainstorm", 1
+            )
+            self.assertNotEqual(original, mutated)
+            generated.write_bytes(mutated)
+
+            # Act / Assert
+            with self.assertRaisesRegex(PayloadError, "payload is stale"):
+                build_payload(ROOT, plugin, check=True)
 
     def test_payload_build_preserves_authenticated_legacy_capsule_byte_exactly(self):
         # Arrange

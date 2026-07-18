@@ -26,10 +26,10 @@ edit an installed plugin cache. Preserve the original content, retest the same
 checks, and keep edits only when the retest score does not regress; otherwise
 restore the original skill without using a destructive Git command.
 
-### Native readiness gate for `$skill-test`
+### Native readiness gate for `$codex-game-studios:skill-test`
 
-Before invoking or routing to `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, do not route to `$skill-test`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$codex-game-studios:skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:skill-test is not available`, defer the handoff, do not invoke `$codex-game-studios:skill-test`, do not route to `$codex-game-studios:skill-test`, and do not search for or copy a repository-local skill file.
 
 # Skill Improve
 
@@ -43,8 +43,8 @@ test → fix → retest → keep or revert.
 Read the skill name from the first argument. If missing, output usage and stop:
 
 ```
-Usage: $skill-improve [skill-name]
-Example: $skill-improve tech-debt
+Usage: $codex-game-studios:skill-improve [skill-name]
+Example: $codex-game-studios:skill-improve tech-debt
 ```
 
 Confirm that `[name]` is present in the current task's available skill catalog.
@@ -55,7 +55,7 @@ If unavailable, stop with:
 
 ## Phase 2: Baseline Test
 
-Run `$skill-test static [name]` and record the baseline score:
+Run `$codex-game-studios:skill-test static [name]` and record the baseline score:
 - Count of FAILs
 - Count of WARNs
 - Which specific checks failed (Check 1–7)
@@ -76,7 +76,7 @@ If no `category:` field is found, display:
 "Category: not yet assigned — skipping category checks."
 and skip to Phase 3.
 
-If category is found, run `$skill-test category [name]` and record the category baseline:
+If category is found, run `$codex-game-studios:skill-test category [name]` and record the category baseline:
 - Count of FAILs
 - Count of WARNs
 - Which specific category rubric metrics failed
@@ -150,6 +150,6 @@ Combined change: improved / no change / worse
 If the retest score improves or stays equal, keep the approved changes and report the evidence. If it regresses, restore the original skill immediately from the preserved content, rerun the baseline checks to prove restoration, and report that the proposed edit set was rejected. Do not use Git checkout or another destructive operation for restoration.
 ## Phase 7: Next Steps
 
-- Run `$skill-test static all` to find the next skill with failures.
-- Run `$skill-improve [next-name]` to continue the loop on another skill.
-- Run `$skill-test audit` to see overall coverage progress.
+- Run `$codex-game-studios:skill-test static all` to find the next skill with failures.
+- Run `$codex-game-studios:skill-improve [next-name]` to continue the loop on another skill.
+- Run `$codex-game-studios:skill-test audit` to see overall coverage progress.

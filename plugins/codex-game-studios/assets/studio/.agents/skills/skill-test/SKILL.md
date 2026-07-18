@@ -52,10 +52,10 @@ existing skill/hook/template architecture.
 
 | Mode | Command | Purpose | Token Cost |
 |------|---------|---------|------------|
-| `static` | `$skill-test static [name\|all]` | Structural linter — 7 compliance checks per skill | Low (~1k/skill) |
-| `spec` | `$skill-test spec [name]` | Behavioral verifier — evaluates assertions in test spec | Medium (~5k/skill) |
-| `category` | `$skill-test category [name\|all]` | Category rubric — checks skill against its category-specific metrics | Low (~2k/skill) |
-| `audit` | `$skill-test audit` | Coverage report — skills, agent specs, last test dates | Low (~3k total) |
+| `static` | `$codex-game-studios:skill-test static [name\|all]` | Structural linter — 7 compliance checks per skill | Low (~1k/skill) |
+| `spec` | `$codex-game-studios:skill-test spec [name]` | Behavioral verifier — evaluates assertions in test spec | Medium (~5k/skill) |
+| `category` | `$codex-game-studios:skill-test category [name\|all]` | Category rubric — checks skill against its category-specific metrics | Low (~2k/skill) |
+| `audit` | `$codex-game-studios:skill-test audit` | Coverage report — skills, agent specs, last test dates | Low (~3k total) |
 
 ---
 
@@ -117,7 +117,7 @@ For a writing workflow, accept either one complete approved changeset for a mult
 **FAIL** if writes occur before either appropriate approval or if the body permits unapproved scope expansion.
 ### Check 5 — Next-Step Handoff
 The skill must end with a recommended next action or follow-up path. Look for:
-- A final section mentioning another skill (e.g., `$story-done`, `$gate-check`)
+- A final section mentioning another skill (e.g., `$codex-game-studios:story-done`, `$codex-game-studios:gate-check`)
 - "Recommended next" or "next step" phrasing
 - A "Follow-Up" or "After this" section
 
@@ -182,7 +182,7 @@ Never resolve it against the target repository's working directory.
 If either is missing:
 - Missing skill: "Skill '[name]' not found in the available skill catalog."
 - Missing spec path in catalog: "No spec path set for '[name]' in catalog.yaml."
-- Spec file not found at path: "Spec file missing at [path]. Run `$skill-test audit`
+- Spec file not found at path: "Spec file missing at [path]. Run `$codex-game-studios:skill-test audit`
   to see coverage gaps."
 
 ### Step 2 — Read Both Files
@@ -377,9 +377,9 @@ Agent coverage:  [spec count]/[discovered agent count] specs ([percentage]%)
 
 No file writes in audit mode.
 
-Offer: "Would you like to run `$skill-test static all` to check structural
-compliance across all skills? `$skill-test category all` to run category rubric
-checks? Or `$skill-test spec [name]` to run a specific behavioral test?"
+Offer: "Would you like to run `$codex-game-studios:skill-test static all` to check structural
+compliance across all skills? `$codex-game-studios:skill-test category all` to run category rubric
+checks? Or `$codex-game-studios:skill-test spec [name]` to run a specific behavioral test?"
 
 ---
 
@@ -387,12 +387,12 @@ checks? Or `$skill-test spec [name]` to run a specific behavioral test?"
 
 After any mode completes, offer contextual follow-up:
 
-- After `static [name]`: "Run `$skill-test spec [name]` to validate behavioral
+- After `static [name]`: "Run `$codex-game-studios:skill-test spec [name]` to validate behavioral
   correctness if a test spec exists."
 - After `static all` with failures: "Address NON-COMPLIANT skills first. Run
-  `$skill-test static [name]` individually for detailed remediation guidance."
+  `$codex-game-studios:skill-test static [name]` individually for detailed remediation guidance."
 - After `spec [name]` PASS: "Optionally record the pass under
-  `production/qa/skill-tests/`, then run `$skill-test audit` to find the next
+  `production/qa/skill-tests/`, then run `$codex-game-studios:skill-test audit` to find the next
   spec gap."
 - After `spec [name]` FAIL: "Review the failing assertions and record the
   mismatch in project-owned evidence. Stop without writing to the bundled skill

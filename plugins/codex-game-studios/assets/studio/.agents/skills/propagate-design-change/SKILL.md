@@ -19,14 +19,14 @@ When a GDD changes, architectural decisions written against it may no longer be
 valid. This skill finds every affected ADR, compares what the ADR assumed against
 what the GDD now says, and guides the user through resolution.
 
-**Usage:** `$propagate-design-change design/gdd/combat-system.md`
+**Usage:** `$codex-game-studios:propagate-design-change design/gdd/combat-system.md`
 
 ---
 
 ## 1. Validate Argument
 
 A GDD path argument is **required**. If missing, fail with:
-> "Usage: `$propagate-design-change design/gdd/[system].md`
+> "Usage: `$codex-game-studios:propagate-design-change design/gdd/[system].md`
 > Provide the path to the GDD that was changed."
 
 Verify the file exists. If not, fail with:
@@ -226,10 +226,10 @@ If user declined: Verdict: **BLOCKED** — user declined write.
 
 Based on the resolution decisions, suggest:
 
-- **ADRs marked Superseded**: "Run `$architecture-decision [title]` to write the
-  replacement ADR. Then re-run `$propagate-design-change` to verify coverage."
+- **ADRs marked Superseded**: "Run `$codex-game-studios:architecture-decision [title]` to write the
+  replacement ADR. Then re-run `$codex-game-studios:propagate-design-change` to verify coverage."
 - **ADRs to update in place**: List the specific fields to update in each ADR
-- **If many ADRs affected**: "Run `$architecture-review` after all ADRs are updated
+- **If many ADRs affected**: "Run `$codex-game-studios:architecture-review` after all ADRs are updated
   to verify the full traceability matrix is still coherent."
 
 ---

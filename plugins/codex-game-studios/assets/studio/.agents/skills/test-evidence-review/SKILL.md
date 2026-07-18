@@ -15,14 +15,14 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$team-qa`
+### Native readiness gate for `$codex-game-studios:team-qa`
 
-Before invoking or routing to `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, do not route to `$team-qa`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$codex-game-studios:team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:team-qa is not available`, defer the handoff, do not invoke `$codex-game-studios:team-qa`, do not route to `$codex-game-studios:team-qa`, and do not search for or copy a repository-local skill file.
 
 # Test Evidence Review
 
-`$smoke-check` verifies that test files **exist** and **pass**. This skill
+`$codex-game-studios:smoke-check` verifies that test files **exist** and **pass**. This skill
 goes further — it reviews the **quality** of those tests and evidence documents.
 A test file that exists and passes may still leave critical behaviour uncovered.
 A manual evidence doc that exists may lack the sign-offs required for closure.
@@ -32,7 +32,7 @@ The review is read-only with respect to stories, tests, and evidence under revie
 **Output:** Summary report (in conversation) + optional `production/qa/evidence-review-[date].md`
 
 **When to run:**
-- Before QA hand-off sign-off (`$team-qa` Phase 5)
+- Before QA hand-off sign-off (`$codex-game-studios:team-qa` Phase 5)
 - On any story where test quality is in question
 - As part of milestone review for Logic and Integration story quality audit
 
@@ -41,9 +41,9 @@ The review is read-only with respect to stories, tests, and evidence under revie
 ## 1. Parse Arguments
 
 **Modes:**
-- `$test-evidence-review [story-path]` — review a single story's evidence
-- `$test-evidence-review sprint` — review all stories in the current sprint
-- `$test-evidence-review [system-name]` — review all stories in an epic/system
+- `$codex-game-studios:test-evidence-review [story-path]` — review a single story's evidence
+- `$codex-game-studios:test-evidence-review sprint` — review all stories in the current sprint
+- `$codex-game-studios:test-evidence-review [system-name]` — review all stories in an epic/system
 - No argument — ask which scope: "Single story", "Current sprint", "A system"
 
 ---
@@ -244,9 +244,9 @@ wants a persistent record.
 
 After the report:
 
-- For BLOCKING items: "These must be resolved before `$story-done` can mark the
+- For BLOCKING items: "These must be resolved before `$codex-game-studios:story-done` can mark the
   story Complete. Would you like to address any of them now?"
-- For thin assertions: "Consider running `$test-helpers [system]` to see
+- For thin assertions: "Consider running `$codex-game-studios:test-helpers [system]` to see
   scaffolded assertion patterns for common cases."
 - For missing sign-offs: "Manual sign-off is required from [role]. Share
   `[evidence-path]` with them to complete sign-off."

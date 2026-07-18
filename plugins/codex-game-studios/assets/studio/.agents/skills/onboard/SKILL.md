@@ -100,5 +100,5 @@ Show the onboarding draft and canonical path `production/onboarding/onboard-[rol
 Verdict: **COMPLETE** — onboarding document generated.
 
 - Share the onboarding doc with the new contributor before their first session.
-- Run `$sprint-status` to show the new contributor current progress.
-- Run `$help` if the contributor needs guidance on what to work on next.
+- Run `$codex-game-studios:sprint-status` to show the new contributor current progress.
+- Run `$codex-game-studios:help` if the contributor needs guidance on what to work on next.

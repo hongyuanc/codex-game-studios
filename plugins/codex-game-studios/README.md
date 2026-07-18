@@ -48,9 +48,11 @@ plugin installation and skill discovery make zero writes to the game repository.
 Start detects the repository read-only first and asks for approval only for a
 small project-specific state changeset (at most ten mutations). It never copies
 the global skill catalog into the repository or creates `.agents/skills/`.
+All 73 explicit installed-plugin commands use the unambiguous
+`$codex-game-studios:<skill>` form.
 
-Use `$setup-engine` after Start to choose a separately installed Godot, Unity,
-or Unreal toolchain.
+Use `$codex-game-studios:setup-engine` after Start to choose a separately
+installed Godot, Unity, or Unreal toolchain.
 
 ## Legacy 1.0.0 lifecycle support
 

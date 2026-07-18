@@ -52,6 +52,13 @@ sprint-status start story-done story-readiness team-audio team-combat team-level
 team-live-ops team-narrative team-polish team-qa team-release team-ui tech-debt
 test-evidence-review test-flakiness test-helpers test-setup ux-design ux-review
 vertical-slice""".split())
+_PLUGIN_SKILL_INVOCATION = re.compile(
+    r"(?<![A-Za-z0-9_$])\$("
+    + "|".join(
+        sorted(map(re.escape, EXPECTED_SKILL_NAMES), key=len, reverse=True)
+    )
+    + r")(?![A-Za-z0-9_-])"
+)
 # enforcement-literal-start
 FORBIDDEN_SKILL_PATTERNS = {
     r"\bAskUserQuestion\b": "Claude interaction primitive",
@@ -455,12 +462,15 @@ def validate_plugin_skill_catalog(
         issues.extend(validate_skill(bundled_path))
         if source_text is None or bundled_text is None:
             continue
-        if source_text != bundled_text:
+        expected_bundled_text = _PLUGIN_SKILL_INVOCATION.sub(
+            lambda match: f"$codex-game-studios:{match.group(1)}", source_text
+        )
+        if expected_bundled_text != bundled_text:
             issues.append(
                 ValidationIssue(
                     "error",
                     _relative(root, bundled_path),
-                    f"bundled plugin skill differs from canonical source: {name}",
+                    f"bundled plugin skill differs from canonical namespace transform: {name}",
                 )
             )
         if PLUGIN_SKILL_PROBE.search(source_text):
@@ -1341,7 +1351,7 @@ _MIGRATION_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 516
-_INSTALLED_INVENTORY_SHA256 = "d4f4b97264ebb1694be834f4fa70c28d93980d979dcb123ae6351c8139e9176d"
+_INSTALLED_INVENTORY_SHA256 = "4e0ebaff2597785555e34a19a8e1cb7d87b43de78d7aa148b786f7a19f823515"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

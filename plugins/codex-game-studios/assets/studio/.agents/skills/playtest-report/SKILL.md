@@ -116,9 +116,9 @@ Categorize all findings into four buckets:
 
 Present the categorized list, then route:
 
-- **Design changes:** "Run `$propagate-design-change [path]` on the affected design document to find downstream impacts before making changes."
-- **Balance adjustments:** "Run `$balance-check [system]` to verify the full balance picture before tuning values."
-- **Bugs:** "Use `$bug-report` to formally track these."
+- **Design changes:** "Run `$codex-game-studios:propagate-design-change [path]` on the affected design document to find downstream impacts before making changes."
+- **Balance adjustments:** "Run `$codex-game-studios:balance-check [system]` to verify the full balance picture before tuning values."
+- **Bugs:** "Use `$codex-game-studios:bug-report` to formally track these."
 - **Polish items:** "Add to the polish backlog in `production/` when the team reaches that phase."
 
 ---
@@ -151,5 +151,5 @@ If yes, write the file, creating the directory if needed.
 Verdict: **COMPLETE** — playtest report generated.
 
 - Act on the highest-priority finding category first.
-- After addressing design changes: re-run `$design-review` on the updated GDD.
-- After fixing bugs: re-run `$bug-triage` to update priorities.
+- After addressing design changes: re-run `$codex-game-studios:design-review` on the updated GDD.
+- After fixing bugs: re-run `$codex-game-studios:bug-triage` to update priorities.

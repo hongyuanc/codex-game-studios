@@ -11,14 +11,14 @@ Ask at most one user question per turn and wait for the answer. Preserve increme
 
 
 This is the **lightweight design path** for changes that don't need a full GDD.
-Full GDD authoring via `$design-system` is the heavyweight path. Use this skill
+Full GDD authoring via `$codex-game-studios:design-system` is the heavyweight path. Use this skill
 for work under approximately 4 hours of implementation — tuning adjustments,
 minor behavioral tweaks, small additions to existing systems, or standalone
 features too small to warrant a full document.
 
 **Output:** `design/quick-specs/[name]-[date].md`
 
-**When to run:** Anytime a change is too small for `$design-system` but too
+**When to run:** Anytime a change is too small for `$codex-game-studios:design-system` but too
 meaningful to implement without a written rationale.
 
 ---
@@ -43,7 +43,7 @@ First, read the argument and determine which category this change falls into:
 If the change does NOT fit these categories — it introduces a new system with
 significant cross-system dependencies, requires more than one week of
 implementation, or fundamentally alters an existing system's core rules — stop
-and redirect to `$design-system` instead.
+and redirect to `$codex-game-studios:design-system` instead.
 
 If there is no argument, ask the user to describe the change (plain text prompt), then classify it using the criteria above.
 
@@ -55,9 +55,9 @@ Present the inferred classification using one concise question, then wait for th
   - `[C] Tweak — small behavioral change to an existing system`
   - `[D] Addition — adding a small mechanic to an existing system`
   - `[E] New Small System — standalone feature, under one week of work`
-  - `[F] This is too large — redirect me to $design-system`
+  - `[F] This is too large — redirect me to $codex-game-studios:design-system`
 
-If [F]: stop. Verdict: **REDIRECTED** — use `$design-system` for this change.
+If [F]: stop. Verdict: **REDIRECTED** — use `$codex-game-studios:design-system` for this change.
 Otherwise: proceed with the selected type.
 
 ---
@@ -239,7 +239,7 @@ Ask one concise approval question and wait for the answer:
 - [A] Approve and write the complete listed changeset exactly as shown
 - [B] Write only the Quick Design Spec and explicitly defer the listed GDD update (only offer when a GDD update is required)
 - [C] Revise the proposed changeset — I'll describe what to change
-- [D] This grew too large — redirect to `$design-system` instead
+- [D] This grew too large — redirect to `$codex-game-studios:design-system` instead
 
 If [A], create `design/quick-specs/` if needed and write every listed file. If
 [B], write only the Quick Design Spec and record the GDD update as pending. If
@@ -259,7 +259,7 @@ Type: [Tuning / Tweak / Addition / New Small System]
 System: [system name]
 GDD update: [Required — pending approval / Applied / Not required]
 
-Next step: This spec is ready for `$story-readiness` validation before
+Next step: This spec is ready for `$codex-game-studios:story-readiness` validation before
 implementation. Reference this spec in the story's GDD Reference field.
 ```
 
@@ -267,7 +267,7 @@ implementation. Reference this spec in the story's GDD Reference field.
 
 Verdict: **COMPLETE** — quick design spec written and ready for implementation.
 
-Quick Design Specs **bypass** `$design-review` and `$review-all-gdds` by
+Quick Design Specs **bypass** `$codex-game-studios:design-review` and `$codex-game-studios:review-all-gdds` by
 design. They are for small, low-risk, well-scoped changes where the cost of
 the full review pipeline exceeds the risk of the change itself.
 
@@ -280,12 +280,12 @@ Redirect to the full pipeline if any of the following are true:
 - Implementation is likely to exceed one week of work
 
 In those cases: "This change has grown beyond quick-spec scope. I recommend
-using `$design-system` to author a full GDD for this."
+using `$codex-game-studios:design-system` to author a full GDD for this."
 
 ---
 
 ## Recommended Next Steps
 
-- Run `$story-readiness [story-path]` to validate the story before implementation begins — reference this spec in the story's GDD Reference field
-- Run `$dev-story [story-path]` to implement once the story passes readiness checks
-- If the change is larger than expected, run `$design-system [system-name]` to author a full GDD instead
+- Run `$codex-game-studios:story-readiness [story-path]` to validate the story before implementation begins — reference this spec in the story's GDD Reference field
+- Run `$codex-game-studios:dev-story [story-path]` to implement once the story passes readiness checks
+- If the change is larger than expected, run `$codex-game-studios:design-system [system-name]` to author a full GDD instead

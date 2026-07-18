@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 This is a fast situational awareness check, not a sprint review. It reads the
 current sprint plan and story files, scans for status markers, and produces a
 concise snapshot in under 30 lines. For detailed sprint management, use
-`$sprint-plan update` or `$milestone-review`.
+`$codex-game-studios:sprint-plan update` or `$codex-game-studios:milestone-review`.
 
 **This skill is read-only.** It never proposes changes, never asks to write
 files, and makes at most one concrete recommendation.
@@ -31,13 +31,13 @@ files, and makes at most one concrete recommendation.
 
 **Argument:** use the first value supplied with the skill invocation (blank = current sprint).
 
-- If an argument is given (e.g., `$sprint-status 3`), search
+- If an argument is given (e.g., `$codex-game-studios:sprint-status 3`), search
   `production/sprints/` for a file matching `sprint-03.md`, `sprint-3.md`,
   or similar. Report which file was found.
 - If no argument is given, find the most recently modified file in
   `production/sprints/` and treat it as the current sprint.
 - If `production/sprints/` does not exist or is empty, report: "No sprint
-  files found. Start a sprint with `$sprint-plan new`." Then stop.
+  files found. Start a sprint with `$codex-game-studios:sprint-plan new`." Then stop.
 
 Read the sprint file in full. Extract:
 - Sprint number and goal
@@ -80,7 +80,7 @@ fall back to markdown scanning:
 4. If a file is referenced but does not exist, classify as MISSING and note it.
 
 When using the fallback, add a note at the bottom of the output:
-"⚠ No `sprint-status.yaml` found — status inferred from markdown. Run `$sprint-plan update` to generate one."
+"⚠ No `sprint-status.yaml` found — status inferred from markdown. Run `$codex-game-studios:sprint-plan update` to generate one."
 
 Optionally (fast check only — do not do a deep scan): grep `src/` for a
 directory or file name that matches the story's system slug to check for
@@ -182,7 +182,7 @@ less than 40% of the sprint time remains:
 
 ```
 SPRINT AT RISK: [N] Must Have stories are not complete with [X]% of sprint
-time remaining. Recommend replanning with `$sprint-plan update`.
+time remaining. Recommend replanning with `$codex-game-studios:sprint-plan update`.
 ```
 
 **Completion flag** — if all Must Have stories are DONE:
@@ -195,7 +195,7 @@ All Must Haves complete. Team can pull from Should Have backlog.
 
 ```
 NOTE: [N] story files referenced in the sprint plan are missing.
-Run `$story-readiness sprint` to validate story file coverage.
+Run `$codex-game-studios:story-readiness sprint` to validate story file coverage.
 ```
 
 ---
@@ -206,11 +206,11 @@ This skill is read-only. It reports observed facts from files on disk.
 
 - It does not update the sprint plan
 - It does not change story status
-- It does not propose scope cuts (that is `$sprint-plan update`)
+- It does not propose scope cuts (that is `$codex-game-studios:sprint-plan update`)
 - It makes at most one recommendation per run
 
 For more detail on a specific story, the user can read the story file directly
-or run `$story-readiness [path]`.
+or run `$codex-game-studios:story-readiness [path]`.
 
-For sprint replanning, use `$sprint-plan update`.
-For end-of-sprint retrospective, use `$retrospective`.
+For sprint replanning, use `$codex-game-studios:sprint-plan update`.
+For end-of-sprint retrospective, use `$codex-game-studios:retrospective`.

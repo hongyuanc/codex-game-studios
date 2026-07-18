@@ -155,7 +155,7 @@ For each finding, assign:
 **Date**: [date]
 **Scope**: [full | network | save | input | quick]
 **Engine**: [engine + version]
-**Audited by**: security-engineer via $security-audit
+**Audited by**: security-engineer via $codex-game-studios:security-audit
 **Files scanned**: [N source files, N config files]
 
 ---
@@ -228,7 +228,7 @@ For each finding, assign:
 
 ## Re-Audit Trigger
 
-Run `$security-audit` again after remediating any CRITICAL or HIGH findings.
+Run `$codex-game-studios:security-audit` again after remediating any CRITICAL or HIGH findings.
 The Polish → Release gate requires this report with no open CRITICAL or HIGH items.
 ```
 
@@ -250,13 +250,13 @@ If approval was declined or no file was written: Verdict: **DRAFT COMPLETE — N
 
 This report is a required artifact for the **Polish → Release gate**.
 
-After remediating findings, re-run: `$security-audit quick` to confirm CRITICAL/HIGH items are resolved before running `$gate-check release`.
+After remediating findings, re-run: `$codex-game-studios:security-audit quick` to confirm CRITICAL/HIGH items are resolved before running `$codex-game-studios:gate-check release`.
 
 If CRITICAL findings exist:
-> "⛔ CRITICAL security findings must be resolved before any public release. Do not proceed to `$launch-checklist` until these are addressed."
+> "⛔ CRITICAL security findings must be resolved before any public release. Do not proceed to `$codex-game-studios:launch-checklist` until these are addressed."
 
 If no CRITICAL/HIGH findings and the report was saved:
-> "✅ No blocking security findings. Report saved to `production/security/`. Include this path when running `$gate-check release`."
+> "✅ No blocking security findings. Report saved to `production/security/`. Include this path when running `$codex-game-studios:gate-check release`."
 
 If no CRITICAL/HIGH findings and the report was not saved, state that the audit evidence is still a draft and cannot be referenced as a saved gate artifact.
 

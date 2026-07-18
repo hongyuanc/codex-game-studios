@@ -27,9 +27,9 @@ will have changed.
 
 **Output:** `production/epics/[epic-slug]/EPIC.md` + `production/epics/index.md`
 
-**Next step after each epic:** `$create-stories [epic-slug]`
+**Next step after each epic:** `$codex-game-studios:create-stories [epic-slug]`
 
-**When to run:** After `$create-control-manifest` and `$architecture-review` pass.
+**When to run:** After `$codex-game-studios:create-control-manifest` and `$codex-game-studios:architecture-review` pass.
 
 ---
 
@@ -43,12 +43,12 @@ Resolve the review mode (once, store for all gate spawns this run):
 See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Modes:**
-- `$create-epics all` — process all systems in layer order
-- `$create-epics layer: foundation` — Foundation layer only
-- `$create-epics layer: core` — Core layer only
-- `$create-epics layer: feature` — Feature layer only
-- `$create-epics layer: presentation` — Presentation layer only
-- `$create-epics [system-name]` — one specific system
+- `$codex-game-studios:create-epics all` — process all systems in layer order
+- `$codex-game-studios:create-epics layer: foundation` — Foundation layer only
+- `$codex-game-studios:create-epics layer: core` — Core layer only
+- `$codex-game-studios:create-epics layer: feature` — Feature layer only
+- `$codex-game-studios:create-epics layer: presentation` — Presentation layer only
+- `$codex-game-studios:create-epics [system-name]` — one specific system
 - No argument — ask: "Which layer or system would you like to create epics for?"
 
 ---
@@ -124,7 +124,7 @@ Present to user before writing anything:
 If there are untraced requirements:
 > "⚠️ [N] requirements in [system] have no ADR. The epic can be created, but
 > stories for these requirements will be marked Blocked until ADRs exist.
-> Run `$architecture-decision` first, or proceed with placeholders."
+> Run `$codex-game-studios:architecture-decision` first, or proceed with placeholders."
 
 Use `request_user_input` for one decision at a time:
 - Prompt: "Shall I include Epic: [name] in the proposed changeset?"
@@ -179,7 +179,7 @@ After every epic has been reviewed and the producer gate resolves, show one comp
 > **Architecture Module**: [module name]
 > **Status**: Ready
 > **Control Manifest Version**: [version/date]
-> **Stories**: Not yet created — run `$create-stories [epic-slug]`
+> **Stories**: Not yet created — run `$codex-game-studios:create-stories [epic-slug]`
 
 ## Overview
 
@@ -202,14 +202,14 @@ and the architecture module's stated responsibilities]
 ## Definition of Done
 
 This epic is complete when:
-- All stories are implemented, reviewed, and closed via `$story-done`
+- All stories are implemented, reviewed, and closed via `$codex-game-studios:story-done`
 - All acceptance criteria from `design/gdd/[filename].md` are verified
 - All Logic and Integration stories have passing test files in `tests/`
 - All Visual/Feel and UI stories have evidence docs with sign-off in `production/qa/evidence/`
 
 ## Next Step
 
-Run `$create-stories [epic-slug]` to break this epic into implementable stories.
+Run `$codex-game-studios:create-stories [epic-slug]` to break this epic into implementable stories.
 ```
 
 ### Update `production/epics/index.md`
@@ -234,9 +234,9 @@ Engine: [name + version]
 After writing all epics for the requested scope:
 
 - **Foundation + Core complete**: These are required for the Pre-Production →
-  Production gate. Run `$gate-check production` to check readiness.
+  Production gate. Run `$codex-game-studios:gate-check production` to check readiness.
 - **Reminder**: Epics define scope. Stories define implementation steps. Run
-  `$create-stories [epic-slug]` for each epic before developers can pick up work.
+  `$codex-game-studios:create-stories [epic-slug]` for each epic before developers can pick up work.
 
 ---
 
@@ -250,5 +250,5 @@ After writing all epics for the requested scope:
 
 After all requested epics are processed:
 
-- **Verdict: COMPLETE** — [N] epic(s) written. Run `$create-stories [epic-slug]` per epic.
+- **Verdict: COMPLETE** — [N] epic(s) written. Run `$codex-game-studios:create-stories [epic-slug]` per epic.
 - **Verdict: BLOCKED** — user declined all epics, or no eligible systems found.

@@ -118,8 +118,8 @@ Output the report to the user. This mode is read-only — no files are written. 
 
 ## Phase 3: Next Steps
 
-- Run `$sprint-plan` to schedule high-priority debt items into the next sprint.
-- Run `$tech-debt report` at the start of each sprint to track debt trends over time.
+- Run `$codex-game-studios:sprint-plan` to schedule high-priority debt items into the next sprint.
+- Run `$codex-game-studios:tech-debt report` at the start of each sprint to track debt trends over time.
 
 ### Debt Register Format
 

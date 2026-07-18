@@ -7,11 +7,18 @@ import sys
 import tempfile
 import unittest
 
-from tools.codex_studio.validate import validate_plugin_skill_catalog, validate_skill
+from tools.codex_studio.validate import (
+    EXPECTED_SKILL_NAMES,
+    validate_plugin_skill_catalog,
+    validate_skill,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
+sys.path.insert(0, str(PLUGIN / "scripts"))
+import payload  # noqa: E402
+
 EXPECTED_DEPENDENCIES = {
     "bug-report": ("hotfix",),
     "bug-triage": ("team-qa",),
@@ -62,6 +69,23 @@ def _dependency_gate(dependency: str) -> str:
     )
 
 
+def _namespace_api(testcase: unittest.TestCase):
+    transform = getattr(payload, "namespace_skill_invocations", None)
+    catalog = getattr(payload, "approved_skill_names", None)
+    testcase.assertTrue(callable(transform), "payload namespace transform is missing")
+    testcase.assertTrue(callable(catalog), "approved skill-name derivation is missing")
+    return transform, catalog
+
+
+def _plain_catalog_invocations(text: str, names: tuple[str, ...]) -> set[str]:
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_$])\$(?P<name>"
+        + "|".join(sorted(map(re.escape, names), key=len, reverse=True))
+        + r")(?![A-Za-z0-9_-])"
+    )
+    return {match.group("name") for match in pattern.finditer(text)}
+
+
 def _copy_catalog_fixture(directory: str) -> tuple[Path, Path]:
     root = Path(directory) / "repository"
     plugin = root / "plugins/codex-game-studios"
@@ -73,7 +97,10 @@ def _copy_catalog_fixture(directory: str) -> tuple[Path, Path]:
 def _write_fixture_skill(root: Path, plugin: Path, name: str, text: str) -> None:
     (root / ".agents/skills" / name / "SKILL.md").write_text(text, encoding="utf-8")
     (plugin / "assets/studio/.agents/skills" / name / "SKILL.md").write_text(
-        text, encoding="utf-8"
+        payload.namespace_skill_invocations(
+            text.encode("utf-8"), tuple(sorted(EXPECTED_SKILL_NAMES))
+        ).decode("utf-8"),
+        encoding="utf-8",
     )
 
 
@@ -138,17 +165,64 @@ class PluginSkillCatalogTests(unittest.TestCase):
                 self.assertIn(token, source_text)
                 self.assertIn(token, bundled_text)
 
-    def test_catalog_has_source_parity_and_valid_skills(self):
+    def test_catalog_has_defined_namespace_parity_and_valid_skills(self):
         source = ROOT / ".agents/skills"
         bundled = PLUGIN / "assets/studio/.agents/skills"
         names = {path.parent.name for path in source.glob("*/SKILL.md")}
+        transform, catalog = _namespace_api(self)
+        policy = __import__("json").loads(
+            (PLUGIN / "assets/payload-policy.json").read_text(encoding="utf-8")
+        )
+        approved_names = catalog(policy)
         self.assertEqual(73, len(names))
         for name in sorted(names):
             self.assertEqual(
-                (source / name / "SKILL.md").read_bytes(),
+                transform((source / name / "SKILL.md").read_bytes(), approved_names),
                 (bundled / name / "SKILL.md").read_bytes(),
             )
             self.assertEqual([], validate_skill(bundled / name / "SKILL.md"))
+
+    def test_bundled_catalog_has_no_plain_known_skill_invocations(self):
+        # Arrange
+        source = ROOT / ".agents/skills"
+        bundled = PLUGIN / "assets/studio/.agents/skills"
+        names = tuple(sorted(path.parent.name for path in source.glob("*/SKILL.md")))
+
+        # Act / Assert
+        self.assertEqual(73, len(names))
+        for path in sorted(bundled.glob("*/SKILL.md")):
+            with self.subTest(skill=path.parent.name):
+                self.assertEqual(
+                    set(),
+                    _plain_catalog_invocations(path.read_text(encoding="utf-8"), names),
+                )
+
+    def test_canonical_catalog_keeps_source_local_plain_handoffs(self):
+        # Arrange / Act / Assert
+        cases = {
+            "start": ("brainstorm", "setup-engine", "dev-story"),
+            "setup-engine": ("brainstorm", "map-systems"),
+            "skill-test": ("skill-test", "story-done", "gate-check"),
+        }
+        for skill, commands in cases.items():
+            text = (ROOT / ".agents/skills" / skill / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            for command in commands:
+                with self.subTest(skill=skill, command=command):
+                    self.assertIn(f"${command}", text)
+                    self.assertNotIn(f"$codex-game-studios:{command}", text)
+
+    def test_bundled_start_handoffs_are_actual_namespaced_commands(self):
+        # Arrange / Act
+        text = (
+            PLUGIN / "assets/studio/.agents/skills/start/SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        # Assert
+        for command in ("brainstorm", "setup-engine", "dev-story", "help"):
+            with self.subTest(command=command):
+                self.assertIn(f"$codex-game-studios:{command}", text)
 
     def test_skills_do_not_probe_repo_local_skill_installation(self):
         pattern = re.compile(r"\.agents/skills/[a-z0-9-]+/SKILL\.md")

@@ -35,7 +35,7 @@ appropriate design or architecture documentation. Use this when:
 
 ## Phase 1: Parse Arguments
 
-**Format**: `$reverse-document <type> <path>`
+**Format**: `$codex-game-studios:reverse-document <type> <path>`
 
 **Type options**:
 - `design` → Generate a game design document (GDD section)
@@ -49,9 +49,9 @@ appropriate design or architecture documentation. Use this when:
 
 **Examples**:
 ```bash
-$reverse-document design src/gameplay/magic-system
-$reverse-document architecture src/core/entity-component
-$reverse-document concept prototypes/vehicle-combat
+$codex-game-studios:reverse-document design src/gameplay/magic-system
+$codex-game-studios:reverse-document architecture src/core/entity-component
+$codex-game-studios:reverse-document concept prototypes/vehicle-combat
 ```
 
 ## Phase 2: Analyze Implementation
@@ -179,14 +179,14 @@ After writing, suggest next steps:
 ✅ Written to design/gdd/combat-system.md
 
 FOLLOW-UP RECOMMENDED:
-1. Run $balance-check on combat formulas (exponential scaling concern)
+1. Run $codex-game-studios:balance-check on combat formulas (exponential scaling concern)
 2. Create ADR for stamina system architecture decision
 3. Implement missing edge cases:
    - Stamina depletion mid-combo behavior
    - Stagger state during dodge
 4. Extend design doc when weapon variety is implemented
 
-Next decision (one only): Should I prepare the `$balance-check` handoff first?
+Next decision (one only): Should I prepare the `$codex-game-studios:balance-check` handoff first?
 ```
 
 ---
@@ -206,7 +206,7 @@ Next decision (one only): Should I prepare the `$balance-check` handoff first?
 ## Example Session: Sequential Intent Clarification
 
 ```text
-User: $reverse-document design src/gameplay/[system]
+User: $codex-game-studios:reverse-document design src/gameplay/[system]
 
 Agent: I found three unresolved intent areas. First question: Is the resource system primarily for pacing or strategic management?
 

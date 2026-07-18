@@ -20,7 +20,7 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 
 ## Invocation
 
-Usage: `$team-polish [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-polish [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
@@ -50,7 +50,7 @@ Every phase before `## Parent Changeset Gate` is read-only or draft-only. Phase 
 
 ### Phase 1: Assessment
 Delegate to **performance-analyst**:
-- Profile the target feature/area using `$perf-profile`
+- Profile the target feature/area using `$codex-game-studios:perf-profile`
 - Identify performance bottlenecks and frame budget violations
 - Measure memory usage and check for leaks
 - Benchmark against target hardware specs
@@ -72,7 +72,7 @@ Delegate approved rendering, shader, VFX, asset-pipeline, and visual resource ch
 - Optimize draw calls, overdraw, visual resource loading, and asset memory within that role's boundary
 - Return the changed-file list plus profiler evidence
 
-For gameplay, AI, networking, core-engine, or other code bottlenecks outside the four-role roster, return a bounded `$dev-story` handoff with exact recommended paths and acceptance metrics. Do not implement those changes in `$team-polish`.
+For gameplay, AI, networking, core-engine, or other code bottlenecks outside the four-role roster, return a bounded `$codex-game-studios:dev-story` handoff with exact recommended paths and acceptance metrics. Do not implement those changes in `$codex-game-studios:team-polish`.
 
 ### Phase 3: Visual Polish (parallel with Phase 2)
 Delegate to **technical-artist**:
@@ -119,8 +119,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Output
@@ -129,6 +129,6 @@ A summary report covering: performance before/after metrics, visual polish chang
 
 ## Next Steps
 
-- If READY FOR RELEASE: run `$release-checklist` for the final pre-release validation.
-- If NEEDS MORE WORK: schedule remaining issues in `$sprint-plan update` and re-run `$team-polish` after fixes.
-- Run `$gate-check` for a formal phase gate verdict before handing off to release.
+- If READY FOR RELEASE: run `$codex-game-studios:release-checklist` for the final pre-release validation.
+- If NEEDS MORE WORK: schedule remaining issues in `$codex-game-studios:sprint-plan update` and re-run `$codex-game-studios:team-polish` after fixes.
+- Run `$codex-game-studios:gate-check` for a formal phase gate verdict before handing off to release.

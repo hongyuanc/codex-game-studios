@@ -15,10 +15,10 @@ Before default delegation, run `python3 ../../../tools/codex_studio/agent_delega
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$setup-engine`
+### Native readiness gate for `$codex-game-studios:setup-engine`
 
-Before invoking or routing to `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
-`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, do not route to `$setup-engine`, and do not search for or copy a repository-local skill file.
+Before invoking or routing to `$codex-game-studios:setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:setup-engine is not available`, defer the handoff, do not invoke `$codex-game-studios:setup-engine`, do not route to `$codex-game-studios:setup-engine`, and do not search for or copy a repository-local skill file.
 
 # Smoke Check
 
@@ -36,7 +36,7 @@ Handing a broken build to QA wastes their time and demoralises the team.
 
 ## Parse Arguments
 
-Arguments can be combined: `$smoke-check sprint --platform console`
+Arguments can be combined: `$codex-game-studios:smoke-check sprint --platform console`
 
 **Base mode** (first argument, default: `sprint`):
 - `sprint` — full smoke check against the current sprint's stories
@@ -60,7 +60,7 @@ Phase 5 outputs a per-platform verdict table in addition to the overall verdict.
 Before running anything, understand the environment:
 
 1. **Test framework check**: verify `tests/` directory exists.
-   If it does not: "No test directory found at `tests/`. Run `$test-setup`
+   If it does not: "No test directory found at `tests/`. Run `$codex-game-studios:test-setup`
    to scaffold the testing infrastructure, or create the directory manually
    if tests live elsewhere." Then stop.
 
@@ -79,7 +79,7 @@ Before running anything, understand the environment:
 5. **QA plan check**: glob `production/qa/qa-plan-*.md` and take the most
    recently modified file. If found, note the path — it will be used in
    Phase 3 and Phase 4. If not found, note: "No QA plan found. Run
-   `$qa-plan sprint` before smoke-checking for best results."
+   `$codex-game-studios:qa-plan sprint` before smoke-checking for best results."
 
 Report findings before proceeding: "Environment: [engine]. Test directory:
 [found / not found]. CI configured: [yes / no]. QA plan: [path / not found]."
@@ -125,7 +125,7 @@ Frontend or CI pipeline. Please confirm test status manually."
 
 **Unknown engine / not configured:**
 "Engine not configured in `.codex/docs/technical-preferences.md`. Run
-`$setup-engine` to specify the engine, then re-run `$smoke-check`."
+`$codex-game-studios:setup-engine` to specify the engine, then re-run `$codex-game-studios:smoke-check`."
 
 **If the test runner is not available in this environment** (engine binary not
 on PATH, runner script not found, etc.), report clearly:
@@ -155,7 +155,7 @@ Draw the story list from, in priority order:
 2. The current sprint plan from `production/sprints/` (most recently modified
    file)
 3. If the `quick` argument was passed, skip this phase entirely and note:
-   "Coverage scan skipped — run `$smoke-check sprint` for full coverage
+   "Coverage scan skipped — run `$codex-game-studios:smoke-check sprint` for full coverage
    analysis."
 
 For each story in scope:
@@ -179,7 +179,7 @@ Assign a coverage status to each story:
 | **UNKNOWN** | Story file missing or unreadable |
 
 MISSING entries are advisory gaps. They do not cause a FAIL verdict but must
-appear prominently in the report and must be resolved before `$story-done` can
+appear prominently in the report and must be resolved before `$codex-game-studios:story-done` can
 fully close those stories.
 
 ---
@@ -219,7 +219,7 @@ Assemble the full smoke check report:
 **Date**: [date]
 **Sprint**: [sprint name / number, or "Not identified"]
 **Engine**: [engine]
-**QA Plan**: [path, or "Not found — run $qa-plan first"]
+**QA Plan**: [path, or "Not found — run $codex-game-studios:qa-plan first"]
 **Argument**: [sprint | quick | blank]
 
 ---
@@ -265,7 +265,7 @@ will determine whether the automated test row contributes to a FAIL verdict."
 ### Missing Test Evidence
 
 Stories that must have test evidence before they can be marked COMPLETE via
-`$story-done`:
+`$codex-game-studios:story-done`:
 
 - **[story title]** (`[path]`) — Logic story has no test file.
   Expected location: `tests/unit/[system]/[story-slug]_test.[ext]`
@@ -333,7 +333,7 @@ Present the full summary and per-story evidence drafts. Then show one complete p
 
 "May I write this complete smoke summary and per-story evidence changeset?"
 
-Write only after approval. Do not omit a declared Config/Data evidence file even when the summary passes; a FAIL run writes the exact file with `Verdict: FAIL` so `$story-done` can reject it deterministically.
+Write only after approval. Do not omit a declared Config/Data evidence file even when the summary passes; a FAIL run writes the exact file with `Verdict: FAIL` so `$codex-game-studios:story-done` can reject it deterministically.
 
 After writing, deliver the gate verdict:
 
@@ -344,13 +344,13 @@ resolved:
 
 [List each failing automated test or smoke check with a one-line description]
 
-Fix the failures and run `$smoke-check` again to re-gate before QA hand-off."
+Fix the failures and run `$codex-game-studios:smoke-check` again to re-gate before QA hand-off."
 
 **If verdict is PASS WITH WARNINGS:**
 
 "Smoke check passed with warnings. The build is ready for manual QA.
 
-Advisory items to resolve before running `$story-done` on affected stories:
+Advisory items to resolve before running `$codex-game-studios:story-done` on affected stories:
 [list MISSING test evidence entries]
 
 QA hand-off: share `production/qa/qa-plan-[sprint].md` with the qa-tester
@@ -373,7 +373,7 @@ agent to begin manual verification."
 - **Never auto-fix failures** — report them and state what must be resolved.
   Do not attempt to edit source code or test files.
 - **PASS WITH WARNINGS does not block QA hand-off** — it records advisory
-  gaps for `$story-done` to follow up on.
+  gaps for `$codex-game-studios:story-done` to follow up on.
 - **`quick` argument** skips Phase 3 (coverage scan) and Phase 4 Batch 3.
   Use it for rapid re-checks after fixing a specific failure.
 - Use `request_user_input` for all manual smoke check verification.

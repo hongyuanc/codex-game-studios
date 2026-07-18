@@ -160,5 +160,5 @@ If no, stop here. Verdict: **BLOCKED** — user declined write.
 
 ## Phase 5: Next Steps
 
-- Run `$gate-check` for a formal phase gate verdict if this milestone marks a development phase boundary.
-- Run `$sprint-plan` to adjust the next sprint based on the scope recommendations above.
+- Run `$codex-game-studios:gate-check` for a formal phase gate verdict if this milestone marks a development phase boundary.
+- Run `$codex-game-studios:sprint-plan` to adjust the next sprint based on the scope recommendations above.
