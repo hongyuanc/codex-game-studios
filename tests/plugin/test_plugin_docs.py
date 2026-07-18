@@ -53,25 +53,31 @@ class PluginDocumentationTests(unittest.TestCase):
         self.assertIn("Codex-native", attribution)
         self.assertIn("plugin", attribution)
         self.assertIn("skills", attribution)
-        self.assertIn("agents", attribution)
-        self.assertIn("hooks", attribution)
-        self.assertIn("transaction", attribution)
+        self.assertIn("bundled", attribution)
+        self.assertIn("initialization", attribution)
+        self.assertIn("migration", attribution)
         self.assertIn("not endorsed by Donchitos, Anthropic, or OpenAI", attribution)  # enforcement-literal
 
-    def test_readme_lists_every_supported_manager_operation(self):
+    def test_readme_documents_plugin_native_start_and_separate_legacy_operations(self):
         # Arrange
         readme_path = PLUGIN / "README.md"
-        operations = ("install", "update", "verify", "repair", "uninstall")
 
         # Act
         readme = readme_path.read_text(encoding="utf-8")
 
         # Assert
-        for operation in operations:
-            self.assertIn(f"$codex-game-studios {operation}", readme)
-        self.assertIn("Python 3.11", readme)
+        self.assertIn("Install Codex Game Studios from the repository marketplace", readme)
+        self.assertIn("Start a new Codex task", readme)
+        self.assertIn("$codex-game-studios:start", readme)
+        self.assertIn("all 73 studio skills", readme.lower())
+        self.assertIn("zero writes to the game repository", readme)
+        self.assertIn("small project-specific state", readme)
+        self.assertIn("## Legacy 1.0.0 lifecycle support", readme)
+        self.assertNotIn("$codex-game-studios install", readme)
+        self.assertNotIn("$codex-game-studios update", readme)
+        for operation in ("verify", "repair", "migrate", "uninstall"):
+            self.assertIn(operation, readme)
         self.assertIn("Git repository", readme)
-        self.assertIn("no network", readme)
 
 if __name__ == "__main__":
     unittest.main()

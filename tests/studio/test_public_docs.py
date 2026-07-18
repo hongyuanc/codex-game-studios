@@ -122,15 +122,21 @@ class PublicDocumentationTests(unittest.TestCase):
             text,
         )
 
-    def test_readme_documents_working_app_and_cli_plugin_flows(self):
+    def test_readme_uses_plugin_native_start_flow(self):
         # Arrange / Act
         text = (ROOT / "README.md").read_text(encoding="utf-8")
 
         # Assert
         self.assertIn("### Codex app", text)
         self.assertIn("### Codex CLI", text)
+        self.assertIn("Install Codex Game Studios from the repository marketplace", text)
         self.assertIn("Start a new Codex task", text)
-        self.assertIn("$codex-game-studios install", text)
+        self.assertIn("$codex-game-studios:start", text)
+        self.assertIn("all 73 studio skills", text.lower())
+        self.assertIn("zero writes to the game repository", text)
+        self.assertIn("small project-specific state", text)
+        self.assertNotIn("$codex-game-studios install", text)
+        self.assertNotIn("$codex-game-studios update", text)
         self.assertIn(
             "codex plugin marketplace add hongyuanc/codex-game-studios --ref main",
             text,
@@ -150,7 +156,7 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertNotIn("v1.0.0-rc.1", text)
         self.assertNotIn("codex plugin install", text)
 
-    def test_readmes_document_trust_lifecycle_and_engine_requirements(self):
+    def test_readmes_document_plugin_native_and_legacy_contracts(self):
         # Arrange / Act
         root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
         plugin_readme = (
@@ -160,17 +166,18 @@ class PublicDocumentationTests(unittest.TestCase):
 
         # Assert
         for required in (
-            "complete",
             "digest-bound",
             "explicitly approve",
-            "no network requests",
-            "retained",
-            "$start",
+            "Legacy 1.0.0 lifecycle support",
+            "$codex-game-studios:start",
+            "all 73 studio skills",
+            "zero writes to the game repository",
+            "small project-specific state",
+            "migrate to plugin-native",
             "$setup-engine",
-            "$codex-game-studios update",
-            "$codex-game-studios verify",
-            "$codex-game-studios repair",
-            "$codex-game-studios uninstall",
+            "verify legacy installation",
+            "repair legacy installation",
+            "uninstall legacy installation",
             "Donchitos/Claude-Code-Game-Studios",  # enforcement-literal
             "Godot",
             "Unity",
@@ -228,19 +235,19 @@ class PublicDocumentationTests(unittest.TestCase):
                     missing.append(f"{path.relative_to(ROOT)} -> {target}")
         self.assertEqual([], missing)
 
-    def test_readme_has_exact_codex_entry_path(self):
+    def test_readme_has_plugin_native_entry_path(self):
         text = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("Codex Game Studios", text)
         self.assertIn("49 agents", text)
         self.assertIn("73 skills", text)
         expected = (
-            "1. Clone this repository.\n"
-            "2. Open the project in Codex and trust the repository configuration and hooks after review.\n"
-            "3. Invoke `$start`.\n"
-            "4. Choose Godot, Unity, or Unreal when `$setup-engine` runs."
+            "1. Install Codex Game Studios from the repository marketplace.\n"
+            "2. Start a new Codex task in the game repository.\n"
+            "3. Run:"
         )
         self.assertIn(expected, text)
-        self.assertNotIn("use this repository as a template", text)
+        self.assertIn("$codex-game-studios:start", text)
+        self.assertNotIn("Use the source checkout directly", text)
         for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):
             self.assertIn(required, text)
 
@@ -299,9 +306,8 @@ class PublicDocumentationTests(unittest.TestCase):
         )
         for claim in (
             "Not a thin rename",
-            "AGENTS.md",
-            ".agents/skills/",
-            ".codex/agents/",
+            "plugin-bundled skills",
+            "repository-owned configuration",
             "Sol, Terra, and Luna",
             "10 Python-based Codex hook actions",
             "Transactional engine packs",

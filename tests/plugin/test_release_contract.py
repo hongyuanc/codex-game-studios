@@ -229,6 +229,24 @@ class ReleaseContractTests(unittest.TestCase):
         # Assert
         self.assertEqual(["main", "main"], documented_refs)
 
+    def test_release_documentation_advertises_only_plugin_native_fresh_start(self):
+        # Arrange
+        documents = (ROOT / "README.md", PLUGIN / "README.md")
+
+        # Act
+        document_text = {
+            document: document.read_text(encoding="utf-8") for document in documents
+        }
+        text = "\n".join(document_text.values())
+
+        # Assert
+        self.assertTrue(
+            all("$codex-game-studios:start" in value for value in document_text.values())
+        )
+        self.assertNotIn("$codex-game-studios install", text)
+        self.assertNotIn("$codex-game-studios update", text)
+        self.assertIn("Legacy 1.0.0 lifecycle support", text)
+
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange
         from tools.codex_studio.package_plugin import package_plugin
