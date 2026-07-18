@@ -3,6 +3,11 @@ name: create-stories
 description: "Use when an approved epic needs implementation-ready stories with requirements, ADRs, acceptance criteria, and evidence traceability."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -32,7 +37,7 @@ then Core, and so on — matching the dependency order.
 Extract `--review [full|lean|solo]` if present and store it as a per-run override.
 Otherwise read `.codex/studio.toml`; map `review_mode = "phase-gated"` to lean
 optional-review depth while mandatory director gates still run. This resolved mode applies to all gate spawns in this skill —
-apply `.codex/docs/director-gates.md` before every gate invocation. Never create
+apply `../../../.codex/docs/director-gates.md` before every gate invocation. Never create
 or consult a second persistent review-mode setting.
 
 - `$create-stories [epic-slug]` — e.g. `$create-stories combat`
@@ -114,7 +119,7 @@ For each story, determine:
 - `lean` → skip (not a PHASE-GATE). Note: "QL-STORY-READY skipped — Lean mode." Proceed to Step 5 (present stories for review).
 - `full` → spawn as normal.
 
-After decomposing all stories (Step 4 complete) but before presenting them for write approval, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-STORY-READY** (`.codex/docs/director-gates.md`).
+After decomposing all stories (Step 4 complete) but before presenting them for write approval, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-STORY-READY** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full story list with acceptance criteria, story types, and TR-IDs; the epic's GDD acceptance criteria for reference.
 

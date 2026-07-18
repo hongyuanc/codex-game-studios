@@ -54,6 +54,38 @@ def local_markdown_links(path: Path) -> list[str]:
     return [link for link in links if link]
 
 
+def markdown_section(text: str, heading: str) -> str:
+    """Return one Markdown heading body through the next peer/parent heading."""
+
+    marker = re.search(rf"(?m)^(?P<level>#+) {re.escape(heading)}\s*$", text)
+    if marker is None:
+        raise AssertionError(f"missing Markdown section: {heading}")
+    level = len(marker.group("level"))
+    following = re.search(rf"(?m)^#{{1,{level}}} ", text[marker.end() :])
+    end = marker.end() + following.start() if following else len(text)
+    return text[marker.end() : end]
+
+
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
+
+
 def readme_upstream_attribution(text: str) -> tuple[str, str]:
     start = "<!-- upstream-" + "attribution-start -->"
     end = "<!-- upstream-" + "attribution-end -->"
@@ -122,51 +154,144 @@ class PublicDocumentationTests(unittest.TestCase):
             text,
         )
 
-    def test_readme_documents_primary_and_prerelease_plugin_flows(self):
+    def test_readme_uses_plugin_native_start_flow(self):
         # Arrange / Act
         text = (ROOT / "README.md").read_text(encoding="utf-8")
 
         # Assert
-        self.assertIn("Codex Plugins Directory", text)
-        self.assertIn("$codex-game-studios install", text)
+        self.assertIn("### Codex app", text)
+        self.assertIn("### Codex CLI", text)
+        self.assertIn("Install Codex Game Studios from the repository marketplace", text)
+        app = markdown_section(text, "Codex app")
+        cli = markdown_section(text, "Codex CLI")
+        fresh, legacy = text.split("## Legacy 1.0.0 lifecycle support", maxsplit=1)
+
+        self.assertIn("Clone", app)
+        self.assertIn("open", app.lower())
+        self.assertIn("Plugins", app)
+        self.assertIn("repository marketplace", app)
+        self.assertIn("Start a new Codex task", app)
+        self.assertIn("in-Codex", app)
+        self.assertIn("$codex-game-studios:start", app)
+        self.assertNotIn("codex plugin", app)
+        self.assertIn("codex plugin marketplace add", cli)
+        self.assertIn("codex plugin add", cli)
+        self.assertIn("Start a new Codex task", cli)
+        self.assertIn("in-Codex", cli)
+        self.assertIn("$codex-game-studios:start", cli)
+        self.assertIn("all 73 studio skills", fresh.lower())
+        self.assertIn("$codex-game-studios:setup-engine", fresh)
+        self.assertIn("$codex-game-studios:<skill>", fresh)
+        self.assertNotIn("Use `$setup-engine`", fresh)
+        assert_fresh_repository_contract(self, fresh)
+        for operation in (
+            "verify legacy installation",
+            "repair legacy installation",
+            "migrate to plugin-native",
+            "uninstall legacy installation",
+        ):
+            self.assertNotIn(operation, fresh)
+            self.assertIn(operation, legacy)
+        self.assertNotIn("$codex-game-studios install", text)
+        self.assertNotIn("$codex-game-studios update", text)
         self.assertIn(
-            "codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1",
+            "codex plugin marketplace add hongyuanc/codex-game-studios --ref main",
             text,
         )
         self.assertIn(
             "codex plugin add codex-game-studios@codex-game-studios",
             text,
         )
+        self.assertIn(
+            "not yet listed in the public Codex Plugins Directory",
+            text,
+        )
+        self.assertNotIn(
+            "Install **Codex Game Studios** once from the public Codex Plugins Directory",
+            text,
+        )
+        self.assertNotIn("v1.0.0-rc.1", text)
         self.assertNotIn("codex plugin install", text)
 
-    def test_readmes_document_trust_lifecycle_and_engine_requirements(self):
+    def test_readmes_document_plugin_native_and_legacy_contracts(self):
         # Arrange / Act
         root_readme = (ROOT / "README.md").read_text(encoding="utf-8")
         plugin_readme = (
             ROOT / "plugins/codex-game-studios/README.md"
         ).read_text(encoding="utf-8")
-        combined = root_readme + "\n" + plugin_readme
-
         # Assert
-        for required in (
-            "complete",
-            "digest-bound",
-            "explicitly approve",
-            "no network requests",
-            "retained",
-            "$start",
-            "$setup-engine",
-            "$codex-game-studios update",
-            "$codex-game-studios verify",
-            "$codex-game-studios repair",
-            "$codex-game-studios uninstall",
-            "Donchitos/Claude-Code-Game-Studios",  # enforcement-literal
-            "Godot",
-            "Unity",
-            "Unreal",
-            "installed separately",
+        for text in (root_readme, plugin_readme):
+            with self.subTest(document=text[:40]):
+                fresh, legacy = text.split(
+                    "## Legacy 1.0.0 lifecycle support", maxsplit=1
+                )
+                for required in (
+                    "$codex-game-studios:start",
+                    "$codex-game-studios:setup-engine",
+                    "$codex-game-studios:<skill>",
+                    "all 73 studio skills",
+                    "small project-specific state",
+                    "Godot",
+                    "Unity",
+                    "Unreal",
+                    "installed separately",
+                ):
+                    self.assertIn(required, fresh)
+                assert_fresh_repository_contract(self, fresh)
+                for required in (
+                    "digest-bound",
+                    "verify legacy installation",
+                    "repair legacy installation",
+                    "migrate to plugin-native",
+                    "uninstall legacy installation",
+                ):
+                    self.assertIn(required, legacy)
+
+        self.assertIn("source checkout", root_readme.lower())
+        self.assertIn("`$<skill>`", root_readme)
+        for command in (
+            "setup-engine",
+            "brainstorm",
+            "map-systems",
+            "design-system",
+            "prototype",
+            "create-architecture",
+            "create-epics",
+            "create-stories",
+            "dev-story",
+            "story-done",
+            "qa-plan",
+            "gate-check",
+            "help",
         ):
-            self.assertIn(required, combined)
+            with self.subTest(command=command):
+                self.assertIn(f"$codex-game-studios:{command}", root_readme)
+                self.assertNotIn(f"${command}", root_readme)
+
+    def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
+        # Arrange
+        invalid_mutants = {
+            "cap_only": (
+                "Plugin installation and skill discovery make zero writes to the "
+                "game repository. Start asks at most ten questions. It never creates "
+                "`.agents/skills/`."
+            ),
+            "path_only": (
+                "Plugin installation and skill discovery make zero writes to the "
+                "game repository. Start uses at most ten mutations. It may create "
+                "`.agents/skills/`, but never overwrites existing files."
+            ),
+            "zero_only": (
+                "Plugin installation writes project files. The help screen makes zero "
+                "writes to the game repository. Start uses at most ten mutations. "
+                "It never creates `.agents/skills/`."
+            ),
+        }
+
+        # Act / Assert
+        for name, mutant in invalid_mutants.items():
+            with self.subTest(mutant=name), self.assertRaises(AssertionError):
+                assert_fresh_repository_contract(self, mutant)
 
     def test_root_entry_links_and_native_instruction_contract_resolve(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -217,19 +342,16 @@ class PublicDocumentationTests(unittest.TestCase):
                     missing.append(f"{path.relative_to(ROOT)} -> {target}")
         self.assertEqual([], missing)
 
-    def test_readme_has_exact_codex_entry_path(self):
+    def test_readme_has_plugin_native_entry_path(self):
         text = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("Codex Game Studios", text)
         self.assertIn("49 agents", text)
         self.assertIn("73 skills", text)
-        expected = (
-            "1. Clone this repository.\n"
-            "2. Open the project in Codex and trust the repository configuration and hooks after review.\n"
-            "3. Invoke `$start`.\n"
-            "4. Choose Godot, Unity, or Unreal when `$setup-engine` runs."
-        )
-        self.assertIn(expected, text)
-        self.assertNotIn("use this repository as a template", text)
+        app = markdown_section(text, "Codex app")
+        self.assertIn("repository marketplace", app)
+        self.assertIn("start a new codex task", app.lower())
+        self.assertIn("$codex-game-studios:start", text)
+        self.assertNotIn("Use the source checkout directly", text)
         for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):
             self.assertIn(required, text)
 
@@ -288,9 +410,8 @@ class PublicDocumentationTests(unittest.TestCase):
         )
         for claim in (
             "Not a thin rename",
-            "AGENTS.md",
-            ".agents/skills/",
-            ".codex/agents/",
+            "plugin-bundled skills",
+            "repository-owned configuration",
             "Sol, Terra, and Luna",
             "10 Python-based Codex hook actions",
             "Transactional engine packs",

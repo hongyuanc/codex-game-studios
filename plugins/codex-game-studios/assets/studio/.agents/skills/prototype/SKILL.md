@@ -3,6 +3,11 @@ name: prototype
 description: Build and evaluate a throwaway concept prototype before committing to full system design.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -12,7 +17,7 @@ Ask at most one user question per turn and wait for the answer. Preserve increme
 This is the **concept prototype** — a fast, throwaway build that answers one question:
 *"Is this core idea actually fun to interact with?"*
 
-**Default use** — run right after `$brainstorm` and `$setup-engine`, before writing
+**Default use** — run right after `$codex-game-studios:brainstorm` and `$codex-game-studios:setup-engine`, before writing
 GDDs or architecture docs. Its verdict determines whether the concept is worth the
 investment of full design documentation.
 
@@ -21,7 +26,7 @@ design change, or technical question. Pass `--spike` to activate spike mode: a
 lightweight ~4-hour build with no GDD prerequisites and no phase gate implications.
 
 **Already have GDDs and architecture complete?** To validate the full game loop
-before committing to Production, run `$vertical-slice` instead.
+before committing to Production, run `$codex-game-studios:vertical-slice` instead.
 
 ---
 
@@ -47,7 +52,7 @@ Otherwise, ask one concise question and wait for the answer to confirm intent be
 **If "Skip — concept already proven":**
 Ask (plain text, not a prompt): "What evidence do you have that the concept works?"
 Record the one-line answer, then stop. Note: "Concept prototype skipped — evidence:
-[answer]." Suggest next step: `$map-systems` or `$design-system [mechanic]`.
+[answer]." Suggest next step: `$codex-game-studios:map-systems` or `$codex-game-studios:design-system [mechanic]`.
 
 **If "Mid-production spike"**: skip to the **Spike Mode** section below.
 
@@ -395,7 +400,7 @@ Vague ones make it useless.
 
 ## Phase 7: Generate Prototype Report
 
-Read `.codex/docs/templates/prototype-report.md` to get the report structure.
+Read `../../../.codex/docs/templates/prototype-report.md` to get the report structure.
 Fill in every section based on what was observed during this session. Replace all
 placeholder text with real observations — no generic filler.
 
@@ -438,13 +443,13 @@ Your concept prototype validated the core idea. Now design it properly, informed
 what you just learned.
 
 Recommended path (in order):
-1. `$design-review design/gdd/game-concept.md` — validate the concept doc against what the prototype revealed
-2. `$gate-check` — confirm readiness to advance to Systems Design
-3. `$art-bible` — define visual identity (optional but worth doing before GDDs)
-4. `$map-systems` — decompose the concept into all game systems
-5. `$design-system [mechanic]` — GDD for each MVP system; use prototype learnings
+1. `$codex-game-studios:design-review design/gdd/game-concept.md` — validate the concept doc against what the prototype revealed
+2. `$codex-game-studios:gate-check` — confirm readiness to advance to Systems Design
+3. `$codex-game-studios:art-bible` — define visual identity (optional but worth doing before GDDs)
+4. `$codex-game-studios:map-systems` — decompose the concept into all game systems
+5. `$codex-game-studios:design-system [mechanic]` — GDD for each MVP system; use prototype learnings
    in the Tuning Knobs and Formulas sections
-6. `$review-all-gdds` — cross-system consistency check
+6. `$codex-game-studios:review-all-gdds` — cross-system consistency check
 
 **Note:** If you used the HTML path and feel is still uncertain, consider running
 a quick engine path prototype targeting feel before writing GDDs.
@@ -460,12 +465,12 @@ two questions (plain text, one at a time):
 Ask: "May I write this to `prototypes/[concept-name]-concept/PIVOT-NOTE.md`?"
 
 If yes, write the file with: original hypothesis, what to keep, what to change, and
-the revised hypothesis for the next prototype. When `$prototype` is next run, check
+the revised hypothesis for the next prototype. When `$codex-game-studios:prototype` is next run, check
 `prototypes/` for any `PIVOT-NOTE.md` files — if found, read them and use the
 revised hypothesis as the starting point rather than forming one from scratch.
 
-- Run `$prototype [revised-concept]` to test the adjusted direction
-- Or `$brainstorm [hint]` if the concept needs more fundamental rethinking
+- Run `$codex-game-studios:prototype [revised-concept]` to test the adjusted direction
+- Or `$codex-game-studios:brainstorm [hint]` if the concept needs more fundamental rethinking
 
 **If KILL:**
 
@@ -492,7 +497,7 @@ Ask: "May I append this concept to `prototypes/GRAVEYARD.md`?" If yes, add one e
 
 This file exists so the same mistake doesn't get made twice on the next concept.
 
-- Run `$brainstorm open` or `$brainstorm [new-hint]` to explore a different concept
+- Run `$codex-game-studios:brainstorm open` or `$codex-game-studios:brainstorm [new-hint]` to explore a different concept
 - The prototype report is the deliverable — no further action needed
 
 ---

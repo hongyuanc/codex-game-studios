@@ -3,6 +3,11 @@ name: review-all-gdds
 description: Review all game design documents together for cross-system consistency and design-theory risks.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Keep repository source artifacts read-only during analysis and cite concrete file evidence for every finding. Ask at most one user question per turn and wait for the answer. A report, tracking record, or phase-state update may be written only after its exact changeset and paths are approved. Do not fix reviewed source artifacts unless the user gives separate explicit authorization.
@@ -19,13 +24,13 @@ reviews that cannot be done per-GDD in isolation:
    together: dominant strategies, broken economies, cognitive overload, pillar
    drift, competing progression loops
 
-**This is distinct from `$design-review`**, which reviews one GDD for internal
+**This is distinct from `$codex-game-studios:design-review`**, which reviews one GDD for internal
 completeness. This skill reviews the *relationships* between all GDDs.
 
 **When to run:**
 - After all MVP-tier GDDs are individually approved
 - After any GDD is significantly revised mid-production
-- Before `$create-architecture` begins (architecture built on inconsistent GDDs
+- Before `$codex-game-studios:create-architecture` begins (architecture built on inconsistent GDDs
   inherits those inconsistencies)
 
 **Argument modes:**
@@ -79,7 +84,7 @@ what to look for.
 
 If the registry is empty or absent: proceed without it. Note in the report:
 "Entity registry is empty — consistency checks rely on full GDD reads only.
-Run `$consistency-check` after this review to populate the registry."
+Run `$codex-game-studios:consistency-check` after this review to populate the registry."
 
 ### Phase 1c — L1/L2: Full Document Load
 
@@ -95,7 +100,7 @@ Report: "Loaded [N] system GDDs covering [M] systems. Pillars: [list]. Anti-pill
 
 If fewer than 2 system GDDs exist, stop:
 > "Cross-GDD review requires at least 2 system GDDs. Write more GDDs first,
-> then re-run `$review-all-gdds`."
+> then re-run `$codex-game-studios:review-all-gdds`."
 
 ---
 
@@ -110,7 +115,7 @@ starting Phase 3. Collect both results before writing the combined report.
 - The complete list of GDD file paths loaded in Phase 1 (explicit paths, not just counts)
 - The full TR registry contents if loaded in Phase 1b (paste the registry text, not just a file path)
 - The specific checklist items assigned to that agent's phase (Phase 2 gets 2a–2f; Phase 3 gets 3a–3g)
-- The engine name and version from `.codex/docs/technical-preferences.md` and `docs/engine-reference/[engine]/VERSION.md`
+- The engine name and version from `.codex/docs/technical-preferences.md` and `../../../docs/engine-reference/[engine]/VERSION.md`
 
 Do not rely on the delegated agent to re-read these files — it has its own context window and cannot access Phase 1 results unless they are explicitly passed in the delegation brief.
 
@@ -578,7 +583,7 @@ the shown changeset.
 Include this proposed append to `production/session-state/active.md` in the
 complete changeset:
 
-    ## Session Extract — $review-all-gdds [date]
+    ## Session Extract — $codex-game-studios:review-all-gdds [date]
     - Verdict: [PASS / CONCERNS / FAIL]
     - GDDs reviewed: [N]
     - Flagged for revision: [comma-separated list, or "None"]
@@ -598,18 +603,18 @@ After all file writes are complete, ask one concise question and wait for the an
 
 Before building options, check project state:
 - Are there any Warning-level items that are simple edits (flagged with "30-second edit", "brief addition", or similar)? → offer inline quick-fix option
-- Are any GDDs in the "Flagged for Revision" table? → offer $design-review option for each
-- Read systems-index.md for the next system with Status: Not Started → offer $design-system option
-- Is the verdict PASS or CONCERNS? → offer $gate-check or $create-architecture
+- Are any GDDs in the "Flagged for Revision" table? → offer $codex-game-studios:design-review option for each
+- Read systems-index.md for the next system with Status: Not Started → offer $codex-game-studios:design-system option
+- Is the verdict PASS or CONCERNS? → offer $codex-game-studios:gate-check or $codex-game-studios:create-architecture
 
 Build the option list dynamically — only include options that apply:
 
 **Option pool:**
 - `[_] Apply quick fix: [W-XX description] in [gdd-name].md — [effort estimate]` (one option per simple-edit warning; only for Warning-level, not Blocking)
-- `[_] Run $design-review [flagged-gdd-path] — address flagged warnings` (one per flagged GDD, if any)
-- `[_] Run $design-system [next-system] — next in design order` (always include, name the actual system)
-- `[_] Run $create-architecture — begin architecture (verdict is PASS/CONCERNS)` (include if verdict is not FAIL)
-- `[_] Run $gate-check — validate Systems Design phase gate` (include if verdict is PASS)
+- `[_] Run $codex-game-studios:design-review [flagged-gdd-path] — address flagged warnings` (one per flagged GDD, if any)
+- `[_] Run $codex-game-studios:design-system [next-system] — next in design order` (always include, name the actual system)
+- `[_] Run $codex-game-studios:create-architecture — begin architecture (verdict is PASS/CONCERNS)` (include if verdict is not FAIL)
+- `[_] Run $codex-game-studios:gate-check — validate Systems Design phase gate` (include if verdict is PASS)
 - `[_] Stop here`
 
 Assign letters A, B, C… only to included options. Mark the most pipeline-advancing option as `(recommended)`.

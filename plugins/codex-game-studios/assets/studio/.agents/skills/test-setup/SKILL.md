@@ -3,6 +3,11 @@ name: test-setup
 description: "Use when a configured game engine lacks test directories, runner configuration, smoke seeds, or continuous-integration test wiring."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -10,9 +15,10 @@ description: "Use when a configured game engine lacks test directories, runner c
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$setup-engine`
+### Native readiness gate for `$codex-game-studios:setup-engine`
 
-Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+Before invoking or routing to `$codex-game-studios:setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:setup-engine is not available`, defer the handoff, do not invoke `$codex-game-studios:setup-engine`, do not route to `$codex-game-studios:setup-engine`, and do not search for or copy a repository-local skill file.
 
 # Test Setup
 
@@ -34,7 +40,7 @@ A test framework installed at sprint four costs 3 sprints.
 1. **Read engine config**:
    - Read `.codex/docs/technical-preferences.md` and extract the `Engine:` value.
    - If engine is not configured (`[TO BE CONFIGURED]`), stop:
-     "Engine not configured. Run `$setup-engine` first, then re-run `$test-setup`."
+     "Engine not configured. Run `$codex-game-studios:setup-engine` first, then re-run `$codex-game-studios:test-setup`."
 
 2. **Check for existing test infrastructure**:
    - file search `tests/` — does the directory exist?
@@ -46,7 +52,7 @@ A test framework installed at sprint four costs 3 sprints.
 3. **Report findings**:
    - "Engine: [engine]. Test directory: [found / not found]. CI workflow: [found / not found]."
    - If everything already exists AND `force` argument was not passed:
-     "Test infrastructure appears to be in place. Re-run with `$test-setup force`
+     "Test infrastructure appears to be in place. Re-run with `$codex-game-studios:test-setup force`
      to regenerate. Proceeding will not overwrite existing test files."
 
 If the `force` argument is passed, skip the "already exists" early-exit and
@@ -107,7 +113,7 @@ After approval, create the following files:
 tests/
   unit/           # Isolated unit tests (formulas, state machines, logic)
   integration/    # Cross-system and save/load tests
-  smoke/          # Critical path test list for $smoke-check gate
+  smoke/          # Critical path test list for $codex-game-studios:smoke-check gate
 production/qa/evidence/ # Canonical screenshot logs and manual test sign-off records
 ```
 
@@ -145,7 +151,7 @@ A failed test suite blocks merging.
 Create `tests/gdunit4_runner.gd`:
 
 ```gdscript
-# GdUnit4 test runner — invoked by CI and $smoke-check
+# GdUnit4 test runner — invoked by CI and $codex-game-studios:smoke-check
 # Usage: godot --headless --script tests/gdunit4_runner.gd
 extends SceneTree
 
@@ -242,7 +248,7 @@ jobs:
       - name: Run GdUnit4 Tests
         uses: MikeSchulze/gdUnit4-action@v1
         with:
-          godot-version: '[VERSION FROM docs/engine-reference/godot/VERSION.md]'
+          godot-version: '[CONFIGURED GODOT VERSION]'
           paths: |
             tests/unit
             tests/integration
@@ -360,7 +366,7 @@ Create `tests/smoke/critical-paths.md`:
 # Smoke Test: Critical Paths
 
 **Purpose**: Run these 10-15 checks in under 15 minutes before any QA hand-off.
-**Run via**: `$smoke-check` (which reads this file)
+**Run via**: `$codex-game-studios:smoke-check` (which reads this file)
 **Update**: Add new entries when new core systems are implemented.
 
 ## Core Stability (always run)
@@ -407,15 +413,15 @@ Files created:
 Next steps:
 1. [Engine-specific install step, e.g., "Install GdUnit4 via AssetLib"]
 2. Write your first test: create tests/unit/[first-system]/[system]_test.[ext]
-3. Run `$qa-plan sprint` before your first sprint to classify stories and set
+3. Run `$codex-game-studios:qa-plan sprint` before your first sprint to classify stories and set
    test evidence requirements
-4. `$smoke-check` before every QA hand-off
+4. `$codex-game-studios:smoke-check` before every QA hand-off
 
-Gate note: $gate-check Technical Setup → Pre-Production now requires:
+Gate note: $codex-game-studios:gate-check Technical Setup → Pre-Production now requires:
 - tests/ directory with unit/ and integration/ subdirectories
 - .github/workflows/tests.yml
 - At least one example test file
-Run $test-setup and write one example test before advancing.
+Run $codex-game-studios:test-setup and write one example test before advancing.
 
 Verdict: **COMPLETE** — test framework scaffolded and CI/CD wired up.
 ```
@@ -428,7 +434,7 @@ Verdict: **COMPLETE** — test framework scaffolded and CI/CD wired up.
   If a test runner file exists, leave it as-is.
 - **Always ask before creating files** — Phase 2 requires explicit approval.
 - **Engine detection is non-negotiable** — if the engine is not configured,
-  stop and redirect to `$setup-engine`. Do not guess.
+  stop and redirect to `$codex-game-studios:setup-engine`. Do not guess.
 - **`force` flag skips the "already exists" early-exit but never overwrites.**
   It means "create any missing files even if the directory already exists."
 - For Unity CI, note that the `UNITY_LICENSE` secret must be configured

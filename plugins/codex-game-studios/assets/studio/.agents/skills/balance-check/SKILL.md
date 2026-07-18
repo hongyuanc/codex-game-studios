@@ -112,11 +112,11 @@ If [A]:
 - Guide the user to update the relevant data file in `assets/data/` or formula in `design/balance/`
 - After each fix, offer to re-run the relevant balance checks to verify no new outliers were introduced
 - If the fix changes a tuning knob defined in a GDD or referenced by an ADR, remind the user:
-  > "This value is defined in a design document. Run `$propagate-design-change [path]` on the affected GDD to find downstream impacts before committing."
+  > "This value is defined in a design document. Run `$codex-game-studios:propagate-design-change [path]` on the affected GDD to find downstream impacts before committing."
 
 If [B]:
 - Write the report to `design/balance/balance-check-[system]-[date].md` (create the directory if needed). Use the current date for [date] in YYYY-MM-DD format.
-- Confirm the file was written, then end with: "Re-run `$balance-check` after fixes to verify."
+- Confirm the file was written, then end with: "Re-run `$codex-game-studios:balance-check` after fixes to verify."
 
 If [C]:
-- Summarize open issues and end with: "Re-run `$balance-check` after fixes to verify."
+- Summarize open issues and end with: "Re-run `$codex-game-studios:balance-check` after fixes to verify."

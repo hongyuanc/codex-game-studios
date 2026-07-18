@@ -11,10 +11,10 @@ Keep repository source artifacts read-only during analysis and cite concrete fil
 
 Validates UX design documents before they enter the implementation pipeline.
 Acts as the quality gate between UX Design and Visual Design/Implementation in
-the `$team-ui` pipeline.
+the `$codex-game-studios:team-ui` pipeline.
 
 **Run this skill:**
-- After completing a UX spec with `$ux-design`
+- After completing a UX spec with `$codex-game-studios:ux-design`
 - Before handing off to `ui-programmer` or `art-director`
 - Before the Pre-Production to Production gate check (which requires key screens
   to have reviewed UX specs)
@@ -30,7 +30,7 @@ the `$team-ui` pipeline.
 
 ## Phase 1: Parse Arguments
 
-- **Specific file path** (e.g., `$ux-review design/ux/inventory.md`): validate
+- **Specific file path** (e.g., `$codex-game-studios:ux-review design/ux/inventory.md`): validate
   that one document
 - **`all`**: find all files in `design/ux/` and validate each
 - **`hud`**: validate `design/ux/hud.md` specifically
@@ -233,14 +233,14 @@ Run all checks against a `hud-design.md`-based document.
 **Blocking issues**: [N] — must be resolved before implementation
 **Advisory issues**: [N] — recommended but not blocking
 
-[For APPROVED]: This spec is ready for handoff to `$team-ui` Phase 2
+[For APPROVED]: This spec is ready for handoff to `$codex-game-studios:team-ui` Phase 2
 (Visual Design).
 
 [For NEEDS REVISION]: Address the [N] blocking issues above, then re-run
-`$ux-review`.
+`$codex-game-studios:ux-review`.
 
 [For MAJOR REVISION NEEDED]: The spec has fundamental gaps in [areas].
-Recommend returning to `$ux-design` to rework [sections].
+Recommend returning to `$codex-game-studios:ux-design` to rework [sections].
 ```
 
 ---
@@ -250,11 +250,11 @@ Recommend returning to `$ux-design` to rework [sections].
 This skill is READ-ONLY — it never edits or writes files. It reports findings only.
 
 After delivering the verdict:
-- For **APPROVED**: suggest running `$team-ui` to begin implementation coordination
+- For **APPROVED**: suggest running `$codex-game-studios:team-ui` to begin implementation coordination
 - For **NEEDS REVISION**: offer to help fix specific gaps ("Would you like me to
   help draft the missing error state?") — but do not auto-fix; wait for user
   instruction
-- For **MAJOR REVISION NEEDED**: suggest returning to `$ux-design` with the
+- For **MAJOR REVISION NEEDED**: suggest returning to `$codex-game-studios:ux-design` with the
   specific sections to rework
 
 Never block the user from proceeding — the verdict is advisory. Document risks,

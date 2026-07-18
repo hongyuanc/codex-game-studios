@@ -3,6 +3,11 @@ name: team-level
 description: "Use when a level or area needs coordinated narrative, world, art, systems, layout, and QA design."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Level
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when a level or area needs coordinated narrative, world, art, 
 
 ## Invocation
 
-Usage: `$team-level [level name or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-level [level name or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -87,7 +92,7 @@ The level-designer should:
 
 Use `request_user_input` with options:
 - (a) Proceed with a placeholder reference — mark the connection as UNRESOLVED in the level doc and list it in the open cross-level dependencies section of the summary report
-- (b) Pause and run `$team-level [area-name]` first to establish that area
+- (b) Pause and run `$codex-game-studios:team-level [area-name]` first to establish that area
 
 Do NOT invent content for the missing adjacent area.
 
@@ -156,9 +161,9 @@ After all subagent outputs are collected, delegate to `level-designer` through C
 Delegated agents return drafts or read-only evidence to the parent. The parent synthesizes every proposed edit, lists all affected paths and material changes, and requests one complete changeset approval. After approval, implementation stays within that boundary; any expansion pauses for a revised approval.
 ## Next Steps
 
-- Run `$design-review design/levels/[level-name].md` to validate the completed level design doc.
-- Run `$dev-story` to implement level content once the design is approved.
-- Run `$qa-plan` to generate a QA test plan for this level.
+- Run `$codex-game-studios:design-review design/levels/[level-name].md` to validate the completed level design doc.
+- Run `$codex-game-studios:dev-story` to implement level content once the design is approved.
+- Run `$codex-game-studios:qa-plan` to generate a QA test plan for this level.
 
 ## Error Recovery Protocol
 
@@ -174,6 +179,6 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess

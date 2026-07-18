@@ -3,6 +3,11 @@ name: review-all-gdds
 description: Review all game design documents together for cross-system consistency and design-theory risks.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Keep repository source artifacts read-only during analysis and cite concrete file evidence for every finding. Ask at most one user question per turn and wait for the answer. A report, tracking record, or phase-state update may be written only after its exact changeset and paths are approved. Do not fix reviewed source artifacts unless the user gives separate explicit authorization.
@@ -110,7 +115,7 @@ starting Phase 3. Collect both results before writing the combined report.
 - The complete list of GDD file paths loaded in Phase 1 (explicit paths, not just counts)
 - The full TR registry contents if loaded in Phase 1b (paste the registry text, not just a file path)
 - The specific checklist items assigned to that agent's phase (Phase 2 gets 2a–2f; Phase 3 gets 3a–3g)
-- The engine name and version from `.codex/docs/technical-preferences.md` and `docs/engine-reference/[engine]/VERSION.md`
+- The engine name and version from `.codex/docs/technical-preferences.md` and `../../../docs/engine-reference/[engine]/VERSION.md`
 
 Do not rely on the delegated agent to re-read these files — it has its own context window and cannot access Phase 1 results unless they are explicitly passed in the delegation brief.
 

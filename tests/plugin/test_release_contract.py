@@ -15,10 +15,32 @@ import unittest
 from unittest import mock
 import zipfile
 
+from tests.plugin.docs_contract_helpers import assert_plugin_native_descriptions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
 WORKFLOW = ROOT / ".github/workflows/plugin-ci.yml"
+
+
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
 
 
 def release_tag_matches_version(tag: str, version: str) -> bool:
@@ -166,6 +188,22 @@ class ReleaseContractTests(unittest.TestCase):
             completed.stdout.splitlines(),
         )
 
+    def test_release_source_allows_only_exact_legacy_zip(self):
+        # Arrange
+        lines = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        exception = (
+            "!plugins/codex-game-studios/assets/legacy/1.0.0/studio.zip"
+        )
+
+        # Act
+        archive_exceptions = [
+            line for line in lines if line.startswith("!") and line.endswith(".zip")
+        ]
+
+        # Assert
+        self.assertEqual([exception], archive_exceptions)
+        self.assertEqual(exception, lines[lines.index("*.zip") + 1])
+
     def test_release_tag_contract_accepts_stable_and_semver_prerelease_tags(self):
         # Arrange
         version = "1.0.0"
@@ -196,31 +234,63 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertEqual([True] * len(accepted), accepted_results)
         self.assertEqual([False] * len(rejected), rejected_results)
 
-    def test_documented_prerelease_tags_match_declared_plugin_version(self):
+    def test_documented_marketplace_refs_use_published_main_branch(self):
         # Arrange
-        plugin = json.loads(
-            (PLUGIN / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
-        )
         documents = (ROOT / "README.md", PLUGIN / "README.md")
 
         # Act
-        documented_tags = [
+        documented_refs = [
             match.group(1)
             for document in documents
             for match in re.finditer(
-                r"codex plugin marketplace add hongyuanc/codex-game-studios --ref (v\S+)",
+                r"codex plugin marketplace add hongyuanc/codex-game-studios --ref (\S+)",
                 document.read_text(encoding="utf-8"),
             )
         ]
 
         # Assert
-        self.assertEqual(["v1.0.0-rc.1", "v1.0.0-rc.1"], documented_tags)
-        self.assertTrue(
-            all(
-                release_tag_matches_version(tag, plugin["version"])
-                for tag in documented_tags
+        self.assertEqual(["main", "main"], documented_refs)
+
+    def test_release_documentation_advertises_only_plugin_native_fresh_start(self):
+        # Arrange
+        documents = (ROOT / "README.md", PLUGIN / "README.md")
+        manifest = PLUGIN / ".codex-plugin/plugin.json"
+
+        # Act
+        document_text = {
+            document: document.read_text(encoding="utf-8") for document in documents
+        }
+        text = "\n".join(document_text.values())
+        metadata = json.loads(manifest.read_text(encoding="utf-8"))
+        metadata_text = " ".join(
+            (
+                metadata["description"],
+                metadata["interface"]["shortDescription"],
+                metadata["interface"]["longDescription"],
             )
         )
+
+        # Assert
+        for value in document_text.values():
+            fresh, legacy = value.split(
+                "## Legacy 1.0.0 lifecycle support", maxsplit=1
+            )
+            self.assertIn("$codex-game-studios:start", fresh)
+            assert_fresh_repository_contract(self, fresh)
+            for operation in (
+                "verify legacy installation",
+                "repair legacy installation",
+                "migrate to plugin-native",
+                "uninstall legacy installation",
+            ):
+                self.assertNotIn(operation, fresh)
+                self.assertIn(operation, legacy)
+        self.assertNotIn("$codex-game-studios install", text)
+        self.assertNotIn("$codex-game-studios update", text)
+        self.assertIn("73 bundled skills", metadata_text)
+        self.assertIn("$codex-game-studios:start", metadata_text)
+        self.assertIn("bounded", metadata_text)
+        assert_plugin_native_descriptions(self, metadata)
 
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange
@@ -273,6 +343,40 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn("plugins/codex-game-studios/LICENSE", names)
         self.assertIn("plugins/codex-game-studios/ATTRIBUTION.md", names)
 
+    def test_release_archive_contains_exact_authenticated_legacy_capsule(self):
+        # Arrange
+        from tools.codex_studio.package_plugin import package_plugin
+
+        legacy = PLUGIN / "assets/legacy/1.0.0"
+        expected = {
+            f"plugins/codex-game-studios/assets/legacy/1.0.0/{path.name}": (
+                path.read_bytes()
+            )
+            for path in legacy.iterdir()
+            if path.is_file()
+        }
+
+        # Act
+        result = package_plugin(ROOT, self.output)
+        with zipfile.ZipFile(result.archive) as archive:
+            actual = {name: archive.read(name) for name in expected}
+
+        # Assert
+        self.assertEqual(expected, actual)
+
+    def test_release_packager_rejects_missing_legacy_capsule(self):
+        # Arrange
+        from tools.codex_studio.package_plugin import package_plugin
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repository"
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
+            shutil.rmtree(root / "plugins/codex-game-studios/assets/legacy")
+
+            # Act / Assert
+            with self.assertRaisesRegex(ValueError, "legacy"):
+                package_plugin(root, root / "dist")
+
     def test_release_packager_rejects_links_and_special_files(self):
         # Arrange
         from tools.codex_studio.package_plugin import package_plugin
@@ -319,7 +423,7 @@ class ReleaseContractTests(unittest.TestCase):
                     (cache / "forbidden.pyc").symlink_to("../README.md")
                     output = root / "dist"
                     output.mkdir()
-                    stale_archive = output / "codex-game-studios-1.0.0.zip"
+                    stale_archive = output / "codex-game-studios-2.0.0.zip"
                     stale_checksum = output / f"{stale_archive.name}.sha256"
                     stale_archive.write_bytes(b"stale")
                     stale_checksum.write_bytes(b"stale")
@@ -409,7 +513,7 @@ class ReleaseContractTests(unittest.TestCase):
             attacker = root / "attacker-file"
             attacker.write_bytes(attacker_bytes)
             output = root / "dist"
-            archive = output / "codex-game-studios-1.0.0.zip"
+            archive = output / "codex-game-studios-2.0.0.zip"
             checksum = output / f"{archive.name}.sha256"
             original_manager_api = packager._manager_api
             api = original_manager_api(root / "plugins/codex-game-studios")
@@ -552,7 +656,7 @@ class ReleaseContractTests(unittest.TestCase):
             shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
             output = root / "dist"
             output.mkdir()
-            archive = output / "codex-game-studios-1.0.0.zip"
+            archive = output / "codex-game-studios-2.0.0.zip"
             checksum = output / f"{archive.name}.sha256"
             archive.write_bytes(b"stale archive")
             checksum.write_bytes(b"stale checksum")
@@ -580,17 +684,17 @@ class ReleaseContractTests(unittest.TestCase):
                 output = root / "dist"
                 output.mkdir()
                 stale = (
-                    output / "codex-game-studios-1.0.0.zip",
-                    output / "codex-game-studios-1.0.0.zip.sha256",
-                    output / ".codex-game-studios-1.0.0.zip.deadbeef.tmp",
-                    output / ".codex-game-studios-1.0.0.zip.sha256.deadbeef.tmp",
+                    output / "codex-game-studios-2.0.0.zip",
+                    output / "codex-game-studios-2.0.0.zip.sha256",
+                    output / ".codex-game-studios-2.0.0.zip.deadbeef.tmp",
+                    output / ".codex-game-studios-2.0.0.zip.sha256.deadbeef.tmp",
                 )
                 for path in stale:
                     path.write_bytes(b"stale")
                 unrelated = {
                     output / "other-plugin-1.0.0.zip": b"other plugin",
                     output / "codex-game-studios-not-an-archive.txt": b"notes",
-                    output / "codex-game-studios-1.0.0.zip.backup": b"backup",
+                    output / "codex-game-studios-2.0.0.zip.backup": b"backup",
                 }
                 for path, contents in unrelated.items():
                     path.write_bytes(contents)
@@ -630,8 +734,8 @@ class ReleaseContractTests(unittest.TestCase):
             output.mkdir()
             outside = root / "outside.zip"
             outside.write_bytes(b"must survive")
-            archive = output / "codex-game-studios-1.0.0.zip"
-            checksum = output / "codex-game-studios-1.0.0.zip.sha256"
+            archive = output / "codex-game-studios-2.0.0.zip"
+            checksum = output / "codex-game-studios-2.0.0.zip.sha256"
             archive.symlink_to(outside)
             os.mkfifo(checksum)
             manifest = root / "plugins/codex-game-studios/.codex-plugin/plugin.json"
@@ -653,7 +757,7 @@ class ReleaseContractTests(unittest.TestCase):
             shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
             output = root / "dist"
             output.mkdir()
-            archive = output / "codex-game-studios-1.0.0.zip"
+            archive = output / "codex-game-studios-2.0.0.zip"
             archive.write_bytes(b"stale")
             manifest = root / "plugins/codex-game-studios/.codex-plugin/plugin.json"
             manifest.write_text("{malformed", encoding="utf-8")
@@ -695,7 +799,7 @@ class ReleaseContractTests(unittest.TestCase):
         import tools.codex_studio.package_plugin as packager
 
         output = self.output.resolve()
-        archive = output / "codex-game-studios-1.0.0.zip"
+        archive = output / "codex-game-studios-2.0.0.zip"
         checksum = output / f"{archive.name}.sha256"
         real_replace = os.replace
 
@@ -723,7 +827,7 @@ class ReleaseContractTests(unittest.TestCase):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "dist"
                 output.mkdir()
-                archive = output / "codex-game-studios-1.0.0.zip"
+                archive = output / "codex-game-studios-2.0.0.zip"
                 checksum = output / f"{archive.name}.sha256"
                 attacked_final = archive if target == "archive" else checksum
                 unrelated = output / "release-notes.txt"
@@ -808,8 +912,8 @@ class ReleaseContractTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
-            temporary = output / ".codex-game-studios-1.0.0.zip.deadbeef.tmp"
-            final = output / "codex-game-studios-1.0.0.zip"
+            temporary = output / ".codex-game-studios-2.0.0.zip.deadbeef.tmp"
+            final = output / "codex-game-studios-2.0.0.zip"
             approved_bytes = b"approved archive"
             temporary.write_bytes(approved_bytes)
             written = temporary.lstat()
@@ -866,7 +970,7 @@ class ReleaseContractTests(unittest.TestCase):
             unrelated = output / "release-notes.txt"
             output.mkdir()
             unrelated.write_bytes(b"preserve me")
-            archive = output / "codex-game-studios-1.0.0.zip"
+            archive = output / "codex-game-studios-2.0.0.zip"
             checksum = output / f"{archive.name}.sha256"
             real_replace_temporary = packager._replace_temporary
             attacked = False
@@ -1029,7 +1133,7 @@ class ReleaseContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "directory substitution"):
                     packager._new_temporary(
                         output,
-                        "codex-game-studios-1.0.0.zip",
+                        "codex-game-studios-2.0.0.zip",
                         filesystem,
                     )
             self.assertEqual(2, filesystem.checks)
@@ -1093,9 +1197,9 @@ class ReleaseContractTests(unittest.TestCase):
                     output.mkdir()
                     victims = {
                         output / temporary.name: b"attacker temp victim",
-                        output / "codex-game-studios-1.0.0.zip": b"attacker zip victim",
+                        output / "codex-game-studios-2.0.0.zip": b"attacker zip victim",
                         output
-                        / "codex-game-studios-1.0.0.zip.sha256": b"attacker checksum victim",
+                        / "codex-game-studios-2.0.0.zip.sha256": b"attacker checksum victim",
                     }
                     for path, contents in victims.items():
                         path.write_bytes(contents)
@@ -1220,8 +1324,8 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual(
             [
-                str(output.resolve() / "codex-game-studios-1.0.0.zip"),
-                str(output.resolve() / "codex-game-studios-1.0.0.zip.sha256"),
+                str(output.resolve() / "codex-game-studios-2.0.0.zip"),
+                str(output.resolve() / "codex-game-studios-2.0.0.zip.sha256"),
             ],
             completed.stdout.splitlines(),
         )

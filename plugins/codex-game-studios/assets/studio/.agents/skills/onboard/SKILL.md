@@ -3,6 +3,11 @@ name: onboard
 description: "Use when a contributor or agent needs a role-specific summary of project state, architecture, conventions, and priorities."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -95,5 +100,5 @@ Show the onboarding draft and canonical path `production/onboarding/onboard-[rol
 Verdict: **COMPLETE** — onboarding document generated.
 
 - Share the onboarding doc with the new contributor before their first session.
-- Run `$sprint-status` to show the new contributor current progress.
-- Run `$help` if the contributor needs guidance on what to work on next.
+- Run `$codex-game-studios:sprint-status` to show the new contributor current progress.
+- Run `$codex-game-studios:help` if the contributor needs guidance on what to work on next.

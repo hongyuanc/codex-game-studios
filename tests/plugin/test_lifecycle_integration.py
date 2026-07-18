@@ -77,6 +77,57 @@ class LifecycleIntegrationTests(unittest.TestCase):
         self.assertEqual(0, uninstalled.returncode, uninstalled.stderr)
         self.assertFalse((self.repo / ".codex/codex-game-studios/installation.json").exists())
 
+    def test_unborn_godot_repository_install_verify_uninstall_preserves_project_files(self):
+        # Arrange
+        project_files = {
+            ".editorconfig": b"root = true\n\n[*]\ncharset = utf-8\n",
+            ".gitattributes": (
+                b"# Normalize EOL for all files that Git considers text files.\n"
+                b"* text=auto eol=lf\n"
+            ),
+            ".gitignore": b"# Godot 4+ specific ignores\n.godot/\n/android/\n",
+            "project.godot": (
+                b"config_version=5\n\n[application]\n\n"
+                b'config/name="embermarch"\n'
+                b'config/features=PackedStringArray("4.7", "Forward Plus")\n'
+            ),
+        }
+        for relative, content in project_files.items():
+            (self.repo / relative).write_bytes(content)
+
+        # Act
+        planned = json.loads(run_manager("install", self.repo).stdout)
+        installed = run_manager(
+            "install",
+            self.repo,
+            planned["digest"],
+            approval_context=planned["approval_context"],
+        )
+        verified = run_manager("verify", self.repo)
+        uninstall_plan = json.loads(run_manager("uninstall", self.repo).stdout)
+        uninstalled = run_manager(
+            "uninstall",
+            self.repo,
+            uninstall_plan["digest"],
+            approval_context=uninstall_plan["approval_context"],
+        )
+
+        # Assert
+        self.assertTrue(
+            any(
+                action["kind"] == "merge" and action["path"] == ".gitignore"
+                for action in planned["actions"]
+            )
+        )
+        self.assertEqual(0, installed.returncode, installed.stderr)
+        self.assertEqual(0, verified.returncode, verified.stderr)
+        self.assertEqual(0, uninstalled.returncode, uninstalled.stderr)
+        for relative, content in project_files.items():
+            self.assertEqual(content, (self.repo / relative).read_bytes())
+        self.assertFalse(
+            (self.repo / ".codex/codex-game-studios/installation.json").exists()
+        )
+
     def test_install_adopts_identical_payload_file_and_rejects_unowned_collision(self):
         identical = self.repo / ".codex/studio.toml"
         identical.parent.mkdir(parents=True)

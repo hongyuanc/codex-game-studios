@@ -228,7 +228,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual("INVALID_PAYLOAD", caught.exception.code)
         mutation.replace_file.assert_not_called()
 
-    def test_apply_operation_uses_one_verified_manifest_snapshot(self):
+    def test_apply_operation_materializes_one_manifest_bound_payload_snapshot(self):
         # Arrange
         import studio_manager
 
@@ -240,12 +240,15 @@ class ManagerCliTests(unittest.TestCase):
             "install", self.repo, PLUGIN, context
         )
         transaction_result = object()
+        manifest_load = studio_manager.load_manifest
         verified_load = studio_manager.load_verified_manifest
 
         # Act
         with mock.patch(
-            "studio_manager.load_verified_manifest", wraps=verified_load
+            "studio_manager.load_manifest", wraps=manifest_load
         ) as load_manifest, mock.patch(
+            "studio_manager.load_verified_manifest", wraps=verified_load
+        ) as load_verified, mock.patch(
             "transaction.apply_transaction", return_value=transaction_result
         ):
             actual = studio_manager.apply_operation(
@@ -258,6 +261,7 @@ class ManagerCliTests(unittest.TestCase):
         # Assert
         self.assertIs(transaction_result, actual)
         self.assertEqual(1, load_manifest.call_count)
+        self.assertEqual(0, load_verified.call_count)
 
     def test_install_plan_is_read_only_then_approved_apply_succeeds(self):
         before = snapshot_tree(self.repo)
@@ -279,8 +283,108 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(0, applied.returncode, applied.stderr)
         self.assertEqual("success", result["status"])
         self.assertTrue(result["wrote"])
+        self.assertIsNone(result["failure_phase"])
         self.assertEqual("$start", result["next_action"])
         self.assertTrue((self.repo / ".codex/codex-game-studios/installation.json").is_file())
+
+    def test_approved_apply_when_source_payload_changes_mid_transaction_uses_verified_snapshot(self):
+        # Arrange
+        import studio_manager
+
+        plugin_parent = Path(tempfile.mkdtemp(dir=Path(tempfile.gettempdir()).resolve()))
+        self.addCleanup(shutil.rmtree, plugin_parent, True)
+        plugin = plugin_parent / "plugin"
+        plugin_helpers.copy_plugin_fixture(PLUGIN, plugin)
+        context = studio_manager.new_approval_context("install")
+        plan = studio_manager.plan_operation("install", self.repo, plugin, context)
+        source = plugin / "assets/studio/.agents/skills/start/SKILL.md"
+        approved_content = source.read_bytes()
+        original_apply = studio_manager._apply_lifecycle_action
+        source_changed = False
+
+        def apply_then_replace_source(action, mutation, root, active_plugin, state, entries):
+            nonlocal source_changed
+            original_apply(action, mutation, root, active_plugin, state, entries)
+            if not source_changed:
+                source.write_bytes(b"concurrent marketplace replacement\n")
+                source_changed = True
+
+        # Act
+        with mock.patch(
+            "studio_manager._apply_lifecycle_action",
+            side_effect=apply_then_replace_source,
+        ):
+            result = studio_manager.apply_operation(
+                plan,
+                self.repo,
+                plugin,
+                approval_context=context,
+            )
+
+        # Assert
+        self.assertEqual("committed", result.status)
+        self.assertTrue(source_changed)
+        self.assertEqual(
+            approved_content,
+            (self.repo / ".agents/skills/start/SKILL.md").read_bytes(),
+        )
+
+    def test_approved_apply_when_source_payload_changes_before_state_render_uses_verified_snapshot(self):
+        # Arrange
+        import studio_manager
+
+        plugin_parent = Path(tempfile.mkdtemp(dir=Path(tempfile.gettempdir()).resolve()))
+        self.addCleanup(shutil.rmtree, plugin_parent, True)
+        plugin = plugin_parent / "plugin"
+        plugin_helpers.copy_plugin_fixture(PLUGIN, plugin)
+        context = studio_manager.new_approval_context("install")
+        plan = studio_manager.plan_operation("install", self.repo, plugin, context)
+        source = plugin / "assets/studio/.agents/skills/start/SKILL.md"
+        approved_content = source.read_bytes()
+        original_render = studio_manager._prospective_state_bytes
+        original_validate = studio_manager._validate_prospective
+        source_changed = False
+        validation_findings = []
+
+        def replace_source_then_render(*args, **kwargs):
+            nonlocal source_changed
+            if not source_changed:
+                source.write_bytes(b"concurrent pre-transaction replacement\n")
+                source_changed = True
+            return original_render(*args, **kwargs)
+
+        def record_validation(*args, **kwargs):
+            findings = original_validate(*args, **kwargs)
+            validation_findings.extend(findings)
+            return findings
+
+        # Act
+        with mock.patch(
+            "studio_manager._prospective_state_bytes",
+            side_effect=replace_source_then_render,
+        ), mock.patch(
+            "studio_manager._validate_prospective",
+            side_effect=record_validation,
+        ):
+            try:
+                result = studio_manager.apply_operation(
+                    plan,
+                    self.repo,
+                    plugin,
+                    approval_context=context,
+                )
+            except studio_manager.ManagerError as error:
+                self.fail(
+                    f"unexpected {error.code}; findings={validation_findings!r}"
+                )
+
+        # Assert
+        self.assertEqual("committed", result.status)
+        self.assertTrue(source_changed)
+        self.assertEqual(
+            approved_content,
+            (self.repo / ".agents/skills/start/SKILL.md").read_bytes(),
+        )
 
     def test_verify_is_single_phase_read_only_and_does_not_create_manager_directory(self):
         before = snapshot_tree(self.repo)
@@ -522,6 +626,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual("UNSAFE_PATH", document["status"])
         self.assertTrue(document["wrote"])
+        self.assertEqual("installed-validation", document["failure_phase"])
         self.assertEqual("", result.stderr)
         self.assertNotIn(str(self.repo), result.stdout)
         self.assertNotIn("secret", result.stdout)
@@ -558,6 +663,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual("INVALID_PAYLOAD", document["status"])
         self.assertFalse(document["wrote"])
+        self.assertEqual("planning", document["failure_phase"])
         self.assertEqual([], document["findings"])
         self.assertEqual("", result.stderr)
         self.assertNotIn(str(plugin), result.stdout)
@@ -598,6 +704,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual("UNSAFE_PATH", document["status"])
         self.assertFalse(document["wrote"])
+        self.assertEqual("installed-validation", document["failure_phase"])
         self.assertEqual("", result.stderr)
         self.assertEqual(canonical_json(document).decode("utf-8"), result.stdout)
         self.assertNotIn(str(self.repo), result.stdout)
@@ -655,15 +762,13 @@ class ManagerCliTests(unittest.TestCase):
         source = manager.read_text(encoding="utf-8")
         marker = (
             ") -> bytes:\n"
-            "    if manifest is None:\n"
-            "        manifest = load_verified_manifest(plugin)"
+            "    if plan.operation == \"migrate\":"
         )
         replacement = (
             ") -> bytes:\n"
             "    if '--approve-digest' in sys.argv:\n"
             "        raise OSError('/private/apply-secret')\n"
-            "    if manifest is None:\n"
-            "        manifest = load_verified_manifest(plugin)"
+            "    if plan.operation == \"migrate\":"
         )
         self.assertIn(marker, source)
         manager.write_text(source.replace(marker, replacement, 1), encoding="utf-8")
@@ -680,6 +785,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual("UNSAFE_PATH", document["status"])
         self.assertFalse(document["wrote"])
+        self.assertEqual("state-render", document["failure_phase"])
         self.assertEqual("", result.stderr)
         from models import canonical_json
         self.assertEqual(canonical_json(document).decode("utf-8"), result.stdout)

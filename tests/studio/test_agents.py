@@ -5,9 +5,97 @@ from tools.codex_studio.validate import validate_agent
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PROTOCOL = ROOT / ".codex/docs/plugin-agent-delegation.md"
 
 
 class AgentValidationTests(unittest.TestCase):
+    def test_plugin_agent_delegation_protocol_has_exact_ordered_fallbacks(self):
+        # Arrange
+        expected_routes = (
+            "If the collaboration API exposes the named role, delegate with that role.",
+            "Otherwise run the plugin-local resolver",
+            "If delegation is unavailable",
+        )
+
+        # Act
+        text = PROTOCOL.read_text(encoding="utf-8")
+        positions = tuple(text.index(route) for route in expected_routes)
+        normalized = " ".join(text.split())
+
+        # Assert
+        self.assertEqual(tuple(sorted(positions)), positions)
+        for token in (
+            "../../../tools/codex_studio/agent_delegation.py resolve",
+            "complete role contract",
+            "`name`",
+            "`description`",
+            "`developer_instructions`",
+            "`model`",
+            "`model_reasoning_effort`",
+            "single-agent fallback",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+
+    def test_plugin_agent_delegation_protocol_defines_closed_operational_routes(self):
+        # Arrange / Act
+        normalized = " ".join(PROTOCOL.read_text(encoding="utf-8").split())
+
+        # Assert
+        for token in (
+            "native named role absent",
+            "native invocation reports capability unavailable",
+            "child returns `BLOCKED`",
+            "completed route result",
+            "default delegated agent absent",
+            "default launch reports capability unavailable",
+            "single-agent fallback",
+            "must not fall through",
+            "Evaluate default capability availability before model support",
+            "model support is irrelevant",
+            "default capability is usable",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+
+    def test_plugin_agent_delegation_protocol_maps_default_agent_parameters(self):
+        # Arrange / Act
+        normalized = " ".join(PROTOCOL.read_text(encoding="utf-8").split())
+
+        # Assert
+        for token in (
+            "TOML `model` -> default-agent `model`",
+            "TOML `model_reasoning_effort` -> default-agent `reasoning_effort`",
+            '`fork_turns = "none"`',
+            "configured model is unavailable",
+            "approval-required",
+            "complete role contract",
+            "bounded direct-child task",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+
+    def test_plugin_agent_delegation_protocol_preserves_coordination_ownership(self):
+        # Arrange / Act
+        text = PROTOCOL.read_text(encoding="utf-8")
+        normalized = " ".join(text.split())
+        coordination = (ROOT / ".codex/docs/coordination-rules.md").read_text(
+            encoding="utf-8"
+        )
+
+        # Assert
+        for token in (
+            "direct child",
+            "bounded",
+            "parent synthesis",
+            "Do not copy role TOML",
+            "repository-local `.codex/agents/`",
+            "repository-local `.codex/agent-packs/`",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, normalized)
+        self.assertIn("plugin-agent-delegation.md", coordination)
+
     def test_invalid_fixture_reports_required_fields(self):
         issues = validate_agent(ROOT / "tests/studio/fixtures/invalid-agent.toml")
         messages = {issue.message for issue in issues}

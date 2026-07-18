@@ -3,6 +3,11 @@ name: story-done
 description: "Use when an implemented story needs evidence-backed acceptance, deviation, test, review, and completion gating."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -10,9 +15,10 @@ description: "Use when an implemented story needs evidence-backed acceptance, de
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$team-qa`
+### Native readiness gate for `$codex-game-studios:team-qa`
 
-Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+Before invoking or routing to `$codex-game-studios:team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:team-qa is not available`, defer the handoff, do not invoke `$codex-game-studios:team-qa`, do not route to `$codex-game-studios:team-qa`, and do not search for or copy a repository-local skill file.
 
 # Story Done
 
@@ -33,9 +39,9 @@ Resolve the review mode (once, store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
-**If a file path is provided** (e.g., `$story-done production/epics/core/story-damage-calculator.md`):
+**If a file path is provided** (e.g., `$codex-game-studios:story-done production/epics/core/story-damage-calculator.md`):
 read that file directly.
 
 **If no argument is provided:**
@@ -207,7 +213,7 @@ but each required row must still be signed.
 **For Config/Data stories**: extract the exact `production/qa/evidence/[story-id]-smoke-evidence.md` path declared in the story.
 Require that exact evidence file to name the story ID and criterion IDs, satisfy the smoke-evidence
 schema, be fresh for the current implementation, and contain a PASS verdict. Otherwise
-flag it as BLOCKING and run `$smoke-check` to produce the declared evidence.
+flag it as BLOCKING and run `$codex-game-studios:smoke-check` to produce the declared evidence.
 
 **If no Story Type is set**: flag as **BLOCKING** —
 "Story Type not declared. Add `Type: [Logic|Integration|Visual/Feel|UI|Config/Data]`
@@ -235,7 +241,7 @@ Run these checks automatically:
    - If they match → pass silently.
    - If the story's version is older → flag as ADVISORY:
      `ADVISORY: Story was written against manifest v[story-date]; current manifest
-     is v[current-date]. New rules may apply. Run $story-readiness to check.`
+     is v[current-date]. New rules may apply. Run $codex-game-studios:story-readiness to check.`
    - If control-manifest.md does not exist → skip this check.
 
 3. **ADR constraints check**: Read the referenced ADR's Decision section. Check
@@ -266,7 +272,7 @@ For each deviation found, categorize:
 - `lean` → skip (not a PHASE-GATE). Note: "QL-TEST-COVERAGE skipped — Lean mode." Proceed to Phase 5.
 - `full` → spawn as normal.
 
-After completing the deviation checks in Phase 4, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-TEST-COVERAGE** (`.codex/docs/director-gates.md`).
+After completing the deviation checks in Phase 4, spawn `qa-lead` through Codex custom-agent delegation using gate **QL-TEST-COVERAGE** (`../../../.codex/docs/director-gates.md`).
 
 Pass:
 - The story file path and story type
@@ -290,15 +296,15 @@ Skip this phase for Config/Data stories (no code tests required).
 **Review mode check** — apply before spawning LP-CODE-REVIEW:
 - `solo` → skip. Note: "LP-CODE-REVIEW skipped — Solo mode." Proceed to Phase 6 (completion report).
 - `lean` → use `request_user_input` before proceeding:
-  - Prompt: "Code review is skipped in lean mode. Did you run `$code-review` on the implemented files?"
+  - Prompt: "Code review is skipped in lean mode. Did you run `$codex-game-studios:code-review` on the implemented files?"
   - Options:
-    - `Yes — $code-review passed or was approved with suggestions`
+    - `Yes — $codex-game-studios:code-review passed or was approved with suggestions`
     - `No — skipping code review for this story`
-    - `No — I'll run $code-review before the sprint close-out`
+    - `No — I'll run $codex-game-studios:code-review before the sprint close-out`
   - Record the answer in the completion notes (Phase 7). All three options proceed to Phase 6.
 - `full` → spawn as normal.
 
-Spawn `lead-programmer` through Codex custom-agent delegation using gate **LP-CODE-REVIEW** (`.codex/docs/director-gates.md`).
+Spawn `lead-programmer` through Codex custom-agent delegation using gate **LP-CODE-REVIEW** (`../../../.codex/docs/director-gates.md`).
 
 Pass: implementation file paths, story file path, relevant GDD section, governing ADR.
 
@@ -409,7 +415,7 @@ The `validate-commit.sh` hook will verify design doc references and check for ha
 After updating the story file, append to the already listed and approved
 `production/session-state/active.md` path:
 
-    ## Session Extract — $story-done [date]
+    ## Session Extract — $codex-game-studios:story-done [date]
     - Verdict: [COMPLETE / COMPLETE WITH NOTES / BLOCKED]
     - Story: [story file path] — [story title]
     - Tech debt logged: [N items, or "None"]
@@ -438,7 +444,7 @@ The following stories are ready to pick up:
 1. [Story name] — [1-line description] — Est: [X hrs]
 2. [Story name] — [1-line description] — Est: [X hrs]
 
-Run `$story-readiness [path]` to confirm a story is implementation-ready
+Run `$codex-game-studios:story-readiness [path]` to confirm a story is implementation-ready
 before starting.
 ```
 
@@ -450,13 +456,13 @@ If no more Must Have stories remain in this sprint (all are Complete or Blocked)
 All Must Have stories are complete. QA sign-off is required before advancing.
 Run these in order:
 
-1. `$smoke-check sprint` — verify the critical path still works end-to-end
-2. `$team-qa sprint` — full QA cycle: test case execution, bug triage, sign-off report
-3. `$retrospective` — capture what went well, what didn't, and action items for the next sprint
-4. `$gate-check` — advance to the next phase once QA approves (only if advancing a phase)
-5. `$sprint-plan new` — plan the next sprint, incorporating velocity data and retrospective action items
+1. `$codex-game-studios:smoke-check sprint` — verify the critical path still works end-to-end
+2. `$codex-game-studios:team-qa sprint` — full QA cycle: test case execution, bug triage, sign-off report
+3. `$codex-game-studios:retrospective` — capture what went well, what didn't, and action items for the next sprint
+4. `$codex-game-studios:gate-check` — advance to the next phase once QA approves (only if advancing a phase)
+5. `$codex-game-studios:sprint-plan new` — plan the next sprint, incorporating velocity data and retrospective action items
 
-Do not run `$gate-check` until `$team-qa` returns APPROVED or APPROVED WITH CONDITIONS.
+Do not run `$codex-game-studios:gate-check` until `$codex-game-studios:team-qa` returns APPROVED or APPROVED WITH CONDITIONS.
 ```
 
 If there are Should Have stories still unstarted, surface them alongside the close-out sequence so the user can choose: close the sprint now, or pull in more work first.
@@ -480,6 +486,6 @@ If no more stories are ready but Must Have stories are still In Progress (not Co
 
 ## Recommended Next Steps
 
-- Run `$story-readiness [next-story-path]` to validate the next story before starting implementation
-- If all Must Have stories are complete: run `$smoke-check sprint` → `$team-qa sprint` → `$gate-check`
-- If tech debt was logged: track it via `$tech-debt` to keep the register current
+- Run `$codex-game-studios:story-readiness [next-story-path]` to validate the next story before starting implementation
+- If all Must Have stories are complete: run `$codex-game-studios:smoke-check sprint` → `$codex-game-studios:team-qa sprint` → `$codex-game-studios:gate-check`
+- If tech debt was logged: track it via `$codex-game-studios:tech-debt` to keep the register current

@@ -3,6 +3,11 @@ name: team-ui
 description: "Use when a UI feature needs coordinated UX, art, implementation, accessibility, and QA work."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Ui
 
 ## Codex Interaction Contract
@@ -19,7 +24,7 @@ Usage: `$team-ui [UI feature] [--review full|lean|solo]`. If the required object
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -68,9 +73,9 @@ Summarize the context in a brief for the ux-designer: what the player is doing, 
 
 Delegate only to `ux-designer` for a read-only in-memory UX artifact draft. Do not invoke a write-capable skill. The delegate reads these references without modifying them:
 
-- `.codex/docs/templates/ux-spec.md` for screens and flows
-- `.codex/docs/templates/hud-design.md` for HUD work
-- `.codex/docs/templates/interaction-pattern-library.md` when a pattern-library draft is required
+- `../../../.codex/docs/templates/ux-spec.md` for screens and flows
+- `../../../.codex/docs/templates/hud-design.md` for HUD work
+- `../../../.codex/docs/templates/interaction-pattern-library.md` when a pattern-library draft is required
 
 The `ux-designer` returns the complete draft, its exact intended path such as `design/ux/[feature-name].md`, the template used, and any unresolved decisions. It writes no file and does not expand scope.
 

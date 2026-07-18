@@ -26,6 +26,7 @@ from typing import Callable, Iterator, Sequence
 import unicodedata
 import uuid
 
+
 try:  # POSIX advisory locking.
     import fcntl  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - exercised on Windows.
@@ -42,6 +43,13 @@ ALLOWED_LANGUAGES = {
     "godot": frozenset({"gdscript", "csharp"}),
     "unity": frozenset({"csharp"}),
     "unreal": frozenset({"cpp", "blueprint", "cpp-blueprint"}),
+}
+VALID_REVIEW_MODES = frozenset({"full", "phase-gated", "solo"})
+VALID_MODEL_POLICIES = frozenset({"balanced"})
+EXPECTED_PACK_FILENAMES = {
+    "godot": frozenset({"godot-csharp-specialist.toml", "godot-gdextension-specialist.toml", "godot-gdscript-specialist.toml", "godot-shader-specialist.toml", "godot-specialist.toml"}),
+    "unity": frozenset({"unity-addressables-specialist.toml", "unity-dots-specialist.toml", "unity-shader-specialist.toml", "unity-specialist.toml", "unity-ui-specialist.toml"}),
+    "unreal": frozenset({"ue-blueprint-specialist.toml", "ue-gas-specialist.toml", "ue-replication-specialist.toml", "ue-umg-specialist.toml", "unreal-specialist.toml"}),
 }
 STUDIO_KEYS = (
     "engine",
@@ -85,6 +93,9 @@ class ActivationPlan:
     """Immutable plan bound to one project state and source-pack revision."""
 
     root: Path
+    source_root: Path
+    source_root_identity: tuple[int, ...]
+    source_pack_identities: tuple[tuple[str, tuple[int, ...]], ...]
     engine: str
     install: tuple[Path, ...]
     remove: tuple[Path, ...]
@@ -147,6 +158,209 @@ def _normalize_root(root: Path) -> Path:
     candidate = Path(root).absolute()
     _require_directory(candidate, "project root")
     return candidate.resolve()
+
+
+def _normalize_source_root(source_root: Path | None, target_root: Path) -> Path:
+    """Pin the immutable pack boundary independently of the mutation target."""
+
+    if source_root is None:
+        return target_root
+    candidate = Path(source_root).absolute()
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current = current / part
+        if current == Path("/var"):
+            continue  # macOS system alias; final root identity remains pinned.
+        _require_directory(current, "engine pack source root ancestor")
+    _require_directory(candidate, "engine pack source root")
+    normalized = candidate.resolve()
+    if normalized == target_root:
+        raise ValueError("engine pack source root must differ from project root when explicitly supplied")
+    return normalized
+
+
+@dataclasses.dataclass(frozen=True)
+class _WindowsDirectoryInfo:
+    """Native Windows identity and change metadata for one directory handle."""
+
+    volume: int
+    file_id: int
+    creation_time: int
+    change_time: int
+    directory: bool
+    reparse: bool
+    disk: bool
+
+
+class _NativeWindowsDirectoryApi:
+    """Minimal Win32 API for no-follow directory change tokens."""
+
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    FILE_SHARE_READ = 0x1
+    FILE_SHARE_WRITE = 0x2
+    FILE_SHARE_DELETE = 0x4
+
+    def __init__(self) -> None:  # pragma: no cover - exercised by native Windows CI.
+        import ctypes
+        from ctypes import wintypes
+
+        class FileBasicInfo(ctypes.Structure):
+            _fields_ = [
+                ("CreationTime", ctypes.c_longlong),
+                ("LastAccessTime", ctypes.c_longlong),
+                ("LastWriteTime", ctypes.c_longlong),
+                ("ChangeTime", ctypes.c_longlong),
+                ("FileAttributes", wintypes.DWORD),
+            ]
+
+        class ByHandleFileInformation(ctypes.Structure):
+            _fields_ = [
+                ("FileAttributes", wintypes.DWORD),
+                ("CreationTimeLow", wintypes.DWORD),
+                ("CreationTimeHigh", wintypes.DWORD),
+                ("LastAccessTimeLow", wintypes.DWORD),
+                ("LastAccessTimeHigh", wintypes.DWORD),
+                ("LastWriteTimeLow", wintypes.DWORD),
+                ("LastWriteTimeHigh", wintypes.DWORD),
+                ("VolumeSerialNumber", wintypes.DWORD),
+                ("FileSizeHigh", wintypes.DWORD),
+                ("FileSizeLow", wintypes.DWORD),
+                ("NumberOfLinks", wintypes.DWORD),
+                ("FileIndexHigh", wintypes.DWORD),
+                ("FileIndexLow", wintypes.DWORD),
+            ]
+
+        self.ctypes = ctypes
+        self.wintypes = wintypes
+        self.FileBasicInfo = FileBasicInfo
+        self.ByHandleFileInformation = ByHandleFileInformation
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel32.CreateFileW.argtypes = [
+            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        ]
+        self.kernel32.CreateFileW.restype = wintypes.HANDLE
+        self.kernel32.GetFileInformationByHandleEx.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+        ]
+        self.kernel32.GetFileInformationByHandleEx.restype = wintypes.BOOL
+        self.kernel32.GetFileInformationByHandle.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(ByHandleFileInformation),
+        ]
+        self.kernel32.GetFileInformationByHandle.restype = wintypes.BOOL
+        self.kernel32.GetFileType.argtypes = [wintypes.HANDLE]
+        self.kernel32.GetFileType.restype = wintypes.DWORD
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+
+    def _error(self, operation: str) -> OSError:  # pragma: no cover - Windows only.
+        code = self.ctypes.get_last_error()
+        return OSError(code, f"{operation} failed: {self.ctypes.FormatError(code)}")
+
+    def open(self, path: str, *, flags: int, share: int) -> int:  # pragma: no cover - Windows only.
+        handle = self.kernel32.CreateFileW(path, 0x80, share, None, 3, flags, None)
+        handle_value = handle if isinstance(handle, int) else handle.value
+        if handle_value == self.ctypes.c_void_p(-1).value:
+            raise self._error("CreateFileW")
+        if handle_value is None:
+            raise self._error("CreateFileW")
+        return int(handle_value)
+
+    def info(self, handle: int) -> _WindowsDirectoryInfo:  # pragma: no cover - Windows only.
+        basic = self.FileBasicInfo()
+        if not self.kernel32.GetFileInformationByHandleEx(
+            handle, 0, self.ctypes.byref(basic), self.ctypes.sizeof(basic)
+        ):
+            raise self._error("GetFileInformationByHandleEx(FileBasicInfo)")
+        stable = self.ByHandleFileInformation()
+        if not self.kernel32.GetFileInformationByHandle(
+            handle, self.ctypes.byref(stable)
+        ):
+            raise self._error("GetFileInformationByHandle")
+        attributes = int(basic.FileAttributes)
+        return _WindowsDirectoryInfo(
+            volume=int(stable.VolumeSerialNumber),
+            file_id=(int(stable.FileIndexHigh) << 32) | int(stable.FileIndexLow),
+            creation_time=int(basic.CreationTime),
+            change_time=int(basic.ChangeTime),
+            directory=bool(attributes & 0x10),
+            reparse=bool(attributes & 0x400),
+            disk=int(self.kernel32.GetFileType(handle)) == 1,
+        )
+
+    def close(self, handle: int) -> None:  # pragma: no cover - Windows only.
+        if not self.kernel32.CloseHandle(handle):
+            raise self._error("CloseHandle")
+
+
+def _windows_directory_identity(
+    path: Path, label: str, *, windows_api=None,
+) -> tuple[int, int, int, int]:
+    """Return a handle-derived Windows identity including native ChangeTime."""
+
+    api = windows_api if windows_api is not None else _NativeWindowsDirectoryApi()
+    flags = api.FILE_FLAG_OPEN_REPARSE_POINT | api.FILE_FLAG_BACKUP_SEMANTICS
+    share = api.FILE_SHARE_READ | api.FILE_SHARE_WRITE | api.FILE_SHARE_DELETE
+    handle: int | None = None
+    identity: tuple[int, int, int, int] | None = None
+    failure: BaseException | None = None
+    try:
+        handle = api.open(str(path), flags=flags, share=share)
+        info = api.info(handle)
+        if info.reparse:
+            raise ValueError(f"{label} native Windows directory handle is a reparse point: {path}")
+        if not info.disk or not info.directory:
+            raise ValueError(f"{label} native Windows handle is not a disk directory: {path}")
+        identity = (
+            int(info.volume), int(info.file_id),
+            int(info.creation_time), int(info.change_time),
+        )
+    except ValueError as error:
+        failure = error
+    except OSError as error:
+        failure = ValueError(
+            f"{label} native Windows directory identity check failed for {path}: {error}"
+        )
+    finally:
+        if handle is not None:
+            try:
+                api.close(handle)
+            except OSError as error:
+                if failure is None:
+                    failure = ValueError(
+                        f"{label} native Windows directory handle cleanup failed for {path}: {error}"
+                    )
+    if failure is not None:
+        raise failure
+    assert identity is not None
+    return identity
+
+
+def _is_windows_platform() -> bool:
+    return os.name == "nt"
+
+
+def _directory_identity(path: Path, label: str) -> tuple[int, ...]:
+    metadata = _require_directory(path, label)
+    if _is_windows_platform():
+        return _windows_directory_identity(path, label)
+    return (int(metadata.st_dev), int(metadata.st_ino), int(metadata.st_ctime_ns))
+
+
+def _executing_bundled_studio_root() -> Path | None:
+    """Return the immutable bundle boundary when this is a packaged script."""
+
+    candidate = Path(__file__).resolve().parents[2]
+    if candidate.name == "studio" and candidate.parent.name == "assets":
+        return candidate
+    return None
+
+
+def _require_trusted_bundle_source(source_root: Path) -> None:
+    bundled_root = _executing_bundled_studio_root()
+    if bundled_root is not None and source_root != bundled_root:
+        raise ValueError("engine pack source root must equal this executing bundled studio root")
 
 
 def _control_directory(root: Path) -> Path:
@@ -239,26 +453,43 @@ def load_studio_config(root: Path) -> StudioConfig:
         raise ValueError(f"invalid studio config engine: {config.engine}")
     if config.active_engine_pack not in (*SUPPORTED_ENGINES, "none"):
         raise ValueError(f"invalid studio config active_engine_pack: {config.active_engine_pack}")
-    if config.engine == "unconfigured" and config.active_engine_pack != "none":
-        raise ValueError("invalid studio config: unconfigured engine requires active_engine_pack = none")
+    if config.engine == "unconfigured":
+        if config.active_engine_pack != "none" or config.engine_version or config.language:
+            raise ValueError("invalid studio config: unconfigured engine requires empty version/language and active_engine_pack = none")
     if config.engine in SUPPORTED_ENGINES and config.active_engine_pack != config.engine:
         raise ValueError("invalid studio config: engine and active_engine_pack differ")
     if config.engine in SUPPORTED_ENGINES:
-        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=False)
+        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=True)
     _validate_text(config.review_mode, "review mode", required=True)
     _validate_text(config.model_policy, "model policy", required=True)
+    if config.review_mode not in VALID_REVIEW_MODES:
+        raise ValueError("invalid studio config review mode")
+    if config.model_policy not in VALID_MODEL_POLICIES:
+        raise ValueError("invalid studio config model policy")
     return config
 
 
-def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
+def _validate_packs(
+    root: Path, *, selected: frozenset[str] | None = None, external: bool = False,
+) -> dict[str, tuple[tuple[Path, str], ...]]:
+    """Validate all local packs or only the immutable packs needed by a plan."""
+
+    selected = frozenset(SUPPORTED_ENGINES) if selected is None else selected
+    if not selected or not selected <= set(SUPPORTED_ENGINES):
+        raise ValueError("invalid selected engine-pack set")
     packs_root = _control_directory(root) / "agent-packs"
     _require_directory(packs_root, "engine packs directory")
-    entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
-    if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
-        raise ValueError("engine packs must contain exactly godot, unity, and unreal")
+    if external:
+        entries = [packs_root / name for name in sorted(selected)]
+    else:
+        entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
+        if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
+            raise ValueError("engine packs must contain exactly godot, unity, and unreal")
     result: dict[str, tuple[tuple[Path, str], ...]] = {}
     for directory in entries:
         _require_directory(directory, f"{directory.name} engine pack")
+        if directory.name not in selected:
+            continue
         children = sorted(directory.iterdir(), key=lambda path: path.name)
         profiles: list[tuple[Path, str]] = []
         for source in children:
@@ -273,8 +504,25 @@ def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
             profiles.append((source, _sha256(raw)))
         if len(profiles) != 5:
             raise ValueError(f"engine pack {directory.name} must contain exactly five profiles")
+        if external:
+            expected = EXPECTED_PACK_FILENAMES[directory.name]
+            if {source.name for source, _digest in profiles} != expected:
+                raise ValueError(f"engine pack {directory.name} must contain exactly its canonical five profiles")
         result[directory.name] = tuple(profiles)
     return result
+
+
+def _source_pack_selection(
+    source_root: Path, target_root: Path, config: StudioConfig, requested_engine: str | None,
+) -> frozenset[str] | None:
+    """Keep legacy project-local inventory checks while minimizing bundle reads."""
+
+    if source_root == target_root:
+        return None
+    engines = {requested_engine} if requested_engine is not None else set()
+    if config.engine in SUPPORTED_ENGINES:
+        engines.add(config.engine)
+    return frozenset(engines)
 
 
 def _load_manifest(
@@ -298,6 +546,8 @@ def _load_manifest(
     generated = data.get("generated")
     if engine not in SUPPORTED_ENGINES or not isinstance(generated, dict):
         raise ValueError("invalid active-engine manifest engine or generated map")
+    if engine not in packs:
+        raise ValueError("active-engine manifest is inconsistent with unconfigured studio state")
     normalized: dict[str, str] = {}
     for raw_name, raw_hash in generated.items():
         name = _safe_filename(raw_name)
@@ -519,10 +769,19 @@ def _inspect_auxiliary_paths(root: Path) -> tuple[Path, dict[str, object] | None
     return recovery, _read_journal(recovery, root)
 
 
-def plan_activation(root: Path, engine: str, *, version: str = "", language: str = "") -> ActivationPlan:
+def plan_activation(
+    root: Path,
+    engine: str,
+    *,
+    version: str = "",
+    language: str = "",
+    source_root: Path | None = None,
+) -> ActivationPlan:
     """Build a deterministic, read-only activation plan."""
 
     root = _normalize_root(root)
+    source_root = _normalize_source_root(source_root, root)
+    _require_trusted_bundle_source(source_root)
     if engine not in SUPPORTED_ENGINES:
         raise ValueError(f"unsupported engine: {engine}")
     _validate_target_values(engine, version, language, require_complete=False)
@@ -530,7 +789,46 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
     if journal is not None and journal["phase"] not in {"committed", "rolled-back"}:
         raise ValueError("incomplete engine-pack recovery journal; run the CLI with --recover before planning")
     config = load_studio_config(root)
-    packs = _validate_packs(root)
+    pack_selection = _source_pack_selection(source_root, root, config, engine)
+    source_root_identity: tuple[int, ...] = ()
+    source_pack_identities: tuple[tuple[str, tuple[int, ...]], ...] = ()
+    if source_root != root:
+        assert pack_selection is not None
+        source_root_identity = _directory_identity(
+            source_root, "engine pack source root"
+        )
+        source_pack_identities = tuple(
+            (
+                pack_engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / pack_engine,
+                    f"{pack_engine} source engine pack",
+                ),
+            )
+            for pack_engine in sorted(pack_selection)
+        )
+    packs = _validate_packs(
+        source_root,
+        selected=pack_selection,
+        external=source_root != root,
+    )
+    if source_root != root:
+        if _directory_identity(
+            source_root, "engine pack source root"
+        ) != source_root_identity:
+            raise ValueError("source root identity changed during activation planning")
+        after_pack_identities = tuple(
+            (
+                pack_engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / pack_engine,
+                    f"{pack_engine} source engine pack",
+                ),
+            )
+            for pack_engine, _identity in source_pack_identities
+        )
+        if after_pack_identities != source_pack_identities:
+            raise ValueError("source pack identity changed during activation planning")
     manifest = _load_manifest(root, config, packs)
     managed = _validate_managed_profiles(root, manifest)
     selected = packs[engine]
@@ -553,6 +851,9 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
     remove = () if same_profiles else tuple(agents / name for name in sorted(managed))
     return ActivationPlan(
         root=root,
+        source_root=source_root,
+        source_root_identity=source_root_identity,
+        source_pack_identities=source_pack_identities,
         engine=engine,
         install=install,
         remove=remove,
@@ -879,11 +1180,18 @@ def _checkpoint(_phase: str) -> None:
     return None
 
 
-def validate_activation(root: Path, *, _allow_current_transaction: bool = False) -> list[str]:
+def validate_activation(
+    root: Path,
+    *,
+    source_root: Path | None = None,
+    _allow_current_transaction: bool = False,
+) -> list[str]:
     """Return validation errors for the installed engine-pack state."""
 
     try:
         root = _normalize_root(root)
+        source_root = _normalize_source_root(source_root, root)
+        _require_trusted_bundle_source(source_root)
         recovery, journal = _inspect_auxiliary_paths(root)
         if journal is not None:
             if journal["phase"] in {"committed", "rolled-back"}:
@@ -891,7 +1199,13 @@ def validate_activation(root: Path, *, _allow_current_transaction: bool = False)
             elif not _allow_current_transaction:
                 raise ValueError("incomplete engine-pack recovery transaction is pending")
         config = load_studio_config(root)
-        packs = _validate_packs(root)
+        packs = (
+            {} if source_root != root and config.engine == "unconfigured" else _validate_packs(
+                source_root,
+                selected=_source_pack_selection(source_root, root, config, None),
+                external=source_root != root,
+            )
+        )
         manifest = _load_manifest(root, config, packs)
         managed = _validate_managed_profiles(root, manifest)
         if config.engine == "unconfigured":
@@ -907,7 +1221,32 @@ def validate_activation(root: Path, *, _allow_current_transaction: bool = False)
 def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
     if plan.engine not in SUPPORTED_ENGINES:
         raise ValueError("invalid activation plan engine")
-    packs = _validate_packs(root)
+    source_root = _normalize_source_root(
+        plan.source_root if plan.source_root != root else None, root
+    )
+    if source_root != plan.source_root:
+        raise ValueError("invalid activation plan source root")
+    _require_trusted_bundle_source(source_root)
+    if source_root != root and _directory_identity(source_root, "engine pack source root") != plan.source_root_identity:
+        raise ValueError("source root identity changed after activation planning (concurrent source replacement)")
+    if source_root != root:
+        current_pack_identities = tuple(
+            (
+                engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / engine,
+                    f"{engine} source engine pack",
+                ),
+            )
+            for engine, _identity in plan.source_pack_identities
+        )
+        if current_pack_identities != plan.source_pack_identities:
+            raise ValueError("source pack identity changed after activation planning")
+    packs = _validate_packs(
+        source_root,
+        selected=frozenset({plan.engine}) if source_root != root else None,
+        external=source_root != root,
+    )
     current_hashes = tuple((source.name, digest) for source, digest in packs[plan.engine])
     if current_hashes != plan.source_hashes:
         raise ValueError("source pack changed after activation planning")
@@ -918,9 +1257,10 @@ def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
         plan.engine,
         version=plan.target_config.engine_version,
         language=plan.target_config.language,
+        source_root=plan.source_root if plan.source_root != root else None,
     )
     if expected != plan:
-        raise ValueError("invalid activation plan: paths or target configuration were modified")
+        raise ValueError("invalid activation plan: paths or target configuration were modified concurrently")
 
 
 def apply_activation(root: Path, plan: ActivationPlan) -> None:
@@ -958,11 +1298,16 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _write_journal(recovery, journal, "remove")
             _checkpoint("remove")
             expected_hashes = dict(plan.source_hashes)
+            selected_pack_identity = dict(plan.source_pack_identities).get(plan.engine)
             for source in plan.install:
+                if plan.source_root != root and _directory_identity(plan.source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != selected_pack_identity:
+                    raise ValueError("selected source pack identity changed during activation")
                 raw = _secure_read(source, "engine pack source profile")
                 if _sha256(raw) != expected_hashes[source.name]:
                     raise ValueError("source pack changed during activation")
                 _exclusive_profile_write(agents, source.name, raw)
+            if plan.source_root != root and _directory_identity(plan.source_root, "engine pack source root") != plan.source_root_identity:
+                raise ValueError("source root identity changed during activation")
             _write_journal(recovery, journal, "copy")
             _checkpoint("copy")
             if plan.install or plan.remove:
@@ -973,7 +1318,11 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _atomic_write(root / ".codex/studio.toml", _serialize_config(plan.target_config))
             _write_journal(recovery, journal, "config-write")
             _checkpoint("config-write")
-            issues = validate_activation(root, _allow_current_transaction=True)
+            issues = validate_activation(
+                root,
+                source_root=plan.source_root if plan.source_root != root else None,
+                _allow_current_transaction=True,
+            )
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
             journal.update(_target_fields(_snapshot_live(root)))
@@ -997,7 +1346,11 @@ def _print_plan(root: Path, plan: ActivationPlan, stream: object = sys.stdout) -
     write: Callable[[str], object] = getattr(stream, "write")
     write(f"ENGINE {plan.engine}\n")
     for source in plan.install:
-        write(f"INSTALL {source.relative_to(root).as_posix()} -> .codex/agents/{source.name}\n")
+        if plan.source_root == root:
+            label = source.relative_to(root).as_posix()
+        else:
+            label = f"SOURCE {source.relative_to(plan.source_root).as_posix()}"
+        write(f"INSTALL {label} -> .codex/agents/{source.name}\n")
     for target in plan.remove:
         write(f"REMOVE {target.relative_to(root).as_posix()}\n")
     config = plan.target_config
@@ -1017,6 +1370,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--engine", choices=SUPPORTED_ENGINES)
     parser.add_argument("--version", default="")
     parser.add_argument("--language", default="")
+    parser.add_argument("--source-root", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
@@ -1029,8 +1383,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = parser.parse_args(arguments)
     root = options.root
     if options.recover:
-        if options.engine or options.version or options.language:
-            parser.error("--recover does not accept --engine, --version, or --language")
+        if options.engine or options.version or options.language or options.source_root is not None:
+            parser.error("--recover does not accept --engine, --version, --language, or --source-root")
         try:
             recover_activation(root)
             print("Engine-pack recovery complete")
@@ -1042,11 +1396,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
         parser.error("--engine is required for --dry-run and --apply")
     try:
         _validate_target_values(options.engine, options.version, options.language, require_complete=options.apply)
-        plan = plan_activation(root, options.engine, version=options.version, language=options.language)
+        plan = plan_activation(
+            root, options.engine, version=options.version, language=options.language,
+            source_root=options.source_root,
+        )
         _print_plan(plan.root, plan)
         if options.apply:
             apply_activation(plan.root, plan)
-            issues = validate_activation(plan.root)
+            issues = validate_activation(
+                plan.root,
+                source_root=plan.source_root if plan.source_root != plan.root else None,
+            )
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
             print(f"Activated {options.engine} with 5 managed profiles")

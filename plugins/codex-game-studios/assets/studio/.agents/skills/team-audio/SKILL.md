@@ -3,6 +3,11 @@ name: team-audio
 description: "Use when an audio feature needs coordinated direction, sound design, technical integration, and gameplay hooks."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Audio
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when an audio feature needs coordinated direction, sound desig
 
 ## Invocation
 
-Usage: `$team-audio [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-audio [feature or area] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -116,8 +121,8 @@ Verdict: **BLOCKED** — [reason]
 ## Next Steps
 
 - Review the audio design doc with the audio-director before implementation begins.
-- Use `$dev-story` to implement the audio manager and event system once the design is approved.
-- Run `$asset-audit` after audio assets are created to verify naming and format compliance.
+- Use `$codex-game-studios:dev-story` to implement the audio manager and event system once the design is approved.
+- Run `$codex-game-studios:asset-audit` after audio assets are created to verify naming and format compliance.
 
 ## Error Recovery Protocol
 
@@ -133,6 +138,6 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess

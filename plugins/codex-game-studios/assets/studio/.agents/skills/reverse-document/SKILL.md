@@ -3,6 +3,11 @@ name: reverse-document
 description: "Use when existing implementation needs a design or architecture document reconstructed from evidence."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -30,7 +35,7 @@ appropriate design or architecture documentation. Use this when:
 
 ## Phase 1: Parse Arguments
 
-**Format**: `$reverse-document <type> <path>`
+**Format**: `$codex-game-studios:reverse-document <type> <path>`
 
 **Type options**:
 - `design` → Generate a game design document (GDD section)
@@ -44,9 +49,9 @@ appropriate design or architecture documentation. Use this when:
 
 **Examples**:
 ```bash
-$reverse-document design src/gameplay/magic-system
-$reverse-document architecture src/core/entity-component
-$reverse-document concept prototypes/vehicle-combat
+$codex-game-studios:reverse-document design src/gameplay/magic-system
+$codex-game-studios:reverse-document architecture src/core/entity-component
+$codex-game-studios:reverse-document concept prototypes/vehicle-combat
 ```
 
 ## Phase 2: Analyze Implementation
@@ -113,9 +118,9 @@ Based on type, use appropriate template:
 
 | Type | Template | Output Path |
 |------|----------|-------------|
-| `design` | `.codex/docs/templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
-| `architecture` | `.codex/docs/templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
-| `concept` | `.codex/docs/templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
+| `design` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | `design/gdd/[system-name].md` |
+| `architecture` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | `docs/architecture/[decision-name].md` |
+| `concept` | `../../../.codex/docs/templates/concept-doc-from-prototype.md` | `prototypes/[name]/CONCEPT.md` or `design/concepts/[name].md` |
 
 **Draft structure**:
 - Capture **what exists** (mechanics, patterns, implementation)
@@ -174,14 +179,14 @@ After writing, suggest next steps:
 ✅ Written to design/gdd/combat-system.md
 
 FOLLOW-UP RECOMMENDED:
-1. Run $balance-check on combat formulas (exponential scaling concern)
+1. Run $codex-game-studios:balance-check on combat formulas (exponential scaling concern)
 2. Create ADR for stamina system architecture decision
 3. Implement missing edge cases:
    - Stamina depletion mid-combo behavior
    - Stagger state during dodge
 4. Extend design doc when weapon variety is implemented
 
-Next decision (one only): Should I prepare the `$balance-check` handoff first?
+Next decision (one only): Should I prepare the `$codex-game-studios:balance-check` handoff first?
 ```
 
 ---
@@ -190,18 +195,18 @@ Next decision (one only): Should I prepare the `$balance-check` handoff first?
 
 | If analyzing... | Use template... | Because... |
 |----------------|-----------------|------------|
-| `src/gameplay/*` | `.codex/docs/templates/design-doc-from-implementation.md` | Gameplay mechanics → GDD |
-| `src/core/*`, `src/ai/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Core systems → ADR |
-| `prototypes/*` | `.codex/docs/templates/concept-doc-from-prototype.md` | Experiments → concept doc |
-| `src/networking/*` | `.codex/docs/templates/architecture-doc-from-code.md` | Technical systems → ADR |
-| `src/ui/*` | `.codex/docs/templates/design-doc-from-implementation.md` | UI/UX → design spec |
+| `src/gameplay/*` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | Gameplay mechanics → GDD |
+| `src/core/*`, `src/ai/*` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | Core systems → ADR |
+| `prototypes/*` | `../../../.codex/docs/templates/concept-doc-from-prototype.md` | Experiments → concept doc |
+| `src/networking/*` | `../../../.codex/docs/templates/architecture-doc-from-code.md` | Technical systems → ADR |
+| `src/ui/*` | `../../../.codex/docs/templates/design-doc-from-implementation.md` | UI/UX → design spec |
 
 ---
 
 ## Example Session: Sequential Intent Clarification
 
 ```text
-User: $reverse-document design src/gameplay/[system]
+User: $codex-game-studios:reverse-document design src/gameplay/[system]
 
 Agent: I found three unresolved intent areas. First question: Is the resource system primarily for pacing or strategic management?
 

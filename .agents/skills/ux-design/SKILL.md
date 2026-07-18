@@ -3,6 +3,11 @@ name: ux-design
 description: Collaboratively author a UX specification, HUD design, player journey, or interaction pattern artifact.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material UX sections. Identify the UX artifact and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed artifact, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.
@@ -55,7 +60,7 @@ If the player journey file does not exist, note the gap and proceed:
 > journey session after this spec is drafted."
 
 Also add to the UX spec's Open Questions section:
-> "Player journey map not yet created. Template available at `.codex/docs/templates/player-journey.md`. Run `$ux-design` Phase 2b or create it manually to establish player context for this screen."
+> "Player journey map not yet created. Template available at `../../../.codex/docs/templates/player-journey.md`. Run `$ux-design` Phase 2b or create it manually to establish player context for this screen."
 
 ### 2c: GDD UI Requirements
 

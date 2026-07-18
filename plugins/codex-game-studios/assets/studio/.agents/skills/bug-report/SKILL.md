@@ -3,6 +3,11 @@ name: bug-report
 description: "Use when a defect needs structured documentation, reproduction steps, severity assessment, verification, or closure."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -10,9 +15,10 @@ description: "Use when a defect needs structured documentation, reproduction ste
 - Use Codex custom agents by role and profile when delegation is useful.
 - Treat any approved write as one complete proposed changeset. Do not add unlisted files or behavior; pause and request a new approval if scope expands.
 
-### Native readiness gate for `$hotfix`
+### Native readiness gate for `$codex-game-studios:hotfix`
 
-Before invoking `$hotfix`, validate `.agents/skills/hotfix/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $hotfix is not Codex-native yet`, defer the emergency-workflow handoff, and do not invoke it.
+Before invoking or routing to `$codex-game-studios:hotfix`, confirm that `hotfix` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $codex-game-studios:hotfix is not available`, defer the handoff, do not invoke `$codex-game-studios:hotfix`, do not route to `$codex-game-studios:hotfix`, and do not search for or copy a repository-local skill file.
 
 ## Phase 1: Parse Arguments
 
@@ -113,13 +119,13 @@ Produce a verification verdict:
 
 Ask: "May I update `production/qa/bugs/[BUG-ID].md` to set Status: Verified Fixed / Still Present / Cannot Verify?"
 
-If STILL PRESENT: reopen the bug, set Status back to Open, and suggest re-running `$hotfix [BUG-ID]`.
+If STILL PRESENT: reopen the bug, set Status back to Open, and suggest re-running `$codex-game-studios:hotfix [BUG-ID]`.
 
 ---
 
 ## Phase 2D: Close Mode
 
-Read `production/qa/bugs/[BUG-ID].md`. Confirm Status is `Verified Fixed` before closing. If status is anything else, stop: "Bug [ID] must be Verified Fixed before it can be closed. Run `$bug-report verify [BUG-ID]` first."
+Read `production/qa/bugs/[BUG-ID].md`. Confirm Status is `Verified Fixed` before closing. If status is anything else, stop: "Bug [ID] must be Verified Fixed before it can be closed. Run `$codex-game-studios:bug-report verify [BUG-ID]` first."
 
 Append a closure record to the bug file:
 
@@ -138,7 +144,7 @@ Update the top-level `**Status**: Open` field to `**Status**: Closed`.
 
 Ask: "May I update `production/qa/bugs/[BUG-ID].md` to mark it Closed?"
 
-After closing, check `production/qa/bug-triage-*.md` — if the bug appears in an open triage report, note: "Bug [ID] is referenced in the triage report. Run `$bug-triage` to refresh the open bug count."
+After closing, check `production/qa/bug-triage-*.md` — if the bug appears in an open triage report, note: "Bug [ID] is referenced in the triage report. Run `$codex-game-studios:bug-triage` to refresh the open bug count."
 
 ---
 
@@ -159,13 +165,13 @@ If no, stop here. Verdict: **BLOCKED** — user declined write.
 After saving, suggest based on mode:
 
 **After filing (Description/Analyze mode):**
-- Run `$bug-triage` to prioritize alongside existing open bugs
-- If S1 or S2: run `$hotfix [BUG-ID]` for emergency fix workflow
+- Run `$codex-game-studios:bug-triage` to prioritize alongside existing open bugs
+- If S1 or S2: run `$codex-game-studios:hotfix [BUG-ID]` for emergency fix workflow
 
 **After fixing the bug (developer confirms fix is in):**
-- Run `$bug-report verify [BUG-ID]` — confirm the fix actually works before closing
+- Run `$codex-game-studios:bug-report verify [BUG-ID]` — confirm the fix actually works before closing
 - Never mark a bug closed without verification — a fix that doesn't verify is still Open
 
 **After verify returns VERIFIED FIXED:**
-- Run `$bug-report close [BUG-ID]` — write the closure record and update status
-- Run `$bug-triage` to refresh the open bug count and remove it from the active list
+- Run `$codex-game-studios:bug-report close [BUG-ID]` — write the closure record and update status
+- Run `$codex-game-studios:bug-triage` to refresh the open bug count and remove it from the active list

@@ -3,6 +3,11 @@ name: gate-check
 description: Evaluate readiness to advance to a named development phase and issue a PASS, CONCERNS, or FAIL verdict.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Keep repository source artifacts read-only during analysis and cite concrete file evidence for every finding. Ask at most one user question per turn and wait for the answer. A report, tracking record, or phase-state update may be written only after its exact changeset and paths are approved. Do not fix reviewed source artifacts unless the user gives separate explicit authorization.
@@ -13,7 +18,7 @@ Keep repository source artifacts read-only during analysis and cite concrete fil
 This skill validates whether the project is ready to advance to the next development
 phase. It checks for required artifacts, quality standards, and blockers.
 
-**Distinct from `$project-stage-detect`**: That skill is diagnostic ("where are we?").
+**Distinct from `$codex-game-studios:project-stage-detect`**: That skill is diagnostic ("where are we?").
 This skill is prescriptive ("are we ready to advance?" with a formal verdict).
 
 ## Production Stages (7)
@@ -30,7 +35,7 @@ The project progresses through these stages:
 
 **When a gate passes**, write the new stage name to `production/stage.txt`
 (single line, e.g. `Production`). This updates project-stage detection and
-`$help` routing immediately.
+`$codex-game-studios:help` routing immediately.
 
 ---
 
@@ -47,11 +52,11 @@ Also resolve the review mode (once, store for all gate delegations this run):
 The CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE
 delegations are mandatory director gates and run in `full`, `lean`, and `solo`
 modes. Review depth only controls optional per-skill consultation; it never turns
-`$gate-check` into an artifact-existence-only check.
+`$codex-game-studios:gate-check` into an artifact-existence-only check.
 
-- **With argument**: `$gate-check production` — validate readiness for that specific phase
+- **With argument**: `$codex-game-studios:gate-check production` — validate readiness for that specific phase
 - **No argument**: Auto-detect current stage using the same heuristics as
-  `$project-stage-detect`, then **confirm with the user before running**:
+  `$codex-game-studios:project-stage-detect`, then **confirm with the user before running**:
 
   Ask one concise question and wait for the answer:
   - Prompt: "Detected stage: **[current stage]**. Running gate for [Current] → [Next] transition. Is this correct?"
@@ -74,11 +79,11 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 
 **Recommended (not blocking):**
 - [ ] Concept prototype exists in `prototypes/` with a REPORT.md showing PROCEED verdict
-      (`$prototype [core-mechanic]`) — skipping this means GDDs may be written for an
+      (`$codex-game-studios:prototype [core-mechanic]`) — skipping this means GDDs may be written for an
       idea that hasn't been played. Acceptable if the concept is proven by other means.
 
 **Quality Checks:**
-- [ ] Game concept has been reviewed (`$design-review` verdict not MAJOR REVISION NEEDED)
+- [ ] Game concept has been reviewed (`$codex-game-studios:design-review` verdict not MAJOR REVISION NEEDED)
 - [ ] Core loop is described and understood
 - [ ] Target audience is identified
 - [ ] Visual Identity Anchor contains a one-line visual rule and at least 2 supporting visual principles
@@ -89,13 +94,13 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 
 **Required Artifacts:**
 - [ ] Systems index exists at `design/gdd/systems-index.md` with at least MVP systems enumerated
-- [ ] All MVP-tier GDDs exist in `design/gdd/` and individually pass `$design-review`
-- [ ] A cross-GDD review report exists in `design/gdd/` (from `$review-all-gdds`)
+- [ ] All MVP-tier GDDs exist in `design/gdd/` and individually pass `$codex-game-studios:design-review`
+- [ ] A cross-GDD review report exists in `design/gdd/` (from `$codex-game-studios:review-all-gdds`)
 
 **Quality Checks:**
 - [ ] All MVP GDDs pass individual design review (8 required sections, no MAJOR REVISION NEEDED verdict)
-- [ ] `$review-all-gdds` verdict is not FAIL (cross-GDD consistency and design theory checks pass)
-- [ ] All cross-GDD consistency issues flagged by `$review-all-gdds` are resolved or explicitly accepted
+- [ ] `$codex-game-studios:review-all-gdds` verdict is not FAIL (cross-GDD consistency and design theory checks pass)
+- [ ] All cross-GDD consistency issues flagged by `$codex-game-studios:review-all-gdds` are resolved or explicitly accepted
 - [ ] System dependencies are mapped in the systems index and are bidirectionally consistent
 - [ ] MVP priority tier is defined
 - [ ] No stale GDD references flagged (older GDDs updated to reflect decisions made in later GDDs)
@@ -110,13 +115,13 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 - [ ] Art bible exists at `design/art/art-bible.md` with at least Sections 1–4 (Visual Identity Foundation)
 - [ ] At least 3 Architecture Decision Records in `docs/architecture/` covering
       Foundation-layer systems (scene management, event architecture, save/load)
-- [ ] Engine reference docs exist in `docs/engine-reference/[engine]/`
+- [ ] Engine reference docs exist in `../../../docs/engine-reference/[engine]/`
 - [ ] Test framework initialized: `tests/unit/` and `tests/integration/` directories exist
 - [ ] CI/CD test workflow exists at `.github/workflows/tests.yml` (or equivalent)
 - [ ] At least one example test file exists to confirm the framework is functional
 - [ ] Master architecture document exists at `docs/architecture/architecture.md`
 - [ ] Architecture traceability index exists at `docs/architecture/requirements-traceability.md`
-- [ ] `$architecture-review` has been run (a review report file exists in `docs/architecture/`)
+- [ ] `$codex-game-studios:architecture-review` has been run (a review report file exists in `docs/architecture/`)
 - [ ] `design/accessibility-requirements.md` exists with accessibility tier committed
 - [ ] `design/ux/interaction-patterns.md` exists (pattern library initialized, even if minimal)
 
@@ -127,7 +132,7 @@ modes. Review depth only controls optional per-skill consultation; it never turn
 - [ ] At least one screen's UX spec started (often the main menu or core HUD is designed during Technical Setup)
 - [ ] All ADRs have an **Engine Compatibility section** with engine version stamped
 - [ ] All ADRs have a **GDD Requirements Addressed section** with explicit GDD linkage
-- [ ] No ADR references APIs listed in `docs/engine-reference/[engine]/deprecated-apis.md`
+- [ ] No ADR references APIs listed in `../../../docs/engine-reference/[engine]/deprecated-apis.md`
 - [ ] All HIGH RISK engine domains (per VERSION.md) have been explicitly addressed
       in the architecture document or flagged as open questions
 - [ ] Architecture traceability matrix has **zero Foundation layer gaps**
@@ -140,9 +145,9 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
   Neither can reach Accepted while the cycle exists. Remove one 'Depends On' edge to
   break the cycle."
 
-**Engine Validation** (read `docs/engine-reference/[engine]/VERSION.md` first):
+**Engine Validation** (read `../../../docs/engine-reference/[engine]/VERSION.md` first):
 - [ ] ADRs that touch post-cutoff engine APIs are flagged with Knowledge Risk: HIGH/MEDIUM
-- [ ] `$architecture-review` engine audit shows no deprecated API usage
+- [ ] `$codex-game-studios:architecture-review` engine audit shows no deprecated API usage
 - [ ] All ADRs agree on the same engine version (no stale version references)
 
 ---
@@ -150,26 +155,26 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
 ### Gate: Pre-Production → Production
 
 **Required Artifacts:**
-- [ ] Vertical slice exists in `prototypes/` with a REPORT.md (run `$vertical-slice`) — **recommended, not blocking**; if absent, surface as CONCERNS
+- [ ] Vertical slice exists in `prototypes/` with a REPORT.md (run `$codex-game-studios:vertical-slice`) — **recommended, not blocking**; if absent, surface as CONCERNS
 - [ ] First sprint plan exists in `production/sprints/`
 - [ ] Art bible is complete (all 9 sections) and AD-ART-BIBLE sign-off verdict is recorded in `design/art/art-bible.md`
-- [ ] Entity inventory exists at `design/assets/entity-inventory.md` (recommended — run `$asset-spec` with no arguments to generate collaboratively from GDDs + art bible)
+- [ ] Entity inventory exists at `design/assets/entity-inventory.md` (recommended — run `$codex-game-studios:asset-spec` with no arguments to generate collaboratively from GDDs + art bible)
 - [ ] All MVP-tier GDDs from systems index are complete
 - [ ] Master architecture document exists at `docs/architecture/architecture.md`
 - [ ] At least 3 ADRs covering Foundation-layer decisions exist in `docs/architecture/`
 - [ ] All Foundation and Core layer ADRs have status `Accepted` (not `Proposed`) — stories cannot be unblocked until their governing ADR is accepted
 - [ ] Control manifest exists at `docs/architecture/control-manifest.md`
-      (generated by `$create-control-manifest` from Accepted ADRs)
+      (generated by `$codex-game-studios:create-control-manifest` from Accepted ADRs)
 - [ ] Epics defined in `production/epics/` with at least Foundation and Core
-      layer epics present (use `$create-epics layer: foundation` and
-      `$create-epics layer: core` to create them, then `$create-stories [epic-slug]`
+      layer epics present (use `$codex-game-studios:create-epics layer: foundation` and
+      `$codex-game-studios:create-epics layer: core` to create them, then `$codex-game-studios:create-stories [epic-slug]`
       for each epic)
 - [ ] Vertical Slice build exists and is playable (not just scope-defined) — **recommended, not blocking**; if absent, surface as CONCERNS
 - [ ] Vertical Slice has been playtested with at least 1 documented session — **recommended, not blocking**; if absent, surface as CONCERNS
 - [ ] Vertical Slice playtest report exists at `production/playtests/` or equivalent — **recommended, not blocking**; if absent, surface as CONCERNS
 - [ ] UX specs exist for key screens: main menu, core gameplay HUD (at `design/ux/`), pause menu
 - [ ] HUD design document exists at `design/ux/hud.md` (if game has in-game HUD)
-- [ ] All key screen UX specs have passed `$ux-review` (verdict APPROVED or NEEDS REVISION accepted)
+- [ ] All key screen UX specs have passed `$codex-game-studios:ux-review` (verdict APPROVED or NEEDS REVISION accepted)
 
 **Quality Checks:**
 - [ ] **Core loop fun is validated** — playtest data confirms the central mechanic is enjoyable, not just functional. Explicitly check the Vertical Slice playtest report.
@@ -183,7 +188,7 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
 - [ ] All ADRs have Engine Compatibility sections stamped with the engine version
 - [ ] All ADRs have ADR Dependencies sections (even if all fields are "None")
 - [ ] Manual validation confirms GDDs + architecture + epics are coherent
-      (run `$review-all-gdds` and `$architecture-review` if not done recently)
+      (run `$codex-game-studios:review-all-gdds` and `$codex-game-studios:architecture-review` if not done recently)
 - [ ] **Core fantasy is delivered** — at least one playtester independently described an experience that matches the Player Fantasy section of the core system GDDs (without being prompted).
 
 **Vertical Slice Validation** (only run these checks if a Vertical Slice was built):
@@ -211,9 +216,9 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
 - [ ] Test files exist in `tests/unit/` and `tests/integration/` covering Logic and Integration stories
 - [ ] All Logic stories from this sprint have corresponding unit test files in `tests/unit/`
 - [ ] Smoke check has been run with a PASS or PASS WITH WARNINGS verdict — report exists in `production/qa/`
-- [ ] QA plan exists in `production/qa/` (generated by `$qa-plan`) covering this sprint or final production sprint
-- [ ] At least one QA plan exists in `production/qa/` covering this production phase — run `$qa-plan` if missing (CONCERNS — advisory, not blocking)
-- [ ] QA sign-off report exists in `production/qa/` (generated by `$team-qa`) with verdict APPROVED or APPROVED WITH CONDITIONS
+- [ ] QA plan exists in `production/qa/` (generated by `$codex-game-studios:qa-plan`) covering this sprint or final production sprint
+- [ ] At least one QA plan exists in `production/qa/` covering this production phase — run `$codex-game-studios:qa-plan` if missing (CONCERNS — advisory, not blocking)
+- [ ] QA sign-off report exists in `production/qa/` (generated by `$codex-game-studios:team-qa`) with verdict APPROVED or APPROVED WITH CONDITIONS
 - [ ] At least 3 distinct playtest sessions documented in `production/playtests/`
 - [ ] Playtest reports cover: new player experience, mid-game systems, and difficulty curve
 - [ ] Fun hypothesis from Game Concept has been explicitly validated or revised
@@ -238,13 +243,13 @@ A depends on B). If any cycle is detected (e.g. A→B→A, or A→B→C→A):
 - [ ] All features from milestone plan are implemented
 - [ ] Content is complete (all levels, assets, dialogue referenced in design docs exist)
 - [ ] Localization strings are externalized (no hardcoded player-facing text in `src/`)
-- [ ] QA test plan exists (`$qa-plan` output in `production/qa/`)
-- [ ] QA sign-off report exists (`$team-qa` output — APPROVED or APPROVED WITH CONDITIONS)
+- [ ] QA test plan exists (`$codex-game-studios:qa-plan` output in `production/qa/`)
+- [ ] QA sign-off report exists (`$codex-game-studios:team-qa` output — APPROVED or APPROVED WITH CONDITIONS)
 - [ ] All Must Have story test evidence is present (Logic/Integration: test files pass; Visual/Feel/UI: sign-off docs in `production/qa/evidence/`)
 - [ ] Smoke check passes cleanly (PASS verdict) on the release candidate build
 - [ ] No test regressions from previous sprint (test suite passes fully)
-- [ ] Balance data has been reviewed (`$balance-check` run)
-- [ ] Release checklist completed (`$release-checklist` or `$launch-checklist` run)
+- [ ] Balance data has been reviewed (`$codex-game-studios:balance-check` run)
+- [ ] Release checklist completed (`$codex-game-studios:release-checklist` or `$codex-game-studios:launch-checklist` run)
 - [ ] Store metadata prepared (if applicable)
 - [ ] Changelog / patch notes drafted
 
@@ -277,10 +282,10 @@ For each item in the target gate:
 - For code checks, verify directory structure and file counts
 
 **Systems Design → Technical Setup gate — cross-GDD review check**:
-Search for files matching `design/gdd/gdd-cross-review-*.md` to find the `$review-all-gdds` report.
+Search for files matching `design/gdd/gdd-cross-review-*.md` to find the `$codex-game-studios:review-all-gdds` report.
 If no file matches, mark the "cross-GDD review report exists" artifact as **FAIL** and
-surface it prominently: "No `$review-all-gdds` report found in `design/gdd/`. Run
-`$review-all-gdds` before advancing to Technical Setup."
+surface it prominently: "No `$codex-game-studios:review-all-gdds` report found in `design/gdd/`. Run
+`$codex-game-studios:review-all-gdds` before advancing to Technical Setup."
 If a file is found, read it and check the verdict line: a FAIL verdict means the
 cross-GDD consistency check failed and must be resolved before advancing.
 
@@ -288,7 +293,7 @@ cross-GDD consistency check failed and must be resolved before advancing.
 - For test checks: Run the test suite via `Bash` if a test runner is configured
 - For design review checks: `Read` the GDD and check for the 8 required sections
 - For performance checks: `Read` technical-preferences.md and compare against any
-  profiling data in `tests/performance/` or recent `$perf-profile` output
+  profiling data in `tests/performance/` or recent `$codex-game-studios:perf-profile` output
 - For localization checks: `repository text search` for hardcoded strings in `src/`
 
 ### Cross-Reference Checks
@@ -304,7 +309,7 @@ For items that can't be automatically verified, **ask the user**:
 
 - "I can't automatically verify that the core loop plays well. Has it been playtested?"
 - "No playtest report found. Has informal testing been done?"
-- "Performance profiling data isn't available. Would you like to run `$perf-profile`?"
+- "Performance profiling data isn't available. Would you like to run `$codex-game-studios:perf-profile`?"
 
 **Never assume PASS for unverifiable items.** Mark them as MANUAL CHECK NEEDED.
 
@@ -320,14 +325,14 @@ For items that can't be automatically verified, **ask the user**:
 
 (Review mode was resolved in Phase 1. Use that stored value here.)
 
-Before generating the final verdict, delegate to all four directors as **parallel delegated agents** through Codex custom-agent delegation using the parallel gate protocol from `.codex/docs/director-gates.md`. Issue all four Codex custom-agent delegations simultaneously — do not wait for one before starting the next.
+Before generating the final verdict, delegate to all four directors as **parallel delegated agents** through Codex custom-agent delegation using the parallel gate protocol from `../../../.codex/docs/director-gates.md`. Issue all four Codex custom-agent delegations simultaneously — do not wait for one before starting the next.
 
 **Delegate in parallel to these named Codex custom-agent roles:**
 
-1. **`creative-director`** — gate **CD-PHASE-GATE** (`.codex/docs/director-gates.md`)
-2. **`technical-director`** — gate **TD-PHASE-GATE** (`.codex/docs/director-gates.md`)
-3. **`producer`** — gate **PR-PHASE-GATE** (`.codex/docs/director-gates.md`)
-4. **`art-director`** — gate **AD-PHASE-GATE** (`.codex/docs/director-gates.md`)
+1. **`creative-director`** — gate **CD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+2. **`technical-director`** — gate **TD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+3. **`producer`** — gate **PR-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
+4. **`art-director`** — gate **AD-PHASE-GATE** (`../../../.codex/docs/director-gates.md`)
 
 Pass to each: target phase name, list of artifacts present, and the context fields listed in that gate's definition.
 
@@ -375,7 +380,7 @@ Art Director:       [READY / CONCERNS / NOT READY]
 - [?] Core loop playtested — MANUAL CHECK NEEDED
 
 ### Blockers
-1. **No Architecture Decision Records** — Run `$architecture-decision` to create one
+1. **No Architecture Decision Records** — Run `$codex-game-studios:architecture-decision` to create one
    covering core system architecture before entering production.
 2. **3 test failures** — Fix failing tests in tests/unit/ before advancing.
 
@@ -458,32 +463,32 @@ After the verdict is presented and any stage.txt update is complete, close with 
 For **systems-design PASS**:
 ```
 Gate passed. What would you like to do next?
-[A] Run $create-architecture — produce your master architecture blueprint and ADR work plan (recommended next step)
+[A] Run $codex-game-studios:create-architecture — produce your master architecture blueprint and ADR work plan (recommended next step)
 [B] Design more GDDs first — return here when all MVP systems are complete
 [C] Stop here for this session
 ```
 
-> **Note for systems-design PASS**: `$create-architecture` is the required next step before writing any ADRs. It produces the master architecture document and a prioritized list of ADRs to write. Running `$architecture-decision` without this step means writing ADRs without a blueprint — skip it at your own risk.
+> **Note for systems-design PASS**: `$codex-game-studios:create-architecture` is the required next step before writing any ADRs. It produces the master architecture document and a prioritized list of ADRs to write. Running `$codex-game-studios:architecture-decision` without this step means writing ADRs without a blueprint — skip it at your own risk.
 
 For **technical-setup PASS**:
 ```
 Gate passed. What would you like to do next?
-[A] Run $create-control-manifest — generate the layer rules manifest from your Accepted ADRs (do this first)
-[B] Run $vertical-slice — build the Vertical Slice (do this before writing epics — validate fun first)
-[C] Write more ADRs first — run $architecture-decision [next-system]
+[A] Run $codex-game-studios:create-control-manifest — generate the layer rules manifest from your Accepted ADRs (do this first)
+[B] Run $codex-game-studios:vertical-slice — build the Vertical Slice (do this before writing epics — validate fun first)
+[C] Write more ADRs first — run $codex-game-studios:architecture-decision [next-system]
 [D] Stop here for this session
 ```
 
 > **Note for technical-setup PASS**: The Pre-Production sequence is deliberately ordered
 > to validate fun before committing to detailed planning:
 >
-> 1. `$create-control-manifest` — extract technical rules from Accepted ADRs (required before epics)
-> 2. `$vertical-slice` — build the Vertical Slice **FIRST**, before writing epics or stories
-> 3. Playtest → `$playtest-report` — at least 1 session required to pass the Pre-Production gate; 3+ recommended before committing the full team
-> 4. `$ux-design [screen]` — UX specs for main menu, core HUD, pause menu (if not done)
-> 5. `$create-epics layer:foundation` then `$create-epics layer:core` — plan after fun is validated
-> 6. `$create-stories [epic-slug]` for each epic
-> 7. `$sprint-plan new`
+> 1. `$codex-game-studios:create-control-manifest` — extract technical rules from Accepted ADRs (required before epics)
+> 2. `$codex-game-studios:vertical-slice` — build the Vertical Slice **FIRST**, before writing epics or stories
+> 3. Playtest → `$codex-game-studios:playtest-report` — at least 1 session required to pass the Pre-Production gate; 3+ recommended before committing the full team
+> 4. `$codex-game-studios:ux-design [screen]` — UX specs for main menu, core HUD, pause menu (if not done)
+> 5. `$codex-game-studios:create-epics layer:foundation` then `$codex-game-studios:create-epics layer:core` — plan after fun is validated
+> 6. `$codex-game-studios:create-stories [epic-slug]` for each epic
+> 7. `$codex-game-studios:sprint-plan new`
 >
 > **Why prototype before epics?** If the prototype reveals the core loop needs to change,
 > epics written before that discovery will be partially wrong. Validate fun cheaply first,
@@ -497,37 +502,37 @@ For all other gates, offer the two most logical next steps for that phase plus "
 
 Based on the verdict, suggest specific next steps:
 
-- **No art bible?** → `$art-bible` to create the visual identity specification
-- **Art bible exists but no asset specs?** → `$asset-spec system:[name]` to generate per-asset visual specs and generation prompts from approved GDDs
-- **No game concept?** → `$brainstorm` to create one
-- **No systems index?** → `$map-systems` to decompose the concept into systems
-- **Missing design docs?** → `$reverse-document` or delegate to `game-designer`
-- **Small design change needed?** → `$quick-design` for changes under ~4 hours (bypasses full GDD pipeline)
-- **No UX specs?** → `$ux-design [screen name]` to author specs, or `$team-ui [feature]` for full pipeline
-- **UX specs not reviewed?** → `$ux-review [file]` or `$ux-review all` to validate
-- **No accessibility requirements doc?** → run `$ux-design` which creates both `design/accessibility-requirements.md` and `design/ux/interaction-patterns.md` in one step
-- **No interaction pattern library?** → `$ux-design patterns` to initialize it
-- **GDDs not cross-reviewed?** → `$review-all-gdds` (run after all MVP GDDs are individually approved)
-- **Cross-GDD consistency issues?** → fix flagged GDDs, then re-run `$review-all-gdds`
-- **No test framework?** → `$test-setup` to scaffold the framework for your engine
-- **No QA plan for current sprint?** → `$qa-plan sprint` to generate one before implementation begins
-- **Missing ADRs?** → `$architecture-decision` for individual decisions
-- **No master architecture doc?** → `$create-architecture` for the full blueprint
-- **ADRs missing engine compatibility sections?** → Re-run `$architecture-decision`
+- **No art bible?** → `$codex-game-studios:art-bible` to create the visual identity specification
+- **Art bible exists but no asset specs?** → `$codex-game-studios:asset-spec system:[name]` to generate per-asset visual specs and generation prompts from approved GDDs
+- **No game concept?** → `$codex-game-studios:brainstorm` to create one
+- **No systems index?** → `$codex-game-studios:map-systems` to decompose the concept into systems
+- **Missing design docs?** → `$codex-game-studios:reverse-document` or delegate to `game-designer`
+- **Small design change needed?** → `$codex-game-studios:quick-design` for changes under ~4 hours (bypasses full GDD pipeline)
+- **No UX specs?** → `$codex-game-studios:ux-design [screen name]` to author specs, or `$codex-game-studios:team-ui [feature]` for full pipeline
+- **UX specs not reviewed?** → `$codex-game-studios:ux-review [file]` or `$codex-game-studios:ux-review all` to validate
+- **No accessibility requirements doc?** → run `$codex-game-studios:ux-design` which creates both `design/accessibility-requirements.md` and `design/ux/interaction-patterns.md` in one step
+- **No interaction pattern library?** → `$codex-game-studios:ux-design patterns` to initialize it
+- **GDDs not cross-reviewed?** → `$codex-game-studios:review-all-gdds` (run after all MVP GDDs are individually approved)
+- **Cross-GDD consistency issues?** → fix flagged GDDs, then re-run `$codex-game-studios:review-all-gdds`
+- **No test framework?** → `$codex-game-studios:test-setup` to scaffold the framework for your engine
+- **No QA plan for current sprint?** → `$codex-game-studios:qa-plan sprint` to generate one before implementation begins
+- **Missing ADRs?** → `$codex-game-studios:architecture-decision` for individual decisions
+- **No master architecture doc?** → `$codex-game-studios:create-architecture` for the full blueprint
+- **ADRs missing engine compatibility sections?** → Re-run `$codex-game-studios:architecture-decision`
   or manually add Engine Compatibility sections to existing ADRs
-- **Missing control manifest?** → `$create-control-manifest` (requires Accepted ADRs)
-- **Missing epics?** → `$create-epics layer: foundation` then `$create-epics layer: core` (requires control manifest)
-- **Missing stories for an epic?** → `$create-stories [epic-slug]` (run after each epic is created)
-- **Stories not implementation-ready?** → `$story-readiness` to validate stories before developers pick them up
+- **Missing control manifest?** → `$codex-game-studios:create-control-manifest` (requires Accepted ADRs)
+- **Missing epics?** → `$codex-game-studios:create-epics layer: foundation` then `$codex-game-studios:create-epics layer: core` (requires control manifest)
+- **Missing stories for an epic?** → `$codex-game-studios:create-stories [epic-slug]` (run after each epic is created)
+- **Stories not implementation-ready?** → `$codex-game-studios:story-readiness` to validate stories before developers pick them up
 - **Tests failing?** → delegate to `lead-programmer` or `qa-tester`
-- **No playtest data?** → `$playtest-report`
-- **No playtest sessions beyond the minimum?** → Additional sessions give more reliable signal. 3+ total is recommended before committing the full team. Use `$playtest-report` to structure findings.
-- **No Difficulty Curve doc?** → Create `design/difficulty-curve.md` from the template at `.codex/docs/templates/difficulty-curve.md` — or use `$quick-design "difficulty curve"` for a guided session.
-- **No player journey map?** → Create `design/player-journey.md` from the template at `.codex/docs/templates/player-journey.md` — or author it collaboratively using `$ux-design` Phase 2b.
-- **Need a quick sprint check?** → `$sprint-status` for current sprint progress snapshot
-- **Performance unknown?** → `$perf-profile`
-- **Not localized?** → `$localize`
-- **Ready for release?** → `$launch-checklist`
+- **No playtest data?** → `$codex-game-studios:playtest-report`
+- **No playtest sessions beyond the minimum?** → Additional sessions give more reliable signal. 3+ total is recommended before committing the full team. Use `$codex-game-studios:playtest-report` to structure findings.
+- **No Difficulty Curve doc?** → Create `design/difficulty-curve.md` from the template at `../../../.codex/docs/templates/difficulty-curve.md` — or use `$codex-game-studios:quick-design "difficulty curve"` for a guided session.
+- **No player journey map?** → Create `design/player-journey.md` from the template at `../../../.codex/docs/templates/player-journey.md` — or author it collaboratively using `$codex-game-studios:ux-design` Phase 2b.
+- **Need a quick sprint check?** → `$codex-game-studios:sprint-status` for current sprint progress snapshot
+- **Performance unknown?** → `$codex-game-studios:perf-profile`
+- **Not localized?** → `$codex-game-studios:localize`
+- **Ready for release?** → `$codex-game-studios:launch-checklist`
 
 ---
 
@@ -541,7 +546,7 @@ This skill follows the collaborative design principle:
 4. **User decides**: The verdict is a recommendation — the user makes the final call
 5. **Get approval**: "May I write this gate check report to production/gate-checks/?"
 6. **Never auto-fix**: If required artifacts are missing, report the FAIL verdict and
-   name the skill to run (e.g. "run `$test-setup`"). Do NOT create missing files or
+   name the skill to run (e.g. "run `$codex-game-studios:test-setup`"). Do NOT create missing files or
    re-run the gate automatically. Creating files to manufacture a PASS defeats the
    gate's purpose.
 

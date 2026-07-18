@@ -3,6 +3,11 @@ name: create-epics
 description: "Use when approved GDDs and architecture need translation into bounded, traceable implementation epics."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -35,7 +40,7 @@ Resolve the review mode (once, store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. If config is unavailable, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Modes:**
 - `$create-epics all` — process all systems in layer order
@@ -73,7 +78,7 @@ Read for in-scope systems:
 - Accepted ADRs **whose domains cover in-scope systems only** — read the "GDD Requirements Addressed", "Decision", and "Engine Compatibility" sections; skip ADRs for unrelated domains
 - `docs/architecture/control-manifest.md` — manifest version date from header
 - `docs/architecture/tr-registry.yaml` — for tracing requirements to ADR coverage
-- `docs/engine-reference/[engine]/VERSION.md` — engine name, version, risk levels
+- `../../../docs/engine-reference/[engine]/VERSION.md` — engine name, version, risk levels
 
 Report: "Loaded [N] GDDs, [M] ADRs, engine: [name + version]."
 
@@ -137,7 +142,7 @@ Use `request_user_input` for one decision at a time:
 - `lean` → skip (not a PHASE-GATE). Note: "PR-EPIC skipped — Lean mode." Proceed to Step 5 (write epic files).
 - `full` → spawn as normal.
 
-After all epics for the current layer are defined (Step 4 completed for all in-scope systems), and before writing any files, spawn `producer` through Codex custom-agent delegation using gate **PR-EPIC** (`.codex/docs/director-gates.md`).
+After all epics for the current layer are defined (Step 4 completed for all in-scope systems), and before writing any files, spawn `producer` through Codex custom-agent delegation using gate **PR-EPIC** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full epic structure summary (all epics, their scope summaries, governing ADR counts), the layer being processed, milestone timeline and team capacity.
 

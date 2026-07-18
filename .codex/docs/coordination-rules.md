@@ -44,9 +44,12 @@ gated.
 ## Codex Delegation
 
 Ordinary skills remain single-agent unless delegation materially helps. Team and
-cross-domain skills may use Codex custom agents from `.codex/agents/` plus the
-active engine pack. The parent owns synthesis, conflict resolution, and the final
-recommendation.
+cross-domain skills resolve every role through
+`../../../.codex/docs/plugin-agent-delegation.md`. This shared protocol selects a
+native named role, a default delegated agent carrying the complete plugin-local
+role contract, or a labeled single-agent fallback in that order. It does not
+depend on repository-local agent or agent-pack trees. The parent owns synthesis,
+conflict resolution, and the final recommendation.
 
 - Delegate only concrete, bounded subtasks with complete context.
 - Run independent subtasks in parallel when they do not share mutable files.

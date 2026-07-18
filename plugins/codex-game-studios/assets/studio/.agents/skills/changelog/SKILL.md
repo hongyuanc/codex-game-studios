@@ -3,6 +3,11 @@ name: changelog
 description: "Use when an internal or player-facing changelog must be drafted from repository and production history."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -152,7 +157,7 @@ Present the internal and player-facing drafts first. The canonical saved output 
 
 - If `docs/CHANGELOG.md` exists, append the new version section without replacing prior history and place newest entries first at the top of the version list.
 - If it does not exist, create it with the new version section.
-- Keep the player-facing variant in conversation for `$patch-notes`; do not invent a second changelog path.
+- Keep the player-facing variant in conversation for `$codex-game-studios:patch-notes`; do not invent a second changelog path.
 - Write only the approved insertion. Any different path or changed content requires revised approval.
 
 After an approved write: Verdict: **CHANGELOG WRITTEN**. If declined: Verdict: **COMPLETE** — changelog generated in conversation.
@@ -160,8 +165,8 @@ After an approved write: Verdict: **CHANGELOG WRITTEN**. If declined: Verdict: *
 
 ## Phase 7: Next Steps
 
-- Use `$patch-notes [version]` to generate a styled, saved version for public release.
-- Use `$release-checklist` before publishing the changelog externally.
+- Use `$codex-game-studios:patch-notes [version]` to generate a styled, saved version for public release.
+- Use `$codex-game-studios:release-checklist` before publishing the changelog externally.
 
 ### Guidelines
 

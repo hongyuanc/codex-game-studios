@@ -3,6 +3,11 @@ name: design-system
 description: Collaboratively author or resume a game-system GDD one approved section at a time.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material design sections. Identify the GDD and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed GDD, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.
@@ -17,7 +22,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 A system name or retrofit path is **required**. If missing:
 
@@ -27,9 +32,9 @@ A system name or retrofit path is **required**. If missing:
    - Options: `[A] Yes — design [system-name]` / `[B] Pick a different system` / `[C] Stop here`
    - If [A]: proceed with that system name. If [B]: ask which system to design (plain text). If [C]: exit.
 3. If no systems index exists, fail with:
-   > "Usage: `$design-system <system-name>` — e.g., `$design-system movement`
-   > Or to fill gaps in an existing GDD: `$design-system retrofit design/gdd/[system-name].md`
-   > No systems index found. Run `$map-systems` first to map your systems and get the design order."
+   > "Usage: `$codex-game-studios:design-system <system-name>` — e.g., `$codex-game-studios:design-system movement`
+   > Or to fill gaps in an existing GDD: `$codex-game-studios:design-system retrofit design/gdd/[system-name].md`
+   > No systems index found. Run `$codex-game-studios:map-systems` first to map your systems and get the design order."
 
 **Detect retrofit mode:**
 If the argument starts with `retrofit` or the argument is a file path to an
@@ -75,9 +80,9 @@ primary advantage over ad-hoc design — it arrives informed.
 ### 2a: Required Reads
 
 - **Game concept**: Read `design/gdd/game-concept.md` — fail if missing:
-  > "No game concept found. Run `$brainstorm` first."
+  > "No game concept found. Run `$codex-game-studios:brainstorm` first."
 - **Systems index**: Read `design/gdd/systems-index.md` — fail if missing:
-  > "No systems index found. Run `$map-systems` first to map your systems."
+  > "No systems index found. Run `$codex-game-studios:map-systems` first to map your systems."
 - **Target system**: Find the system in the index. If not listed, warn:
   > "[system-name] is not in the systems index. Would you like to add it, or
   > design it as an off-index system?"
@@ -163,9 +168,9 @@ Map the system's category (from systems-index.md) to an engine domain:
 
 **Step 2 — Read engine context (if available):**
 - Read `.codex/docs/technical-preferences.md` to identify the engine and version
-- If engine is configured, read `docs/engine-reference/[engine]/VERSION.md`
-- Read `docs/engine-reference/[engine]/modules/[domain].md` if it exists
-- Read `docs/engine-reference/[engine]/breaking-changes.md` for domain-relevant entries
+- If engine is configured, read `../../../docs/engine-reference/[engine]/VERSION.md`
+- Read `../../../docs/engine-reference/[engine]/modules/[domain].md` if it exists
+- Read `../../../docs/engine-reference/[engine]/breaking-changes.md` for domain-relevant entries
 - Search for files matching `docs/architecture/adr-*.md` and read any ADRs whose domain matches
   (check the Engine Compatibility table's "Domain" field)
 
@@ -195,7 +200,7 @@ Domain: [domain]
 
 If no engine reference docs exist (engine not yet configured), show a short note:
 > "No engine configured yet — skipping technical feasibility check. Run
-> `$setup-engine` before moving to architecture if you haven't already."
+> `$codex-game-studios:setup-engine` before moving to architecture if you haven't already."
 
 **Step 4 — Ask before proceeding:**
 
@@ -216,7 +221,7 @@ Ask one concise question and wait for the answer:
 Once the user confirms, **immediately** create the GDD file with empty section
 headers. This ensures incremental writes have a target.
 
-Use the template structure from `.codex/docs/templates/game-design-document.md`:
+Use the template structure from `../../../.codex/docs/templates/game-design-document.md`:
 
 ```markdown
 # [System Name]
@@ -285,7 +290,7 @@ Use the template structure from `.codex/docs/templates/game-design-document.md`:
 Ask: "May I create the skeleton file at `design/gdd/[system-name].md`?"
 
 If the user declines: Stop with the following message:
-> "Verdict: **BLOCKED** — skeleton creation declined. The design session cannot proceed without the skeleton file, as all subsequent phases use it as the base. Re-run `$design-system [system]` when ready to create the file."
+> "Verdict: **BLOCKED** — skeleton creation declined. The design session cannot proceed without the skeleton file, as all subsequent phases use it as the base. Re-run `$codex-game-studios:design-system [system]` when ready to create the file."
 Do not proceed to Section A.
 
 After writing, update `production/session-state/active.md`:
@@ -395,7 +400,7 @@ describes it. Flag discrepancies.
 level — what the system *does*, not *how it is built*. If implementation questions
 arise during the Overview (e.g., "Should this use an Autoload singleton or a signal
 bus?"), note them as "→ becomes an ADR" and move on. Implementation patterns belong
-in `$architecture-decision`, not the GDD. The GDD describes behavior; the ADR
+in `$codex-game-studios:architecture-decision`, not the GDD. The GDD describes behavior; the ADR
 describes the technical approach used to achieve it.
 
 ---
@@ -650,7 +655,7 @@ Ask one concise question and wait for the answer:
 For **Visual/Audio** (non-required systems): Coordinate with `art-director` and `audio-director` if detail is needed. Often a brief note suffices at the GDD stage.
 
 > **Asset Spec Flag**: After the Visual/Audio section is written with real content, output this notice:
-> "📌 **Asset Spec** — Visual/Audio requirements are defined. After the art bible is approved, run `$asset-spec system:[system-name]` to produce per-asset visual descriptions, dimensions, and generation prompts from this section."
+> "📌 **Asset Spec** — Visual/Audio requirements are defined. After the art bible is approved, run `$codex-game-studios:asset-spec system:[system-name]` to produce per-asset visual descriptions, dimensions, and generation prompts from this section."
 
 For **UI Requirements**: Coordinate with `ux-designer` for complex UI systems.
 After writing this section, check whether it contains real content (not just
@@ -658,7 +663,7 @@ After writing this section, check whether it contains real content (not just
 UI requirements, output this flag immediately:
 
 > **📌 UX Flag — [System Name]**: This system has UI requirements. In Phase 4
-> (Pre-Production), run `$ux-design` to create a UX spec for each screen or
+> (Pre-Production), run `$codex-game-studios:ux-design` to create a UX spec for each screen or
 > HUD element this system contributes to **before** writing epics. Stories that
 > reference UI should cite `design/ux/[screen].md`, not the GDD directly.
 >
@@ -691,7 +696,7 @@ CD-GDD-ALIGN is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "CD-GDD-ALIGN skipped — Lean mode." Proceed to Step 5b.
 - `full` → delegate normally.
 
-Before finalizing the GDD, delegate to `creative-director` through Codex custom-agent delegation using gate **CD-GDD-ALIGN** (`.codex/docs/director-gates.md`).
+Before finalizing the GDD, delegate to `creative-director` through Codex custom-agent delegation using gate **CD-GDD-ALIGN** (`../../../.codex/docs/director-gates.md`).
 
 Pass: completed GDD file path, game pillars (from `design/gdd/game-concept.md` or `design/gdd/game-pillars.md`), MDA aesthetics target.
 
@@ -740,13 +745,13 @@ Present a completion summary:
 > - Cross-system conflicts found: [list or "none"]
 
 > **To validate this GDD, open a fresh Codex session and run:**
-> `$design-review design/gdd/[system-name].md`
+> `$codex-game-studios:design-review design/gdd/[system-name].md`
 >
-> **Never run `$design-review` in the same session as `$design-system`.** The reviewing
+> **Never run `$codex-game-studios:design-review` in the same session as `$codex-game-studios:design-system`.** The reviewing
 > agent must be independent of the authoring context. Running it here would inherit
 > the full design history, making independent critique impossible.
 
-**NEVER offer to run `$design-review` inline.** Always direct the user to a fresh window.
+**NEVER offer to run `$codex-game-studios:design-review` inline.** Always direct the user to a fresh window.
 
 ### 5d: Update Systems Index
 
@@ -777,11 +782,11 @@ Update `production/session-state/active.md` with:
 Ask one concise question and wait for the answer:
 - "What's next?"
   - Options:
-    - "Run `$consistency-check` — verify this GDD's values don't conflict with existing GDDs (recommended before designing the next system)"
+    - "Run `$codex-game-studios:consistency-check` — verify this GDD's values don't conflict with existing GDDs (recommended before designing the next system)"
     - "Design next system ([next-in-order])" — if undesigned systems remain
     - "Fix review findings" — if design-review flagged issues
     - "Stop here for this session"
-    - "Run `$gate-check`" — if enough MVP systems are designed
+    - "Run `$codex-game-studios:gate-check`" — if enough MVP systems are designed
 
 ---
 
@@ -860,14 +865,14 @@ context usage at or above 70%, append this notice to the response:
 
 > **Context is approaching the limit (≥70%).** Your progress is saved — all approved
 > sections are written to `design/gdd/[system-name].md`. When you're ready to continue,
-> open a fresh Codex session and run `$design-system [system-name]` — it will
+> open a fresh Codex session and run `$codex-game-studios:design-system [system-name]` — it will
 > detect which sections are complete and resume from the next one.
 
 ---
 
 ## Recommended Next Steps
 
-- Run `$design-review design/gdd/[system-name].md` in a **fresh session** to validate the completed GDD independently
-- Run `$consistency-check` to verify this GDD's values don't conflict with other GDDs
-- Run `$map-systems next` to move to the next highest-priority undesigned system
-- Run `$gate-check pre-production` when all MVP GDDs are authored and reviewed
+- Run `$codex-game-studios:design-review design/gdd/[system-name].md` in a **fresh session** to validate the completed GDD independently
+- Run `$codex-game-studios:consistency-check` to verify this GDD's values don't conflict with other GDDs
+- Run `$codex-game-studios:map-systems next` to move to the next highest-priority undesigned system
+- Run `$codex-game-studios:gate-check pre-production` when all MVP GDDs are authored and reviewed

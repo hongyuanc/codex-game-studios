@@ -3,6 +3,11 @@ name: regression-suite
 description: "Use when bug fixes, critical paths, or release gates need regression coverage mapping and drift detection."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -25,7 +30,7 @@ and known failure points. This skill maintains that list.
 
 **When to run:**
 - After fixing a bug (confirm a regression test was written or identify gap)
-- Before a release gate (`$gate-check polish` requires regression suite exists)
+- Before a release gate (`$codex-game-studios:gate-check polish` requires regression suite exists)
 - As part of sprint close to detect coverage drift
 
 ---
@@ -33,11 +38,11 @@ and known failure points. This skill maintains that list.
 ## 1. Parse Arguments
 
 **Modes:**
-- `$regression-suite update` — scan new bug fixes this sprint and check
+- `$codex-game-studios:regression-suite update` — scan new bug fixes this sprint and check
   for regression test presence; add new tests to the suite manifest
-- `$regression-suite audit` — full audit of all GDD critical paths vs.
+- `$codex-game-studios:regression-suite audit` — full audit of all GDD critical paths vs.
   existing test coverage; flag paths with no regression test
-- `$regression-suite report` — read-only status report (no writes); suitable
+- `$codex-game-studios:regression-suite report` — read-only status report (no writes); suitable
   for sprint reviews
 - No argument — if a sprint is clearly active (sprint plan exists with in-progress stories), run `update`. If ambiguous or no active sprint is detected, use `request_user_input`:
   - Prompt: "No subcommand specified. Which mode do you want to run?"
@@ -234,11 +239,11 @@ For `report` mode: do not write anything.
 After writing (if approved):
 
 - For each HIGH priority gap: "Consider creating the missing regression test
-  before the next sprint. Run `$test-helpers` to scaffold the test file."
+  before the next sprint. Run `$codex-game-studios:test-helpers` to scaffold the test file."
 - If bug regression gaps > 0: "These bugs can silently return without regression
   tests. The next sprint should include a story to write the missing tests."
 - If coverage drift detected: "Regression suite may be drifting. Consider
-  running `$regression-suite audit` at the next sprint boundary."
+  running `$codex-game-studios:regression-suite audit` at the next sprint boundary."
 
 Verdict: **COMPLETE** — regression suite updated. (If user declined write: Verdict: **BLOCKED**.)
 
@@ -253,5 +258,5 @@ Verdict: **COMPLETE** — regression suite updated. (If user declined write: Ver
   other work from proceeding (except at release gate where regression suite is required)
 - **Quarantine is not deletion** — tests with intermittent failures should be
   quarantined (noted in manifest) but not removed; they should be fixed by
-  `$test-flakiness`
+  `$codex-game-studios:test-flakiness`
 - **Ask before writing** — always confirm before creating or updating the manifest

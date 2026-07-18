@@ -3,6 +3,11 @@ name: design-system
 description: Collaboratively author or resume a game-system GDD one approved section at a time.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material design sections. Identify the GDD and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed GDD, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.
@@ -17,7 +22,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 A system name or retrofit path is **required**. If missing:
 
@@ -163,9 +168,9 @@ Map the system's category (from systems-index.md) to an engine domain:
 
 **Step 2 — Read engine context (if available):**
 - Read `.codex/docs/technical-preferences.md` to identify the engine and version
-- If engine is configured, read `docs/engine-reference/[engine]/VERSION.md`
-- Read `docs/engine-reference/[engine]/modules/[domain].md` if it exists
-- Read `docs/engine-reference/[engine]/breaking-changes.md` for domain-relevant entries
+- If engine is configured, read `../../../docs/engine-reference/[engine]/VERSION.md`
+- Read `../../../docs/engine-reference/[engine]/modules/[domain].md` if it exists
+- Read `../../../docs/engine-reference/[engine]/breaking-changes.md` for domain-relevant entries
 - Search for files matching `docs/architecture/adr-*.md` and read any ADRs whose domain matches
   (check the Engine Compatibility table's "Domain" field)
 
@@ -216,7 +221,7 @@ Ask one concise question and wait for the answer:
 Once the user confirms, **immediately** create the GDD file with empty section
 headers. This ensures incremental writes have a target.
 
-Use the template structure from `.codex/docs/templates/game-design-document.md`:
+Use the template structure from `../../../.codex/docs/templates/game-design-document.md`:
 
 ```markdown
 # [System Name]
@@ -691,7 +696,7 @@ CD-GDD-ALIGN is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "CD-GDD-ALIGN skipped — Lean mode." Proceed to Step 5b.
 - `full` → delegate normally.
 
-Before finalizing the GDD, delegate to `creative-director` through Codex custom-agent delegation using gate **CD-GDD-ALIGN** (`.codex/docs/director-gates.md`).
+Before finalizing the GDD, delegate to `creative-director` through Codex custom-agent delegation using gate **CD-GDD-ALIGN** (`../../../.codex/docs/director-gates.md`).
 
 Pass: completed GDD file path, game pillars (from `design/gdd/game-concept.md` or `design/gdd/game-pillars.md`), MDA aesthetics target.
 

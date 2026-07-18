@@ -3,6 +3,11 @@ name: release-checklist
 description: "Use when build, certification, store, content, and launch readiness need a read-only pre-release evaluation."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -15,7 +20,7 @@ description: "Use when build, certification, store, content, and launch readines
 
 This evaluator is read-only. It reports evidence, blockers, and the go/no-go assessment in conversation and does not change project or release state. Any remediation or saved artifact is a separately authorized complete proposed changeset.
 
-> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$release-checklist`. Do not auto-invoke based on context matching.
+> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$codex-game-studios:release-checklist`. Do not auto-invoke based on context matching.
 
 ## Phase 1: Parse Arguments
 
@@ -179,5 +184,5 @@ resolution and estimated time to address them.]
 Present the completed checklist, evidence summary, blockers, conditional items, and sign-offs in conversation. This read-only evaluation does not write a checklist or change release state. If the user later asks to save it, present that file as a separately authorized complete proposed changeset.
 ## Phase 6: Next Steps
 
-- Run `$gate-check` for a formal phase gate verdict before proceeding to release.
-- Coordinate final sign-offs via `$team-release`.
+- Run `$codex-game-studios:gate-check` for a formal phase gate verdict before proceeding to release.
+- Coordinate final sign-offs via `$codex-game-studios:team-release`.

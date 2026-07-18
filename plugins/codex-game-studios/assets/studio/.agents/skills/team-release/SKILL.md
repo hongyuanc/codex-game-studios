@@ -3,6 +3,11 @@ name: team-release
 description: "Use when a release candidate needs coordinated planning, QA, build, go or no-go, and separately authorized deployment steps."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Release
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when a release candidate needs coordinated planning, QA, build
 
 ## Invocation
 
-Usage: `$team-release [version or next] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-release [version or next] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -114,12 +119,12 @@ Only after approval and explicit communication authorization, the parent communi
 Delegate to **release-manager** + **devops-engineer**:
 - Return the exact tag command, changelog draft, staging deployment plan, production deployment plan, validation commands, and rollback commands
 - Execute none of those mutations as a delegated task
-- Human team action: Monitor dashboards and error rates for 48 hours post-release. Schedule a follow-up retrospective using `$retrospective` at the 48-hour mark.
+- Human team action: Monitor dashboards and error rates for 48 hours post-release. Schedule a follow-up retrospective using `$codex-game-studios:retrospective` at the 48-hour mark.
 
 The parent processes the tag, any commit, any push, staging deployment, production deployment, release, and publication as separate steps. Immediately before each step, show the exact command/action, evidence and rollback, then obtain explicit user authorization for only that step. Stop on a failed validation or withdrawn authorization.
 
 Delegate to **release-manager** (in parallel with deployment):
-- Finalize patch notes using `$patch-notes [version]`
+- Finalize patch notes using `$codex-game-studios:patch-notes [version]`
 - Prepare launch announcement (store page updates, social media, community post)
 - Draft known issues post if any S3+ issues shipped
 - Output: all player-facing release communication as drafts only; publication requires its own explicit user authorization after deploy confirmation
@@ -146,8 +151,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Output
@@ -160,5 +165,5 @@ Verdict: **BLOCKED** — release halted; go/no-go was NO or a hard blocker is un
 ## Next Steps
 
 - Monitor post-release dashboards for 48 hours.
-- Run `$retrospective` if significant issues occurred during the release.
+- Run `$codex-game-studios:retrospective` if significant issues occurred during the release.
 - Update `production/stage.txt` to `Live` after successful deployment.

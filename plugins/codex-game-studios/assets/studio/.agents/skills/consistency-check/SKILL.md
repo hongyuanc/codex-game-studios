@@ -15,15 +15,15 @@ entity registry (`design/registry/entities.yaml`). Uses a grep-first approach:
 reads the registry once, then targets only the GDD sections that mention
 registered names — no full document reads unless a conflict needs investigation.
 
-**This skill is the write-time safety net.** It catches what `$design-system`'s
-per-section checks may have missed and what `$review-all-gdds`'s holistic review
+**This skill is the write-time safety net.** It catches what `$codex-game-studios:design-system`'s
+per-section checks may have missed and what `$codex-game-studios:review-all-gdds`'s holistic review
 catches too late.
 
 **When to run:**
 - After writing each new GDD (before moving to the next system)
-- Before `$review-all-gdds` (so that skill starts with a clean baseline)
-- Before `$create-architecture` (inconsistencies poison downstream ADRs)
-- On demand: `$consistency-check entity:[name]` to check one entity specifically
+- Before `$codex-game-studios:review-all-gdds` (so that skill starts with a clean baseline)
+- Before `$codex-game-studios:create-architecture` (inconsistencies poison downstream ADRs)
+- On demand: `$codex-game-studios:consistency-check entity:[name]` to check one entity specifically
 
 **Output:** Conflict report + optional registry corrections
 
@@ -44,7 +44,7 @@ Read path="design/registry/entities.yaml"
 ```
 
 If the file does not exist or has no entries:
-> "Entity registry is empty. Run `$design-system` to write GDDs — the registry
+> "Entity registry is empty. Run `$codex-game-studios:design-system` to write GDDs — the registry
 > is populated automatically after each GDD is completed. Nothing to check yet."
 
 Stop and exit.
@@ -256,7 +256,7 @@ If any 🔴 CONFLICT entries were found (regardless of whether they were resolve
 append an entry to `docs/consistency-failures.md` for each conflict:
 
 ```markdown
-### [YYYY-MM-DD] — $consistency-check — 🔴 CONFLICT
+### [YYYY-MM-DD] — $codex-game-studios:consistency-check — 🔴 CONFLICT
 **Domain**: [system domain(s) involved]
 **Documents involved**: [source GDD] vs [conflicting GDD]
 **What happened**: [specific conflict — entity name, attribute, differing values]
@@ -270,7 +270,7 @@ If `docs/consistency-failures.md` does not exist, create it with this header bef
 ```markdown
 # Consistency Failure Log
 
-<!-- Auto-maintained by $consistency-check. Do not edit manually. -->
+<!-- Auto-maintained by $codex-game-studios:consistency-check. Do not edit manually. -->
 <!-- One entry per detected conflict, in chronological order. -->
 
 | Date | GDD A | GDD B | Conflict Type | Status |
@@ -295,7 +295,7 @@ Then close with a one-question prompt:
 - **Options**:
   - `[A] Fix the highest-priority conflict now`
   - `[B] Save full report and stop`
-  - `[C] Run $design-review on the most conflicted GDD`
+  - `[C] Run $codex-game-studios:design-review on the most conflicted GDD`
   - `[D] Stop here`
 
 Never end the skill with plain text. Always close with this prompt.
@@ -304,10 +304,10 @@ Never end the skill with plain text. Always close with this prompt.
 
 ## Recovery / Reference
 
-- **If PASS**: Run `$review-all-gdds` for holistic design-theory review, or
-  `$create-architecture` if all MVP GDDs are complete.
+- **If PASS**: Run `$codex-game-studios:review-all-gdds` for holistic design-theory review, or
+  `$codex-game-studios:create-architecture` if all MVP GDDs are complete.
 - **If CONFLICTS FOUND**: Fix the flagged GDDs, then re-run
-  `$consistency-check` to confirm resolution.
+  `$codex-game-studios:consistency-check` to confirm resolution.
 - **If STALE REGISTRY**: Update the registry (Phase 6), then re-run to verify.
-- Run `$consistency-check` after writing each new GDD to catch issues early,
+- Run `$codex-game-studios:consistency-check` after writing each new GDD to catch issues early,
   not at architecture time.

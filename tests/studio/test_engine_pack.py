@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import types
 import unittest
 from unittest import mock
 
@@ -30,6 +31,52 @@ DEFAULT_TARGETS = {
     "unity": ("6000.1", "csharp"),
     "unreal": ("5.7", "cpp"),
 }
+
+
+class FakeWindowsDirectoryApi:
+    """Deterministic native-handle surface for engine-pack identity tests."""
+
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    FILE_SHARE_READ = 0x1
+    FILE_SHARE_WRITE = 0x2
+    FILE_SHARE_DELETE = 0x4
+
+    def __init__(self) -> None:
+        self.change_times: dict[str, int] = {}
+        self.file_ids: dict[str, int] = {}
+        self.creation_times: dict[str, int] = {}
+        self.opened: list[int] = []
+        self.closed: list[int] = []
+        self.handles: dict[int, str] = {}
+        self.fail_info = False
+        self.reparse_paths: set[str] = set()
+        self.open_calls: list[tuple[str, int, int]] = []
+
+    def open(self, path: str, *, flags: int, share: int) -> int:
+        handle = 100 + len(self.opened)
+        self.opened.append(handle)
+        self.handles[handle] = path
+        self.open_calls.append((path, flags, share))
+        return handle
+
+    def info(self, handle: int):
+        if self.fail_info:
+            raise OSError("mock GetFileInformationByHandleEx failure")
+        path = self.handles[handle]
+        return types.SimpleNamespace(
+            volume=7,
+            file_id=self.file_ids.setdefault(path, len(self.file_ids) + 1),
+            creation_time=self.creation_times.setdefault(path, 1_000),
+            change_time=self.change_times.setdefault(path, 2_000),
+            directory=True,
+            reparse=path in self.reparse_paths,
+            disk=True,
+        )
+
+    def close(self, handle: int) -> None:
+        self.closed.append(handle)
+        self.handles.pop(handle, None)
 
 
 def complete_plan(root: Path, engine: str):
@@ -768,6 +815,393 @@ class EnginePackTests(unittest.TestCase):
 
         parsed = tomllib.loads(_serialize_config(config).decode("utf-8"))
         self.assertEqual(dataclasses.asdict(config), parsed)
+
+
+class PluginNativeEnginePackTests(unittest.TestCase):
+    """Activation reads a separate trusted bundle and mutates only the target."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.target = Path(self.temp.name) / "target"
+        self.source = Path(self.temp.name) / "bundle"
+        shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", self.target)
+        shutil.copytree(ROOT / ".codex/agent-packs", self.source / ".codex/agent-packs")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_plugin_native_source_root_dry_run_apply_and_no_op_leave_bundle_immutable(self):
+        # Arrange
+        target_before = tree_bytes(self.target)
+        source_before = tree_bytes(self.source)
+
+        # Act
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+        )
+
+        # Assert
+        self.assertEqual(self.source.resolve(), plan.source_root)
+        self.assertEqual(5, len(plan.install))
+        self.assertEqual(target_before, tree_bytes(self.target))
+        self.assertEqual(source_before, tree_bytes(self.source))
+        apply_activation(self.target, plan)
+        self.assertEqual([], validate_activation(self.target, source_root=self.source))
+        self.assertFalse((self.target / ".codex/agent-packs").exists())
+        self.assertFalse((self.target / ".agents/skills").exists())
+        self.assertEqual(source_before, tree_bytes(self.source))
+        self.assertTrue(
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+            ).no_op
+        )
+
+    def test_plugin_native_external_source_rendering_and_cli_are_read_only(self):
+        # Arrange
+        before = tree_bytes(self.target)
+        script = ROOT / "tools/codex_studio/engine_pack.py"
+
+        # Act
+        result = subprocess.run(
+            [
+                sys.executable, "-B", str(script), "--root", str(self.target),
+                "--source-root", str(self.source), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--dry-run",
+            ],
+            cwd=self.target,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(5, result.stdout.count("INSTALL SOURCE .codex/agent-packs/godot/"))
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_plan_reads_only_the_selected_source_pack(self):
+        # Arrange
+        next((self.source / ".codex/agent-packs/unity").glob("*.toml")).unlink()
+        before = tree_bytes(self.target)
+
+        # Act
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+        )
+
+        # Assert
+        self.assertEqual(5, len(plan.install))
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_source_root_rejects_target_links_and_source_drift_without_target_writes(self):
+        # Arrange / Act / Assert
+        before = tree_bytes(self.target)
+        with self.assertRaisesRegex(ValueError, "must differ"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.target)
+        self.assertEqual(before, tree_bytes(self.target))
+        linked = Path(self.temp.name) / "linked-bundle"
+        linked.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "source root.*symlink"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=linked)
+        plan = plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        source = plan.install[0]
+        source.write_bytes(source.read_bytes() + b"\n# source drift\n")
+        with self.assertRaisesRegex(ValueError, "source pack changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_plan_rejects_byte_identical_source_root_substitution(self):
+        # Arrange
+        plan = plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        replacement = Path(self.temp.name) / "replacement"
+        shutil.copytree(self.source, replacement)
+        retired = Path(self.temp.name) / "retired"
+        self.source.rename(retired)
+        replacement.rename(self.source)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_plan_rejects_source_a_to_b_to_a_at_same_path(self):
+        # Arrange
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript",
+            source_root=self.source,
+        )
+        source_a = Path(self.temp.name) / "source-a"
+        source_b = Path(self.temp.name) / "source-b"
+        shutil.copytree(self.source, source_b)
+        self.source.rename(source_a)
+        source_b.rename(self.source)
+        self.source.rename(source_b)
+        source_a.rename(self.source)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_windows_change_time_rejects_source_a_to_b_to_a(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        api = FakeWindowsDirectoryApi()
+        source_key = str(self.source.resolve())
+        with mock.patch.object(
+            engine_pack, "_is_windows_platform", return_value=True
+        ), mock.patch.object(
+            engine_pack, "_NativeWindowsDirectoryApi", return_value=api
+        ):
+            plan = plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+            original_stable_identity = plan.source_root_identity[:3]
+            source_a = Path(self.temp.name) / "source-a"
+            source_b = Path(self.temp.name) / "source-b"
+            shutil.copytree(self.source, source_b)
+            self.source.rename(source_a)
+            source_b.rename(self.source)
+            self.source.rename(source_b)
+            source_a.rename(self.source)
+            api.change_times[source_key] += 1
+            before = tree_bytes(self.target)
+
+            # Act / Assert
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                apply_activation(self.target, plan)
+        self.assertEqual(
+            original_stable_identity,
+            (7, api.file_ids[source_key], api.creation_times[source_key]),
+        )
+        self.assertCountEqual(api.opened, api.closed)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_windows_directory_identity_unchanged_passes_and_closes_handle(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        api = FakeWindowsDirectoryApi()
+        with mock.patch.object(
+            engine_pack, "_is_windows_platform", return_value=True
+        ), mock.patch.object(
+            engine_pack, "_NativeWindowsDirectoryApi", return_value=api
+        ):
+            # Act
+            first = engine_pack._directory_identity(self.source, "source")
+            second = engine_pack._directory_identity(self.source, "source")
+
+        # Assert
+        self.assertEqual(first, second)
+        self.assertCountEqual(api.opened, api.closed)
+        for _path, flags, share in api.open_calls:
+            self.assertTrue(flags & api.FILE_FLAG_OPEN_REPARSE_POINT)
+            self.assertTrue(flags & api.FILE_FLAG_BACKUP_SEMANTICS)
+            self.assertEqual(
+                api.FILE_SHARE_READ | api.FILE_SHARE_WRITE | api.FILE_SHARE_DELETE,
+                share,
+            )
+
+    def test_plugin_native_windows_directory_identity_error_is_actionable_and_closes_handle(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        api = FakeWindowsDirectoryApi()
+        api.fail_info = True
+
+        # Act / Assert
+        with mock.patch.object(
+            engine_pack, "_is_windows_platform", return_value=True
+        ), mock.patch.object(
+            engine_pack, "_NativeWindowsDirectoryApi", return_value=api
+        ):
+            with self.assertRaisesRegex(
+                ValueError, "native Windows directory identity.*GetFileInformation"
+            ):
+                engine_pack._directory_identity(self.source, "source")
+        self.assertCountEqual(api.opened, api.closed)
+
+    def test_plugin_native_windows_directory_identity_rejects_reparse_handle(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        api = FakeWindowsDirectoryApi()
+        api.reparse_paths.add(str(self.source))
+
+        # Act / Assert
+        with mock.patch.object(
+            engine_pack, "_is_windows_platform", return_value=True
+        ), mock.patch.object(
+            engine_pack, "_NativeWindowsDirectoryApi", return_value=api,
+        ):
+            with self.assertRaisesRegex(ValueError, "reparse point"):
+                engine_pack._directory_identity(self.source, "source")
+        self.assertCountEqual(api.opened, api.closed)
+
+    def test_plugin_native_source_root_rejects_linked_ancestor_component(self):
+        # Arrange
+        linked_parent = Path(self.temp.name) / "linked-parent"
+        linked_parent.symlink_to(self.source.parent, target_is_directory=True)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "ancestor.*symlink|symlink.*ancestor"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=linked_parent / self.source.name,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_source_pack_replacement_during_apply_rolls_back(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript",
+            source_root=self.source,
+        )
+        pack = self.source / ".codex/agent-packs/godot"
+        replacement = Path(self.temp.name) / "replacement-pack"
+        shutil.copytree(pack, replacement)
+        retired = Path(self.temp.name) / "retired-pack"
+        before = tree_bytes(self.target)
+        original_write = engine_pack._exclusive_profile_write
+        swapped = False
+
+        def replace_after_first_profile(agents: Path, name: str, raw: bytes) -> None:
+            nonlocal swapped
+            original_write(agents, name, raw)
+            if not swapped:
+                pack.rename(retired)
+                replacement.rename(pack)
+                swapped = True
+
+        # Act / Assert
+        with mock.patch.object(
+            engine_pack, "_exclusive_profile_write",
+            side_effect=replace_after_first_profile,
+        ):
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                apply_activation(self.target, plan)
+        self.assertTrue(swapped)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_engine_switch_reads_only_current_and_selected_packs(self):
+        # Arrange
+        shutil.rmtree(self.source / ".codex/agent-packs/unreal")
+        apply_activation(
+            self.target,
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            ),
+        )
+
+        # Act
+        apply_activation(
+            self.target,
+            plan_activation(
+                self.target, "unity", version="6000.1", language="csharp",
+                source_root=self.source,
+            ),
+        )
+
+        # Assert
+        self.assertEqual([], validate_activation(self.target, source_root=self.source))
+        self.assertEqual("unity", load_studio_config(self.target).engine)
+
+    def test_plugin_native_switch_rejects_byte_identical_current_pack_replacement(self):
+        # Arrange
+        apply_activation(
+            self.target,
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            ),
+        )
+        plan = plan_activation(
+            self.target, "unity", version="6000.1", language="csharp",
+            source_root=self.source,
+        )
+        self.assertEqual(
+            ("godot", "unity"),
+            tuple(engine for engine, _identity in plan.source_pack_identities),
+        )
+        current_pack = self.source / ".codex/agent-packs/godot"
+        replacement = Path(self.temp.name) / "replacement-godot"
+        retired = Path(self.temp.name) / "retired-godot"
+        shutil.copytree(current_pack, replacement)
+        current_pack.rename(retired)
+        replacement.rename(current_pack)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "source pack identity changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_missing_canonical_profile_before_writes(self):
+        # Arrange
+        (self.source / ".codex/agent-packs/godot/godot-specialist.toml").unlink()
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "exactly five"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_arbitrary_profile_names_before_writes(self):
+        # Arrange
+        profile = self.source / ".codex/agent-packs/godot/godot-specialist.toml"
+        renamed = profile.with_name("arbitrary-profile.toml")
+        renamed.write_text(profile.read_text(encoding="utf-8").replace('name = "godot-specialist"', 'name = "arbitrary-profile"'), encoding="utf-8")
+        profile.unlink()
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "canonical five"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_unexpected_sixth_profile_before_writes(self):
+        # Arrange
+        extra = self.source / ".codex/agent-packs/godot/unexpected.toml"
+        extra.write_text('name = "unexpected"\n', encoding="utf-8")
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "exactly five"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_internal_name_mismatch_before_writes(self):
+        # Arrange
+        profile = self.source / ".codex/agent-packs/godot/godot-specialist.toml"
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                'name = "godot-specialist"', 'name = "wrong-specialist"'
+            ),
+            encoding="utf-8",
+        )
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "name must match filename"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
 
 
 class EnginePackCliTests(unittest.TestCase):

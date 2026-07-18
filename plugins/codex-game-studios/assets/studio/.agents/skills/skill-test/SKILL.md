@@ -3,6 +3,11 @@ name: skill-test
 description: "Use when Codex skill files need structural, behavioral, category, or coverage validation."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -13,11 +18,33 @@ description: "Use when Codex skill files need structural, behavioral, category, 
 
 ## Validation Boundary
 
-Validation is read-only and does not require approval. Use `.agents/skills/` as the skill root and `tools/codex_studio/validate.py` as the native static validator. Any optional result or catalog write is a separately approved complete proposed changeset.
+Validation is read-only and does not require approval. Resolve skills from the
+current task's available skill catalog and use
+`../../../tools/codex_studio/validate.py` as the native static validator. The
+bundled validator, testing framework, specs, templates, and bundled testing
+catalog are read-only. Do not search for or copy repository-local skill files to
+reconstruct the catalog. Optional evidence writes only to the project-owned
+`production/qa/skill-tests/` directory after approval.
+
+Resolve the validator path against this installed `SKILL.md` directory, not the
+project working directory, and convert both it and the catalog-resolved target
+skill to absolute paths. Invoke the actual bundled operation as:
+
+```bash
+python3.11 <absolute-bundled-studio-root>/tools/codex_studio/validate.py --skill-file <absolute-catalog-resolved-SKILL.md>
+```
+
+The bundled validator establishes its own studio root for imports. Do not add
+the target project to `PYTHONPATH` or create project-local tool copies.
+
+### Native readiness gate for `$[name]`
+
+Before invoking or routing to `$[name]`, confirm that `[name]` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $[name] is not available`, defer the handoff, do not invoke `$[name]`, do not route to `$[name]`, and do not search for or copy a repository-local skill file.
 
 # Skill Test
 
-Validates `.agents/skills/*/SKILL.md` files for structural compliance and
+Validates skill resources from the available skill catalog for structural compliance and
 behavioral correctness. No external dependencies — runs entirely within the
 existing skill/hook/template architecture.
 
@@ -25,10 +52,10 @@ existing skill/hook/template architecture.
 
 | Mode | Command | Purpose | Token Cost |
 |------|---------|---------|------------|
-| `static` | `$skill-test static [name\|all]` | Structural linter — 7 compliance checks per skill | Low (~1k/skill) |
-| `spec` | `$skill-test spec [name]` | Behavioral verifier — evaluates assertions in test spec | Medium (~5k/skill) |
-| `category` | `$skill-test category [name\|all]` | Category rubric — checks skill against its category-specific metrics | Low (~2k/skill) |
-| `audit` | `$skill-test audit` | Coverage report — skills, agent specs, last test dates | Low (~3k total) |
+| `static` | `$codex-game-studios:skill-test static [name\|all]` | Structural linter — 7 compliance checks per skill | Low (~1k/skill) |
+| `spec` | `$codex-game-studios:skill-test spec [name]` | Behavioral verifier — evaluates assertions in test spec | Medium (~5k/skill) |
+| `category` | `$codex-game-studios:skill-test category [name\|all]` | Category rubric — checks skill against its category-specific metrics | Low (~2k/skill) |
+| `audit` | `$codex-game-studios:skill-test audit` | Coverage report — skills, agent specs, last test dates | Low (~3k total) |
 
 ---
 
@@ -37,16 +64,16 @@ existing skill/hook/template architecture.
 Determine mode from the first argument:
 
 - `static [name]` → run 7 structural checks on one skill
-- `static all` → run 7 structural checks on all skills (File search `.agents/skills/*/SKILL.md`)
+- `static all` → run 7 structural checks on all skills in the available skill catalog
 - `spec [name]` → read skill + test spec, evaluate assertions
-- `category [name]` → run category-specific rubric from `Codex Studio Testing Framework/quality-rubric.md`
+- `category [name]` → run category-specific rubric from `../../../Codex Studio Testing Framework/quality-rubric.md`
 - `category all` → run category rubric for every skill that has a `category:` in catalog
 - `audit` → read catalog, list all skills and agents, show coverage
 - No argument → run `audit`
 
 If the argument is unrecognized, output usage and stop. A missing argument is not an error; it selects `audit`.
 
-For `spec`, `category`, or `audit`, first check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses `.agents/skills/` and `tools/codex_studio/validate.py` directly.
+For `spec`, `category`, or `audit`, first check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report that the native testing framework is incomplete and stop; do not invent catalog entries. Static mode remains available because it uses the available skill catalog and `../../../tools/codex_studio/validate.py` directly.
 
 ---
 
@@ -59,9 +86,12 @@ The YAML frontmatter must contain exactly `name` and `description`; `name` must 
 This static contract does not require a literal `Use when` prefix.
 
 Delegate the structural decision to `validate_skill` in
-`tools/codex_studio/validate.py` so the runtime validator remains the single
+`../../../tools/codex_studio/validate.py` so the runtime validator remains the single
 implementation of this contract and non-native interaction primitives, legacy
 paths, model metadata, and tool metadata also fail this check.
+Use the absolute-path `--skill-file` invocation defined in the Validation
+Boundary; its `Skill validation: PASS|FAIL` result and emitted issues are the
+authoritative Check 1 result.
 `validate_skill` does not judge whether the prose is trigger-oriented; that is a
 human or behavioral-spec quality review, not a structural validator rule.
 
@@ -87,7 +117,7 @@ For a writing workflow, accept either one complete approved changeset for a mult
 **FAIL** if writes occur before either appropriate approval or if the body permits unapproved scope expansion.
 ### Check 5 — Next-Step Handoff
 The skill must end with a recommended next action or follow-up path. Look for:
-- A final section mentioning another skill (e.g., `$story-done`, `$gate-check`)
+- A final section mentioning another skill (e.g., `$codex-game-studios:story-done`, `$codex-game-studios:gate-check`)
 - "Recommended next" or "next step" phrasing
 - A "Follow-Up" or "After this" section
 
@@ -142,14 +172,17 @@ Aggregate Verdict: N WARNINGS / N FAILURES
 
 ### Step 1 — Locate Files
 
-Find skill at `.agents/skills/[name]/SKILL.md`.
-Look up the spec path from `Codex Studio Testing Framework/catalog.yaml` — use the
-`spec:` field for the matching skill entry.
+Resolve `[name]` from the current task's available skill catalog.
+Look up the spec path from `../../../Codex Studio Testing Framework/catalog.yaml` — use the
+`spec:` field for the matching skill entry. Treat the catalog value as a path
+relative to the bundled studio root: ascend three levels from this skill's
+directory, then resolve every `spec:` value against the bundled studio root.
+Never resolve it against the target repository's working directory.
 
 If either is missing:
-- Missing skill: "Skill '[name]' not found in `.agents/skills/`."
+- Missing skill: "Skill '[name]' not found in the available skill catalog."
 - Missing spec path in catalog: "No spec path set for '[name]' in catalog.yaml."
-- Spec file not found at path: "Spec file missing at [path]. Run `$skill-test audit`
+- Spec file not found at path: "Spec file missing at [path]. Run `$codex-game-studios:skill-test audit`
   to see coverage gaps."
 
 ### Step 2 — Read Both Files
@@ -184,7 +217,7 @@ For **Protocol Compliance** assertions (always present):
 ```
 === Skill Spec Test: $[name] ===
 Date: [date]
-Spec: Codex Studio Testing Framework/skills/[category]/[name].md
+Spec: Codex Game Studios bundled testing spec: skills/[category]/[name].md
 
 Case 1: [Happy Path — name]
   Fixture: [summary]
@@ -206,15 +239,17 @@ Protocol Compliance:
 Overall Verdict: FAIL (1 case failed, 1 warning)
 ```
 
-### Step 5 — Offer to Write Results
+### Step 5 — Offer to Write Project Evidence
 
-Present `Codex Studio Testing Framework/results/skill-test-spec-[name]-[date].md` and `Codex Studio Testing Framework/catalog.yaml` together as one optional complete proposed changeset.
+The bundled testing catalog is read-only. Offer one optional project-owned
+evidence file at
+`production/qa/skill-tests/skill-test-spec-[name]-[date].md`. Show that exact
+path and report contents as a complete proposed changeset before writing.
 
-If yes:
-- Write results file to `Codex Studio Testing Framework/results/`
-- Update the skill's entry in `Codex Studio Testing Framework/catalog.yaml`:
-  - `last_spec: [date]`
-  - `last_spec_result: PASS|PARTIAL|FAIL`
+If approved, write only that evidence file. Record the bundled spec's stable
+source label plus `last_spec: [date]` and
+`last_spec_result: PASS|PARTIAL|FAIL` in the project evidence; never update the
+bundled catalog or testing framework.
 
 ---
 
@@ -222,12 +257,15 @@ If yes:
 
 ### Step 1 — Locate Skill and Category
 
-Find skill at `.agents/skills/[name]/SKILL.md`.
-Look up `category:` field in `Codex Studio Testing Framework/catalog.yaml`.
+Resolve `[name]` from the current task's available skill catalog.
+Look up `category:` field in `../../../Codex Studio Testing Framework/catalog.yaml`.
 
 If skill not found: "Skill '[name]' not found."
 If no `category:` field: "No category assigned for '[name]' in catalog.yaml.
-Add `category: [name]` to the skill entry first."
+The bundled catalog is read-only; category validation cannot continue." Report
+that result and stop without writing. If the user explicitly requests canonical metadata authoring,
+route it only through a verified canonical studio source checkout and its
+repository-root testing catalog; never edit or shadow the installed bundle.
 
 For `category all`: collect all skills with a `category:` field and process each.
 `category: utility` skills are evaluated against U1 (static checks pass) and U2
@@ -235,7 +273,7 @@ For `category all`: collect all skills with a `category:` field and process each
 
 ### Step 2 — Read Rubric Section
 
-Read `Codex Studio Testing Framework/quality-rubric.md`.
+Read `../../../Codex Studio Testing Framework/quality-rubric.md`.
 Extract the section matching the skill's category (e.g., `### gate`, `### team`).
 
 ### Step 3 — Read Skill
@@ -267,9 +305,12 @@ Fix: Add TD-PHASE-GATE, PR-PHASE-GATE, and AD-PHASE-GATE to the full-mode direct
      panel in Phase 3.
 ```
 
-### Step 6 — Offer to Update Catalog
+### Step 6 — Offer to Write Project Evidence
 
-Present the proposed `Codex Studio Testing Framework/catalog.yaml` metadata update (`last_category`, `last_category_result`) as an optional complete proposed changeset.
+The bundled testing catalog is read-only. Offer an optional project-owned
+`production/qa/skill-tests/skill-test-category-[name]-[date].md` evidence file
+containing `last_category` and `last_category_result`. Write only that approved
+file; never update the bundled catalog or testing framework.
 
 ---
 
@@ -277,21 +318,21 @@ Present the proposed `Codex Studio Testing Framework/catalog.yaml` metadata upda
 
 ### Step 1 — Read Catalog
 
-Read `Codex Studio Testing Framework/catalog.yaml`. If missing, note that catalog doesn't exist
+Read `../../../Codex Studio Testing Framework/catalog.yaml`. If missing, note that catalog doesn't exist
 yet (first-run state).
 
 ### Step 2 — Enumerate All Skills and Agents
 
-File search `.agents/skills/*/SKILL.md` to get the complete list of skills.
+Use the current task's available skill catalog to get the complete list of skills.
 Extract skill name from each path (directory name).
 
-Also read the `agents:` section from `Codex Studio Testing Framework/catalog.yaml` to get the
+Also read the `agents:` section from `../../../Codex Studio Testing Framework/catalog.yaml` to get the
 complete list of agents.
 
 ### Step 3 — Build Skill Coverage Table
 
 For each skill:
-- Check if a spec file exists (use the `spec:` path from catalog, or file search `Codex Studio Testing Framework/skills/*/[name].md`)
+- Check if a spec file exists (use the `spec:` path from catalog, or file search `../../../Codex Studio Testing Framework/skills/*/[name].md`)
 - Look up `last_static`, `last_static_result`, `last_spec`, `last_spec_result`,
   `last_category`, `last_category_result`, `category` from catalog (or mark as
   "never" / "—" if not in catalog)
@@ -300,7 +341,7 @@ For each skill:
 ### Step 3b — Build Agent Coverage Table
 
 For each agent in catalog's `agents:` section:
-- Check if a spec file exists (use the `spec:` path from catalog, or file search `Codex Studio Testing Framework/agents/*/[name].md`)
+- Check if a spec file exists (use the `spec:` path from catalog, or file search `../../../Codex Studio Testing Framework/agents/*/[name].md`)
 - Look up `last_spec`, `last_spec_result`, `category` from catalog
 
 ### Step 4 — Output Report
@@ -336,9 +377,9 @@ Agent coverage:  [spec count]/[discovered agent count] specs ([percentage]%)
 
 No file writes in audit mode.
 
-Offer: "Would you like to run `$skill-test static all` to check structural
-compliance across all skills? `$skill-test category all` to run category rubric
-checks? Or `$skill-test spec [name]` to run a specific behavioral test?"
+Offer: "Would you like to run `$codex-game-studios:skill-test static all` to check structural
+compliance across all skills? `$codex-game-studios:skill-test category all` to run category rubric
+checks? Or `$codex-game-studios:skill-test spec [name]` to run a specific behavioral test?"
 
 ---
 
@@ -346,13 +387,18 @@ checks? Or `$skill-test spec [name]` to run a specific behavioral test?"
 
 After any mode completes, offer contextual follow-up:
 
-- After `static [name]`: "Run `$skill-test spec [name]` to validate behavioral
+- After `static [name]`: "Run `$codex-game-studios:skill-test spec [name]` to validate behavioral
   correctness if a test spec exists."
 - After `static all` with failures: "Address NON-COMPLIANT skills first. Run
-  `$skill-test static [name]` individually for detailed remediation guidance."
-- After `spec [name]` PASS: "Update `Codex Studio Testing Framework/catalog.yaml` to record this
-  pass date. Consider running `$skill-test audit` to find the next spec gap."
-- After `spec [name]` FAIL: "Review the failing assertions and update the skill
-  or the test spec to resolve the mismatch."
-- After `audit`: "Start with the critical-priority gaps. Use the spec template
-  at `Codex Studio Testing Framework/templates/skill-test-spec.md` to create new specs."
+  `$codex-game-studios:skill-test static [name]` individually for detailed remediation guidance."
+- After `spec [name]` PASS: "Optionally record the pass under
+  `production/qa/skill-tests/`, then run `$codex-game-studios:skill-test audit` to find the next
+  spec gap."
+- After `spec [name]` FAIL: "Review the failing assertions and record the
+  mismatch in project-owned evidence. Stop without writing to the bundled skill
+  or spec. Canonical corrections require a verified canonical studio source
+  checkout and separate approved source changeset."
+- After `audit`: "Start with the critical-priority gaps. The bundled spec
+  template at `../../../Codex Studio Testing Framework/templates/skill-test-spec.md`
+  is read-only. New canonical specs require a verified canonical studio source
+  checkout; this installed workflow stops without writing to the bundle."

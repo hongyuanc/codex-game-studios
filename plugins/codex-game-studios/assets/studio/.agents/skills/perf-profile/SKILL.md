@@ -102,9 +102,9 @@ Activate this phase only if any hotspot has Fix Effort rated M or L.
 Present significant-effort items and ask the user to choose for each:
 
 - **A) Implement the optimization** (proceed with fix now or schedule it)
-- **B) Reduce feature scope** (run `$scope-check [feature]` to analyze trade-offs)
+- **B) Reduce feature scope** (run `$codex-game-studios:scope-check [feature]` to analyze trade-offs)
 - **C) Accept the performance hit and defer to Polish phase** (log as known issue)
-- **D) Escalate to technical-director for an architectural decision** (run `$architecture-decision`)
+- **D) Escalate to technical-director for an architectural decision** (run `$codex-game-studios:architecture-decision`)
 
 If multiple items are deferred to Polish (choice C), record them under `### Deferred to Polish`.
 
@@ -114,9 +114,9 @@ This skill is read-only — no files are written. Verdict: **COMPLETE** — perf
 
 ## Phase 6: Next Steps
 
-- If bottlenecks require architectural change: run `$architecture-decision`.
-- If scope reduction is needed: run `$scope-check [feature]`.
-- To schedule optimizations: run `$sprint-plan update`.
+- If bottlenecks require architectural change: run `$codex-game-studios:architecture-decision`.
+- If scope reduction is needed: run `$codex-game-studios:scope-check [feature]`.
+- To schedule optimizations: run `$codex-game-studios:sprint-plan update`.
 
 ### Rules
 - Never optimize without measuring first — gut feelings about performance are unreliable

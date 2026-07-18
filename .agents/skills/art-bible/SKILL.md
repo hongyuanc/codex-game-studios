@@ -3,6 +3,11 @@ name: art-bible
 description: Author the game's visual identity specification after the game concept is approved and before asset production begins.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -15,7 +20,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Read `design/gdd/game-concept.md`. If it does not exist, fail with:
 > "No game concept found. Run `$brainstorm` first — the art bible is authored after the game concept is approved."
@@ -194,7 +199,7 @@ AD-ART-BIBLE is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "AD-ART-BIBLE skipped — Lean mode." Proceed to Phase 6.
 - `full` → delegate normally.
 
-After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`.codex/docs/director-gates.md`).
+After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`../../../.codex/docs/director-gates.md`).
 
 Pass: art bible file path, game pillars, visual identity anchor.
 

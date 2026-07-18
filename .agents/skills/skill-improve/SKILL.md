@@ -3,6 +3,11 @@ name: skill-improve
 description: "Use when a Codex skill has validation failures or warnings that need an approved test-fix-retest cycle."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -13,7 +18,18 @@ description: "Use when a Codex skill has validation failures or warnings that ne
 
 ## Skill Edit Boundary
 
-Validation is read-only and needs no approval. Show the exact proposed edit set as a complete changeset and receive explicit approval before applying it. Preserve the original content, retest the same checks, and keep edits only when the retest score does not regress; otherwise restore the original skill without using a destructive Git command.
+Validation is read-only and needs no approval. An installed plugin skill resource is read-only. Editing a canonical Codex Game Studios
+skill requires an explicit canonical source-repository workflow: confirm the
+current repository is the studio source checkout, target its repository-root
+`.agents/skills/[name]/SKILL.md`, and obtain approval for the exact edit. Never
+edit an installed plugin cache. Preserve the original content, retest the same
+checks, and keep edits only when the retest score does not regress; otherwise
+restore the original skill without using a destructive Git command.
+
+### Native readiness gate for `$skill-test`
+
+Before invoking or routing to `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, do not route to `$skill-test`, and do not search for or copy a repository-local skill file.
 
 # Skill Improve
 
@@ -31,7 +47,8 @@ Usage: $skill-improve [skill-name]
 Example: $skill-improve tech-debt
 ```
 
-Verify `.agents/skills/[name]/SKILL.md` exists. If not, stop with:
+Confirm that `[name]` is present in the current task's available skill catalog.
+If unavailable, stop with:
 "Skill '[name]' not found."
 
 ---
@@ -53,7 +70,7 @@ If baseline is 0 FAILs and 0 WARNs, note it and proceed to Phase 2b.
 
 ### Phase 2b: Category Baseline
 
-Check whether `Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet` and skip the category baseline; static improvement remains available. If it exists, look up the skill's `category:` field there.
+Check whether `../../../Codex Studio Testing Framework/catalog.yaml` exists. If it does not, report `Staged dependency: Codex Studio Testing Framework is not migrated yet` and skip the category baseline; static improvement remains available. If it exists, look up the skill's `category:` field there.
 
 If no `category:` field is found, display:
 "Category: not yet assigned — skipping category checks."
@@ -76,7 +93,7 @@ If BOTH static and category baselines are 0 FAILs and 0 WARNs, stop:
 
 ## Phase 3: Diagnose
 
-Read the full skill file at `.agents/skills/[name]/SKILL.md`.
+Read the full skill resource resolved by `[name]` in the available skill catalog.
 
 For each failing or warning **static** check, identify the exact gap:
 
@@ -101,7 +118,16 @@ Show the full combined diagnosis to the user before proposing any changes.
 
 ## Phase 4: Propose Exact Edit Set
 
-For each failing assertion, show the smallest before/after edit. Combine these into the exact proposed edit set, list `.agents/skills/[name]/SKILL.md` as the only target, and request explicit approval before applying. If approval is declined, stop without changing the skill.
+If the resolved resource belongs to an installed plugin, report that it is
+read-only and stop after the diagnosis. Do not offer to edit, copy, or shadow it
+inside the game repository.
+
+For canonical studio-skill authoring, first enter an explicit canonical
+source-repository workflow and verify the repository-root source path
+`.agents/skills/[name]/SKILL.md`. For each failing assertion, show the smallest
+before/after edit, list that source path as the only target, and request
+explicit approval before applying. If source-repository verification fails or
+approval is declined, stop without changing the skill.
 
 ---
 

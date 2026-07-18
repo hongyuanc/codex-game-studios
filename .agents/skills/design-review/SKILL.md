@@ -3,6 +3,11 @@ name: design-review
 description: Review a game design document for completeness, consistency, implementability, and design quality.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Keep repository source artifacts read-only during analysis and cite concrete file evidence for every finding. Ask at most one user question per turn and wait for the answer. A report or tracking update may be written only after its exact changeset and paths are approved. Do not fix reviewed source artifacts unless the user separately approves the proposed fix changeset.

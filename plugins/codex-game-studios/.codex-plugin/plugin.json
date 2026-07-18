@@ -1,7 +1,7 @@
 {
   "name": "codex-game-studios",
-  "version": "1.0.0",
-  "description": "Install and manage a complete Codex-native game-development studio in a repository.",
+  "version": "2.0.0",
+  "description": "Use 73 bundled game-development skills with $codex-game-studios:start for bounded project initialization.",
   "author": {
     "name": "hongyuanc"
   },
@@ -15,11 +15,11 @@
     "unity",
     "unreal"
   ],
-  "skills": "./skills/",
+  "skills": "./assets/studio/.agents/skills/",
   "interface": {
     "displayName": "Codex Game Studios",
-    "shortDescription": "Install a complete Codex-native game studio.",
-    "longDescription": "Safely install, update, verify, repair, and remove a coordinated Codex game-development studio in Git repositories.",
+    "shortDescription": "73 bundled skills with bounded Start setup.",
+    "longDescription": "Access 73 bundled skills immediately, then run $codex-game-studios:start for bounded project-specific initialization with zero game-repository writes during plugin installation.",
     "developerName": "hongyuanc",
     "category": "Developer Tools",
     "capabilities": [
@@ -28,7 +28,7 @@
     ],
     "websiteURL": "https://github.com/hongyuanc/codex-game-studios",
     "defaultPrompt": [
-      "Use $codex-game-studios install to add the studio to this game repository."
+      "Use $codex-game-studios:start to begin in this game repository."
     ]
   }
 }

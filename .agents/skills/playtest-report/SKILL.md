@@ -3,6 +3,11 @@ name: playtest-report
 description: "Use when a playtest session needs a report template or raw notes need structured findings and design-impact analysis."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -17,7 +22,7 @@ Resolve the review mode (once, store for all gate spawns this run):
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Determine the mode:
 
@@ -125,7 +130,7 @@ Present the categorized list, then route:
 - `lean` → skip (not a PHASE-GATE). Note: "CD-PLAYTEST skipped — Lean mode." Proceed to Phase 4 (save the report).
 - `full` → spawn as normal.
 
-After categorising findings, spawn `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST** (`.codex/docs/director-gates.md`).
+After categorising findings, spawn `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the structured report content, game pillars and core fantasy (from `design/gdd/game-concept.md`), the specific hypothesis being tested.
 

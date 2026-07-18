@@ -3,6 +3,11 @@ name: create-control-manifest
 description: Generate the programmer control manifest from accepted ADRs, technical preferences, and engine rules.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Before writing, show the complete approved artifact changeset and paths once; then write that approved changeset without per-line prompts.
@@ -17,7 +22,7 @@ reference docs. Where ADRs explain *why*, the manifest tells you *what*.
 
 **Output:** `docs/architecture/control-manifest.md`
 
-**When to run:** After `$architecture-review` passes and ADRs are in Accepted
+**When to run:** After `$codex-game-studios:architecture-review` passes and ADRs are in Accepted
 status. Re-run whenever new ADRs are accepted or existing ADRs are revised.
 
 ---
@@ -36,10 +41,10 @@ status. Re-run whenever new ADRs are accepted or existing ADRs are revised.
   forbidden patterns
 
 ### Engine Reference
-- Read `docs/engine-reference/[engine]/VERSION.md` for engine + version
-- Read `docs/engine-reference/[engine]/deprecated-apis.md` — these become
+- Read `../../../docs/engine-reference/[engine]/VERSION.md` for engine + version
+- Read `../../../docs/engine-reference/[engine]/deprecated-apis.md` — these become
   forbidden API entries
-- Read `docs/engine-reference/[engine]/current-best-practices.md` if it exists
+- Read `../../../docs/engine-reference/[engine]/current-best-practices.md` if it exists
 
 Report: "Loaded [N] Accepted ADRs, engine: [name + version]."
 
@@ -135,7 +140,7 @@ instead of guessing a mode.
 - `lean` → skip. Note: "TD-MANIFEST skipped — Lean mode." Proceed to Phase 5.
 - `full` → delegate normally.
 
-Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-MANIFEST** (`.codex/docs/director-gates.md`).
+Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-MANIFEST** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the Control Manifest Preview from Phase 4 (rule counts per layer, full extracted rule list), the list of ADRs covered, engine version, and any rules sourced from technical-preferences.md or engine reference docs.
 
@@ -170,10 +175,10 @@ Format:
 > **Last Updated**: [date]
 > **Manifest Version**: [date]
 > **ADRs Covered**: [ADR-NNNN, ADR-MMMM, ...]
-> **Status**: [Active — regenerate with `$create-control-manifest update` when ADRs change]
+> **Status**: [Active — regenerate with `$codex-game-studios:create-control-manifest update` when ADRs change]
 
 `Manifest Version` is the date this manifest was generated. Story files embed
-this date when created. `$story-readiness` compares a story's embedded version
+this date when created. `$codex-game-studios:story-readiness` compares a story's embedded version
 to this field to detect stories written against stale rules. Always matches
 `Last Updated` — they are the same date, serving different consumers.
 
@@ -263,7 +268,7 @@ rule, see the referenced ADR.
 ### Forbidden APIs ([engine version])
 These APIs are deprecated or unverified for [engine + version]:
 - `[api name]` — deprecated since [version] / unverified post-cutoff
-- Source: `docs/engine-reference/[engine]/deprecated-apis.md`
+- Source: `Codex Game Studios bundled engine reference: [engine]/deprecated-apis.md`
 
 ### Cross-Cutting Constraints
 - [constraint that applies everywhere, regardless of layer]
@@ -275,7 +280,7 @@ These APIs are deprecated or unverified for [engine + version]:
 
 After writing the manifest:
 
-- If epics/stories don't exist yet: "Run `$create-epics layer: foundation` then `$create-stories [epic-slug]` — programmers
+- If epics/stories don't exist yet: "Run `$codex-game-studios:create-epics layer: foundation` then `$codex-game-studios:create-stories [epic-slug]` — programmers
   can now use this manifest when writing story implementation notes."
 - If this is a regeneration (manifest already existed): "Updated. Recommend
   notifying the team of changed rules — especially any new Forbidden entries."

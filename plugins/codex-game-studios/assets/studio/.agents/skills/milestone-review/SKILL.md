@@ -3,6 +3,11 @@ name: milestone-review
 description: "Use when a milestone checkpoint needs completeness, quality, risk, schedule, and go/no-go assessment."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -17,7 +22,7 @@ Extract the milestone name (`current` or a specific name) and resolve the review
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 ---
 
@@ -117,7 +122,7 @@ Read all sprint reports for sprints within this milestone from `production/sprin
 - `lean` → skip (not a PHASE-GATE). Note: "PR-MILESTONE skipped — Lean mode." Present the Go/No-Go section without a producer verdict.
 - `full` → spawn as normal.
 
-Before generating the Go/No-Go recommendation, spawn `producer` through Codex custom-agent delegation using gate **PR-MILESTONE** (`.codex/docs/director-gates.md`).
+Before generating the Go/No-Go recommendation, spawn `producer` through Codex custom-agent delegation using gate **PR-MILESTONE** (`../../../.codex/docs/director-gates.md`).
 
 Pass: milestone name and target date, current completion percentage, blocked story count, velocity data from sprint reports (if available), list of cut candidates.
 
@@ -155,5 +160,5 @@ If no, stop here. Verdict: **BLOCKED** — user declined write.
 
 ## Phase 5: Next Steps
 
-- Run `$gate-check` for a formal phase gate verdict if this milestone marks a development phase boundary.
-- Run `$sprint-plan` to adjust the next sprint based on the scope recommendations above.
+- Run `$codex-game-studios:gate-check` for a formal phase gate verdict if this milestone marks a development phase boundary.
+- Run `$codex-game-studios:sprint-plan` to adjust the next sprint based on the scope recommendations above.

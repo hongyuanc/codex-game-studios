@@ -3,6 +3,11 @@ name: patch-notes
 description: "Use when repository and release history must be translated into player-facing patch notes."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -36,8 +41,8 @@ If no version is provided, ask the user before proceeding.
 **If no changelog data is available** (neither `production/releases/[version]/changelog.md`
 nor a `docs/CHANGELOG.md` entry for this version exists, and git log is empty or unavailable):
 
-> "No changelog data found for [version]. Run `$changelog [version]` first to generate the
-> internal changelog, then re-run `$patch-notes [version]`."
+> "No changelog data found for [version]. Run `$codex-game-studios:changelog [version]` first to generate the
+> internal changelog, then re-run `$codex-game-studios:patch-notes [version]`."
 
 Verdict: **BLOCKED** — stop here without generating notes.
 
@@ -59,7 +64,7 @@ Verdict: **BLOCKED** — stop here without generating notes.
 
 **Template detection** — check whether a patch notes template exists:
 
-1. File search for `docs/patch-notes-template.md` and `.codex/docs/templates/release-notes.md`.
+1. File search for `docs/patch-notes-template.md` and `../../../.codex/docs/templates/release-notes.md`.
 2. If found at either location, read it and use it as the output structure for Phase 4
    instead of the built-in style templates (Brief / Detailed / Full). Fill in the
    template's sections with the categorized data.
@@ -189,5 +194,5 @@ If both approved files were written: Verdict: **SAVED** — patch notes generate
 
 If approval was declined or no file was written: Verdict: **DRAFT COMPLETE — NOT SAVED** — patch notes remain in conversation only.
 
-- Run `$release-checklist` to verify all other release gates are met before publishing.
+- Run `$codex-game-studios:release-checklist` to verify all other release gates are met before publishing.
 - Share the patch notes draft with the community-manager for tone review before posting publicly.

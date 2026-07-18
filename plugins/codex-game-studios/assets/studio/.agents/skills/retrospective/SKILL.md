@@ -3,6 +3,11 @@ name: retrospective
 description: "Use when a completed sprint or milestone needs reflection on outcomes, velocity, blockers, patterns, and next-iteration actions."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -46,7 +51,7 @@ Read the sprint or milestone plan from the appropriate location:
 
 **If the file does not exist or is empty**, output:
 
-> "No sprint data found for [sprint/milestone]. Run `$sprint-status` to generate
+> "No sprint data found for [sprint/milestone]. Run `$codex-game-studios:sprint-status` to generate
 > sprint data first, or provide the sprint details manually."
 
 Then use `request_user_input` to present two options:
@@ -214,9 +219,9 @@ Use `request_user_input`:
   - `[A] Yes — open sprint planning with retro action items and velocity delta pre-populated`
   - `[B] No — I'll reference the retrospective file manually when I'm ready`
 
-If the user selects [A]: Proceed to invoke `$sprint-plan new`, passing the retrospective file path and a summary of the action items and velocity change so the sprint planner can reference them.
+If the user selects [A]: Proceed to invoke `$codex-game-studios:sprint-plan new`, passing the retrospective file path and a summary of the action items and velocity change so the sprint planner can reference them.
 
-- If this was a milestone retrospective, run `$gate-check` to formally assess readiness for the next phase.
+- If this was a milestone retrospective, run `$codex-game-studios:gate-check` to formally assess readiness for the next phase.
 
 ### Guidelines
 

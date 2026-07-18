@@ -3,6 +3,11 @@ name: prototype
 description: Build and evaluate a throwaway concept prototype before committing to full system design.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -395,7 +400,7 @@ Vague ones make it useless.
 
 ## Phase 7: Generate Prototype Report
 
-Read `.codex/docs/templates/prototype-report.md` to get the report structure.
+Read `../../../.codex/docs/templates/prototype-report.md` to get the report structure.
 Fill in every section based on what was observed during this session. Replace all
 placeholder text with real observations — no generic filler.
 

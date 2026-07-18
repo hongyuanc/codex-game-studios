@@ -3,6 +3,11 @@ name: team-narrative
 description: "Use when story content, world lore, writing, and level narrative need coordinated development."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Narrative
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when story content, world lore, writing, and level narrative n
 
 ## Invocation
 
-Usage: `$team-narrative [narrative content] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-narrative [narrative content] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -89,8 +94,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Changeset Gate
@@ -108,6 +113,6 @@ Verdict: **BLOCKED** — [reason]
 
 ## Next Steps
 
-- Run `$design-review` on the narrative documents for consistency validation.
-- Run `$localize extract` to extract new strings for translation after dialogue is finalized.
-- Run `$dev-story` to implement dialogue triggers and narrative events in-engine.
+- Run `$codex-game-studios:design-review` on the narrative documents for consistency validation.
+- Run `$codex-game-studios:localize extract` to extract new strings for translation after dialogue is finalized.
+- Run `$codex-game-studios:dev-story` to implement dialogue triggers and narrative events in-engine.

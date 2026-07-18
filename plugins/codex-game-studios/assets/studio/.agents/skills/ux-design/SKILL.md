@@ -3,6 +3,11 @@ name: ux-design
 description: Collaboratively author a UX specification, HUD design, player journey, or interaction pattern artifact.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material UX sections. Identify the UX artifact and session-state paths before authoring; a section's explicit approval authorizes writing that section to the listed artifact, so do not ask a second per-file question. Pause again for a new design decision or scope expansion.
@@ -37,7 +42,7 @@ comes from arriving informed.
 ### 2a: Required Reads
 
 - **Game concept**: Read `design/gdd/game-concept.md` — if missing, warn:
-  > "No game concept found. Run `$brainstorm` first to establish the game's
+  > "No game concept found. Run `$codex-game-studios:brainstorm` first to establish the game's
   > foundation before designing UX."
   > Continue anyway if the user asks.
 
@@ -55,7 +60,7 @@ If the player journey file does not exist, note the gap and proceed:
 > journey session after this spec is drafted."
 
 Also add to the UX spec's Open Questions section:
-> "Player journey map not yet created. Template available at `.codex/docs/templates/player-journey.md`. Run `$ux-design` Phase 2b or create it manually to establish player context for this screen."
+> "Player journey map not yet created. Template available at `../../../.codex/docs/templates/player-journey.md`. Run `$codex-game-studios:ux-design` Phase 2b or create it manually to establish player context for this screen."
 
 ### 2c: GDD UI Requirements
 
@@ -107,7 +112,7 @@ If the section is unconfigured (`[TO BE CONFIGURED]`), ask once:
 > "Input methods aren't configured yet. What does this game target?"
 > Options: "Keyboard/Mouse only", "Gamepad only", "Both (PC + Console)", "Touch (mobile)", "All of the above"
 >
-> (Run `$setup-engine` to save this permanently so you won't be asked again.)
+> (Run `$codex-game-studios:setup-engine` to save this permanently so you won't be asked again.)
 
 Store the answer for the rest of this session. Do **not** ask again per section
 or per screen.
@@ -642,7 +647,7 @@ Walk through the ux-designer agent's standard checklist for this screen:
 - Any motion or animation that needs a reduced-motion alternative
 
 If no accessibility tier has been defined for this project, note the gap in the UX spec's Open Questions section:
-> "Accessibility tier not yet defined — consider WCAG-AA as a baseline. Run `$gate-check` to see whether this blocks any phase gates."
+> "Accessibility tier not yet defined — consider WCAG-AA as a baseline. Run `$codex-game-studios:gate-check` to see whether this blocks any phase gates."
 Then continue to the next section without stopping.
 
 ---
@@ -662,7 +667,7 @@ Note: aim to flag any element where a 40% text expansion (common in translations
 
 #### Section I: Acceptance Criteria
 
-Write at least 5 specific, testable criteria that a QA tester can verify without reading any other design document. These become the pass/fail conditions for `$story-done`.
+Write at least 5 specific, testable criteria that a QA tester can verify without reading any other design document. These become the pass/fail conditions for `$codex-game-studios:story-done`.
 
 **Format**: Use checkboxes. Each criterion must be verifiable by a human tester:
 
@@ -893,20 +898,20 @@ Update `production/session-state/active.md` with:
 
 Before presenting options, state clearly:
 
-> "This spec should be validated with `$ux-review` before it enters the
+> "This spec should be validated with `$codex-game-studios:ux-review` before it enters the
 > implementation pipeline. The Pre-Production gate requires all key screen specs
 > to have a review verdict."
 
 Then ask one concise question and wait for the answer:
-- "Run `$ux-review [filename]` now, or do something else first?"
+- "Run `$codex-game-studios:ux-review [filename]` now, or do something else first?"
   - Options:
-    - "Run `$ux-review` now — validate this spec"
+    - "Run `$codex-game-studios:ux-review` now — validate this spec"
     - "Design another screen first, then review all specs together"
     - "Update the interaction pattern library with new patterns from this spec"
     - "Stop here for this session"
 
 If the user picks "Design another screen first", add a note: "Reminder: run
-`$ux-review` on all completed specs before running `$gate-check pre-production`."
+`$codex-game-studios:ux-review` on all completed specs before running `$codex-game-studios:gate-check pre-production`."
 
 ### 6c: Cross-Link Related Specs
 
@@ -985,6 +990,6 @@ Verdict: **COMPLETE** — UX spec written and approved section by section.
 
 ## Recommended Next Steps
 
-- Run `$ux-review [filename]` to validate this spec before it enters the implementation pipeline
-- Run `$ux-design [next-screen]` to continue designing remaining screens or flows
-- Run `$gate-check pre-production` once all key screens have approved UX specs
+- Run `$codex-game-studios:ux-review [filename]` to validate this spec before it enters the implementation pipeline
+- Run `$codex-game-studios:ux-design [next-screen]` to continue designing remaining screens or flows
+- Run `$codex-game-studios:gate-check pre-production` once all key screens have approved UX specs

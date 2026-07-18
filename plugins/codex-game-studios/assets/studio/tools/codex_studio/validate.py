@@ -18,27 +18,27 @@ import tomllib
 import unicodedata
 import uuid
 
+if __package__ in {None, ""}:
+    _BUNDLED_STUDIO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+    bundled_studio_root = str(_BUNDLED_STUDIO_ROOT)
+    if bundled_studio_root not in sys.path:
+        sys.path.insert(0, bundled_studio_root)
+
+from tools.codex_studio.agent_delegation import (
+    ALLOWED_MODELS,
+    ALLOWED_REASONING_EFFORTS,
+    CORE_ROLE_NAMES,
+    ENGINE_ROLE_NAMES,
+    ROLE_FIELDS,
+    validate_delegation_skill,
+)
 from tools.codex_studio.engine_pack import load_studio_config, validate_activation
 
 
-ALLOWED_MODELS = {"gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"}
-ALLOWED_EFFORTS = {"low", "medium", "high", "xhigh"}
-REQUIRED_AGENT_FIELDS = {"name", "description", "developer_instructions", "model", "model_reasoning_effort"}
-EXPECTED_CORE_NAMES = set("""accessibility-specialist ai-programmer analytics-engineer art-director
-audio-director community-manager creative-director devops-engineer economy-designer
-engine-programmer game-designer gameplay-programmer lead-programmer level-designer
-live-ops-designer localization-lead narrative-director network-programmer
-performance-analyst producer prototyper qa-lead qa-tester release-manager
-security-engineer sound-designer systems-designer technical-artist technical-director
-tools-programmer ui-programmer ux-designer world-builder writer""".split())
-EXPECTED_PACK_NAMES = {
-    "godot": set("""godot-csharp-specialist godot-gdextension-specialist
-        godot-gdscript-specialist godot-shader-specialist godot-specialist""".split()),
-    "unity": set("""unity-addressables-specialist unity-dots-specialist
-        unity-shader-specialist unity-specialist unity-ui-specialist""".split()),
-    "unreal": set("""ue-blueprint-specialist ue-gas-specialist
-        ue-replication-specialist ue-umg-specialist unreal-specialist""".split()),
-}
+ALLOWED_EFFORTS = set(ALLOWED_REASONING_EFFORTS)
+REQUIRED_AGENT_FIELDS = set(ROLE_FIELDS)
+EXPECTED_CORE_NAMES = set(CORE_ROLE_NAMES)
+EXPECTED_PACK_NAMES = {engine: set(names) for engine, names in ENGINE_ROLE_NAMES.items()}
 EXPECTED_SKILL_NAMES = set("""adopt architecture-decision architecture-review art-bible asset-audit
 asset-spec balance-check brainstorm bug-report bug-triage changelog code-review
 consistency-check content-audit create-architecture create-control-manifest
@@ -52,6 +52,13 @@ sprint-status start story-done story-readiness team-audio team-combat team-level
 team-live-ops team-narrative team-polish team-qa team-release team-ui tech-debt
 test-evidence-review test-flakiness test-helpers test-setup ux-design ux-review
 vertical-slice""".split())
+_PLUGIN_SKILL_INVOCATION = re.compile(
+    r"(?<![A-Za-z0-9_$])\$("
+    + "|".join(
+        sorted(map(re.escape, EXPECTED_SKILL_NAMES), key=len, reverse=True)
+    )
+    + r")(?![A-Za-z0-9_-])"
+)
 # enforcement-literal-start
 FORBIDDEN_SKILL_PATTERNS = {
     r"\bAskUserQuestion\b": "Claude interaction primitive",
@@ -108,6 +115,7 @@ REQUIRED_DOCS = {
     "director-gates.md",
     "directory-structure.md",
     "hooks-reference.md",
+    "plugin-agent-delegation.md",
     "quick-start.md",
     "review-workflow.md",
     "rules-reference.md",
@@ -157,6 +165,36 @@ RUNTIME_FORBIDDEN_PATTERNS = {
 }
 MACHINE_PATH = re.compile(r"(?:/Users/|/home/|[A-Za-z]:[\\/]Users[\\/])")
 # enforcement-literal-end
+PLUGIN_SKILL_PROBE = re.compile(r"\.agents/skills/[a-z0-9-]+/SKILL\.md")
+EXPECTED_PLUGIN_SKILL_DEPENDENCIES = {
+    "bug-report": ("hotfix",),
+    "bug-triage": ("team-qa",),
+    "dev-story": ("team-qa",),
+    "help": ("[command]",),
+    "skill-improve": ("skill-test",),
+    "skill-test": ("[name]",),
+    "smoke-check": ("setup-engine",),
+    "sprint-plan": ("team-qa",),
+    "story-done": ("team-qa",),
+    "test-evidence-review": ("team-qa",),
+    "test-helpers": ("setup-engine", "skill-test"),
+    "test-setup": ("setup-engine",),
+}
+PLUGIN_SKILL_RESOURCE_CANDIDATE = re.compile(
+    r"\.codex/(?:docs/|studio\.toml)|docs/engine-reference/|"
+    r"Codex Studio Testing Framework/",
+    flags=re.IGNORECASE,
+)
+PLUGIN_SKILL_RESOURCE = re.compile(
+    r"(?<![A-Za-z0-9_./-])(?:"
+    r"\.codex/studio\.toml|"
+    r"\.codex/docs/technical-preferences\.md|"
+    r"\.\./\.\./\.\./(?:"
+    r"\.codex/docs/(?!technical-preferences\.md)[A-Za-z0-9_./*<>\[\]-]+|"
+    r"docs/engine-reference/[A-Za-z0-9_./*<>\[\]-]*|"
+    r"Codex Studio Testing Framework/[A-Za-z0-9_./*<>\[\]-]+"
+    r"))(?=$|[\s`'\"),:;\]}])"
+)
 COVERAGE_ENTRY_COUNT = 203
 COVERAGE_SOURCE_SET_SHA256 = "37580b38a3b505292d524d4432239ff571741fb9ace8787544ec6643e34feef0"
 COVERAGE_CONTRACT_SHA256 = "899296b2dbb4553303606dad787912d834bc81beba6c9e0a8bc44cf15d149cde"
@@ -338,6 +376,224 @@ def validate_skill(path: pathlib.Path) -> list[ValidationIssue]:
     for pattern, label in FORBIDDEN_SKILL_PATTERNS.items():
         if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
             issues.append(ValidationIssue("error", str(path), f"contains {label}"))
+    for message in validate_delegation_skill(path.parent.name, text):
+        issues.append(ValidationIssue("error", str(path), message))
+    return issues
+
+
+def validate_plugin_skill_catalog(
+    root: pathlib.Path, plugin: pathlib.Path
+) -> list[ValidationIssue]:
+    """Validate exact source/bundle parity and plugin-relative skill resources."""
+
+    issues: list[ValidationIssue] = []
+    source = root / ".agents/skills"
+    bundled = plugin / "assets/studio/.agents/skills"
+    for catalog, label in ((source, "source"), (bundled, "bundled")):
+        relative = _relative(root, catalog)
+        if catalog.is_symlink() or not catalog.is_dir():
+            issues.append(
+                ValidationIssue(
+                    "error", relative, f"plugin skill {label} catalog must be a regular directory"
+                )
+            )
+
+    def catalog_paths(catalog: pathlib.Path) -> dict[str, pathlib.Path]:
+        paths: dict[str, pathlib.Path] = {}
+        if not catalog.is_dir() or catalog.is_symlink():
+            return paths
+        try:
+            entries = sorted(catalog.iterdir(), key=lambda path: path.name)
+        except OSError as error:
+            issues.append(
+                ValidationIssue(
+                    "error", _relative(root, catalog), f"cannot read plugin skill catalog: {error}"
+                )
+            )
+            return paths
+        for directory in entries:
+            if directory.is_symlink():
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, directory),
+                        "plugin skill directory must not be a symlink",
+                    )
+                )
+                continue
+            if directory.is_dir():
+                paths[directory.name] = directory / "SKILL.md"
+        return paths
+
+    source_paths = catalog_paths(source)
+    bundled_paths = catalog_paths(bundled)
+    source_names = set(source_paths)
+    bundled_names = set(bundled_paths)
+    if source_names != EXPECTED_SKILL_NAMES:
+        issues.append(
+            ValidationIssue(
+                "error",
+                _relative(root, source),
+                "plugin skill source inventory differs; "
+                f"missing={sorted(EXPECTED_SKILL_NAMES - source_names)}, "
+                f"extra={sorted(source_names - EXPECTED_SKILL_NAMES)}",
+            )
+        )
+    if bundled_names != source_names:
+        issues.append(
+            ValidationIssue(
+                "error",
+                _relative(root, bundled),
+                "plugin skill bundled inventory differs; "
+                f"missing={sorted(source_names - bundled_names)}, "
+                f"extra={sorted(bundled_names - source_names)}",
+            )
+        )
+
+    for name in sorted(source_names | bundled_names):
+        source_path = source_paths.get(name)
+        bundled_path = bundled_paths.get(name)
+        if source_path is None or bundled_path is None:
+            continue
+        source_text, source_issues = _read_utf8_file(source_path, "source skill")
+        bundled_text, bundled_issues = _read_utf8_file(bundled_path, "bundled skill")
+        issues.extend(source_issues)
+        issues.extend(bundled_issues)
+        issues.extend(validate_skill(bundled_path))
+        if source_text is None or bundled_text is None:
+            continue
+        expected_bundled_text = _PLUGIN_SKILL_INVOCATION.sub(
+            lambda match: f"$codex-game-studios:{match.group(1)}", source_text
+        )
+        if expected_bundled_text != bundled_text:
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    _relative(root, bundled_path),
+                    f"bundled plugin skill differs from canonical namespace transform: {name}",
+                )
+            )
+        if PLUGIN_SKILL_PROBE.search(source_text):
+            issues.append(
+                ValidationIssue(
+                    "error",
+                    _relative(root, source_path),
+                    "skill probes a repository-local skill installation",
+                )
+            )
+        expected_dependencies = EXPECTED_PLUGIN_SKILL_DEPENDENCIES.get(name, ())
+        source_lines = source_text.splitlines()
+        for dependency in expected_dependencies:
+            heading = f"### Native readiness gate for `${dependency}`"
+            heading_lines = [
+                index for index, line in enumerate(source_lines) if line == heading
+            ]
+            actual_gate = ""
+            if len(heading_lines) == 1:
+                start = heading_lines[0] + 1
+                end = next(
+                    (
+                        index
+                        for index in range(start, len(source_lines))
+                        if source_lines[index].startswith("#")
+                    ),
+                    len(source_lines),
+                )
+                actual_gate = " ".join("\n".join(source_lines[start:end]).split())
+            expected_gate = " ".join(
+                (
+                    f"Before invoking or routing to `${dependency}`, confirm that "
+                    f"`{dependency}` is present in the current task's available skill "
+                    "catalog. If unavailable, report "
+                    f"`Staged dependency: ${dependency} is not available`, defer the "
+                    f"handoff, do not invoke `${dependency}`, do not route to "
+                    f"`${dependency}`, and do not search for or copy a repository-local "
+                    "skill file."
+                ).split()
+            )
+            if len(heading_lines) != 1 or actual_gate != expected_gate:
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        "plugin skill dependency contract is incomplete for "
+                        f"{dependency}: expected one bounded normalized fail-closed gate",
+                    )
+                )
+        valid_resources = list(PLUGIN_SKILL_RESOURCE.finditer(source_text))
+        valid_spans = [match.span() for match in valid_resources]
+        for candidate in PLUGIN_SKILL_RESOURCE_CANDIDATE.finditer(source_text):
+            if not any(start <= candidate.start() and candidate.end() <= end for start, end in valid_spans):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"invalid plugin skill resource reference near: {candidate.group()}",
+                    )
+                )
+        for code_span in re.finditer(r"`([^`\n]+)`", source_text):
+            value = code_span.group(1)
+            if not PLUGIN_SKILL_RESOURCE_CANDIDATE.search(value):
+                continue
+            if PLUGIN_SKILL_RESOURCE.fullmatch(value) is None:
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"invalid plugin skill resource token: {value}",
+                    )
+                )
+        studio = plugin / "assets/studio"
+        for resource in valid_resources:
+            token = resource.group()
+            if not token.startswith("../../../"):
+                continue
+            relative_resource = token.removeprefix("../../../")
+            normalized_resource = pathlib.PurePosixPath(relative_resource)
+            if (
+                normalized_resource.is_absolute()
+                or ".." in normalized_resource.parts
+                or normalized_resource.as_posix() != relative_resource.rstrip("/")
+            ):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource path is not lexically contained: {token}",
+                    )
+                )
+                continue
+            if any(marker in token for marker in "[]<>*"):
+                continue
+            target = studio / relative_resource
+            try:
+                resolved_studio = studio.resolve(strict=True)
+                resolved_target = target.resolve(strict=True)
+                resolved_target.relative_to(resolved_studio)
+            except (OSError, ValueError):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource target does not exist or escapes the bundle: {token}",
+                    )
+                )
+                continue
+            current = target
+            unsafe = False
+            while current != studio:
+                if current.is_symlink():
+                    unsafe = True
+                    break
+                current = current.parent
+            if unsafe or not (resolved_target.is_file() or resolved_target.is_dir()):
+                issues.append(
+                    ValidationIssue(
+                        "error",
+                        _relative(root, source_path),
+                        f"plugin skill resource target is not a regular bundled resource: {token}",
+                    )
+                )
     return issues
 
 
@@ -1074,6 +1330,9 @@ def validate_repository(root: pathlib.Path, phase: str) -> list[ValidationIssue]
     issues.extend(validate_hooks(root / ".codex/hooks.json", root=root))
     issues.extend(validate_repository_counts(root))
     issues.extend(validate_runtime_references(root, phase))
+    if phase == "final":
+        plugin = (root / "plugins/codex-game-studios").resolve()
+        issues.extend(validate_plugin_skill_catalog(root, plugin))
     return issues
 
 
@@ -1085,12 +1344,16 @@ _INSTALLED_STATE_KEYS = {
     "installed_at", "managed_paths", "decisions", "validator_version",
     "journal_status", "checksum",
 }
+_MIGRATION_STATE_KEYS = {
+    "schema_version", "plugin_version", "legacy_version",
+    "legacy_state_checksum", "preserved_paths", "migrated_at", "checksum",
+}
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
-_INSTALLED_INVENTORY_ENTRY_COUNT = 513
-_INSTALLED_INVENTORY_SHA256 = "16c37a0b341c9b60a14002b230f7cbc5fbf509feed240b571227774394fe08bd"
+_INSTALLED_INVENTORY_ENTRY_COUNT = 516
+_INSTALLED_INVENTORY_SHA256 = "4e0ebaff2597785555e34a19a8e1cb7d87b43de78d7aa148b786f7a19f823515"
 # payload-inventory-attestation:end
-_INSTALLED_VERSION = "1.0.0"
+_INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -1593,7 +1856,12 @@ def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[Va
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("installation state must be a JSON object")
-        if set(document) != _INSTALLED_STATE_KEYS:
+        schema_version = document.get("schema_version")
+        expected_keys = (
+            _MIGRATION_STATE_KEYS
+            if schema_version == 2 else _INSTALLED_STATE_KEYS
+        )
+        if set(document) != expected_keys:
             raise ValueError("installation state schema has missing or unknown fields")
         checksum = document.get("checksum")
         body = dict(document)
@@ -1604,7 +1872,35 @@ def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[Va
         complete = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
         if raw != complete:
             raise ValueError("installation state is not canonical JSON")
-        if document.get("schema_version") != 1:
+        if schema_version == 2:
+            if document.get("plugin_version") != _INSTALLED_VERSION:
+                raise ValueError("unsupported migrated plugin version")
+            if document.get("legacy_version") != "1.0.0":
+                raise ValueError("unsupported migrated legacy version")
+            legacy_state_checksum = document.get("legacy_state_checksum")
+            if not isinstance(legacy_state_checksum, str) or not _HASH.fullmatch(
+                legacy_state_checksum
+            ):
+                raise ValueError("invalid legacy state checksum")
+            migrated_at = document.get("migrated_at")
+            if not isinstance(migrated_at, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", migrated_at
+            ):
+                raise ValueError("malformed migrated_at")
+            try:
+                datetime.strptime(migrated_at, "%Y-%m-%dT%H:%M:%SZ")
+            except ValueError as error:
+                raise ValueError("malformed migrated_at") from error
+            preserved = document.get("preserved_paths")
+            if not isinstance(preserved, list):
+                raise ValueError("preserved paths are malformed")
+            normalized = [_normalize_installed_path(path) for path in preserved]
+            if normalized != sorted(normalized) or len(normalized) != len(
+                {path.casefold() for path in normalized}
+            ):
+                raise ValueError("preserved paths are unsorted or duplicated")
+            return document, []
+        if schema_version != 1:
             raise ValueError("unsupported installation state schema")
         if document.get("plugin_version") != _INSTALLED_VERSION:
             raise ValueError("unsupported installed plugin version")
@@ -1745,6 +2041,20 @@ def _validate_installed_repository_secure(root: pathlib.Path) -> tuple[list[Vali
             state, state_issues = _load_installed_state(state_raw)
             if state is None:
                 return state_issues, state_raw
+            if state.get("schema_version") == 2:
+                preserved = state["preserved_paths"]
+                assert isinstance(preserved, list)
+                for path in preserved:
+                    try:
+                        secure.kind(str(path))
+                    except OSError as error:
+                        issues.append(_installed_issue(
+                            str(path), f"recorded preserved path is unavailable: {error}"
+                        ))
+                secure.verify()
+                return sorted(
+                    issues, key=lambda issue: (issue.path, issue.message)
+                ), state_raw
             records = state["managed_paths"]
             decisions = state["decisions"]
             assert isinstance(records, list) and isinstance(decisions, list)
@@ -1851,13 +2161,98 @@ def validate_installed_repository(root: pathlib.Path) -> list[ValidationIssue]:
     return _validate_installed_repository_secure(root)[0]
 
 
+def validate_plugin_native_project(
+    target_root: pathlib.Path, *, source_root: pathlib.Path,
+) -> list[ValidationIssue]:
+    """Validate fresh plugin-native engine activation without legacy payload state."""
+
+    target_input = pathlib.Path(target_root).absolute()
+    source_input = pathlib.Path(source_root).absolute()
+    target = target_input.resolve()
+    source = source_input.resolve()
+    trusted_source = pathlib.Path(__file__).resolve().parents[2]
+    if source.resolve() != trusted_source:
+        return [_installed_issue("--source-root", "plugin-native source root must equal this validator's bundled studio root")]
+    if source.resolve() == target.resolve():
+        return [_installed_issue("--source-root", "plugin-native source root must differ from the target root")]
+    activation_issues = validate_activation(target_input, source_root=source_input)
+    if activation_issues:
+        return [_installed_issue(".codex", issue) for issue in activation_issues]
+    issues: list[ValidationIssue] = []
+    try:
+        with _SecureInstalledRoot(target) as target_secure, _SecureInstalledRoot(source) as source_secure:
+            studio = tomllib.loads(target_secure.read(".codex/studio.toml").decode("utf-8"))
+            fields = {
+                "engine", "engine_version", "language", "review_mode", "active_engine_pack", "model_policy",
+            }
+            if set(studio) != fields or any(not isinstance(studio.get(key), str) for key in fields):
+                raise ValueError("studio configuration must contain exactly six string authority fields")
+            engine = studio["engine"]
+            active_pack = studio["active_engine_pack"]
+            if engine == "unconfigured":
+                if active_pack != "none":
+                    raise ValueError("unconfigured project has an active engine pack")
+                for relative in (".codex/active-engine.json", ".codex/agents"):
+                    try:
+                        target_secure.kind(relative)
+                    except OSError:
+                        continue
+                    raise ValueError("unconfigured project retains active engine state")
+            elif engine in EXPECTED_PACK_NAMES and active_pack == engine:
+                expected_names = {f"{name}.toml" for name in EXPECTED_PACK_NAMES[engine]}
+                manifest = json.loads(target_secure.read(".codex/active-engine.json").decode("utf-8"))
+                generated = manifest.get("generated") if isinstance(manifest, dict) and manifest.get("engine") == engine else None
+                if not isinstance(generated, dict) or set(generated) != expected_names:
+                    raise ValueError("active engine manifest does not declare exactly five selected profiles")
+                source_paths = source_secure.walk_files(f".codex/agent-packs/{engine}")
+                if source_paths != {f".codex/agent-packs/{engine}/{name}" for name in expected_names}:
+                    raise ValueError("selected source engine pack does not contain exactly five expected profiles")
+                for name in sorted(expected_names):
+                    expected_hash = generated[name]
+                    if not isinstance(expected_hash, str) or not _HASH.fullmatch(expected_hash):
+                        raise ValueError(f"active engine manifest hash is invalid: {name}")
+                    active = target_secure.read(f".codex/agents/{name}")
+                    source_profile = source_secure.read(f".codex/agent-packs/{engine}/{name}")
+                    if hashlib.sha256(active).hexdigest() != expected_hash or active != source_profile:
+                        raise ValueError(f"active profile does not match selected source pack: {name}")
+            else:
+                raise ValueError("configured engine and active pack are invalid or disagree")
+            target_secure.verify()
+            source_secure.verify()
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError, json.JSONDecodeError, ValueError) as error:
+        issues.append(_installed_issue(".codex", f"plugin-native validation failed: {error}"))
+    return issues
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Codex Game Studios")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path("."))
-    parser.add_argument("--mode", choices=("source", "installed"), default="source")
+    parser.add_argument("--mode", choices=("source", "installed", "plugin-native"), default="source")
     parser.add_argument("--phase", choices=("pre-cleanup", "final"), default="final")
+    parser.add_argument("--skill-file", type=pathlib.Path)
+    parser.add_argument("--source-root", type=pathlib.Path)
     args = parser.parse_args(argv)
-    issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
+    if args.skill_file is not None:
+        if args.mode != "source" or args.source_root is not None:
+            parser.error("--skill-file cannot be combined with --mode or --source-root")
+        issues = validate_skill(args.skill_file)
+        for issue in issues:
+            print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
+        if any(issue.severity == "error" for issue in issues):
+            print("Skill validation: FAIL")
+            return 1
+        print("Skill validation: PASS")
+        return 0
+    if args.mode == "plugin-native":
+        if args.source_root is None:
+            parser.error("--mode plugin-native requires --source-root")
+        if args.phase != "final":
+            parser.error("--mode plugin-native requires --phase final")
+        issues = validate_plugin_native_project(args.root, source_root=args.source_root)
+    else:
+        if args.source_root is not None:
+            parser.error("--source-root is only valid with --mode plugin-native")
+        issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
     for issue in issues:
         print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
     if any(issue.severity == "error" for issue in issues):

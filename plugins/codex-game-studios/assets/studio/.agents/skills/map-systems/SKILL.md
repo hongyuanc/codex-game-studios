@@ -3,6 +3,11 @@ name: map-systems
 description: Decompose an approved game concept into systems, dependencies, priorities, and design order.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring. Before the initial write, present one complete proposed changeset covering the systems index and session-state create/update, then obtain approval before either write. A later creative-director revision is a separate bounded changeset. Pause again for a new design decision or scope expansion.
@@ -13,10 +18,10 @@ When this skill is invoked:
 
 Two modes:
 
-- **No argument**: `$map-systems` — Run the full decomposition workflow (Phases 1-5)
+- **No argument**: `$codex-game-studios:map-systems` — Run the full decomposition workflow (Phases 1-5)
   to create or update the systems index.
-- **`next`**: `$map-systems next` — Pick the highest-priority undesigned system
-  from the index and hand off to `$design-system` (Phase 6).
+- **`next`**: `$codex-game-studios:map-systems next` — Pick the highest-priority undesigned system
+  from the index and hand off to `$codex-game-studios:design-system` (Phase 6).
 
 Also resolve the review mode (once, store for all gate delegations this run):
 1. If `--review [full|lean|solo]` was passed → use that
@@ -24,7 +29,7 @@ Also resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 ---
 
@@ -35,7 +40,7 @@ for systems decomposition.
 
 **Required:**
 - Read `design/gdd/game-concept.md` — **fail with a clear message if missing**:
-  > "No game concept found at `design/gdd/game-concept.md`. Run `$brainstorm` first
+  > "No game concept found at `design/gdd/game-concept.md`. Run `$codex-game-studios:brainstorm` first
   > to create one, then come back to decompose it into systems."
 
 **Optional (read if they exist):**
@@ -151,7 +156,7 @@ dependencies I'm missing or that should be removed?"
 - `lean` → skip (not a PHASE-GATE). Note: "TD-SYSTEM-BOUNDARY skipped — Phase-gated mode." Proceed to priority assignment.
 - `full` → delegate normally.
 
-**After dependency mapping is approved, delegate to `technical-director` through Codex custom-agent delegation using gate TD-SYSTEM-BOUNDARY (`.codex/docs/director-gates.md`) before proceeding to priority assignment.**
+**After dependency mapping is approved, delegate to `technical-director` through Codex custom-agent delegation using gate TD-SYSTEM-BOUNDARY (`../../../.codex/docs/director-gates.md`) before proceeding to priority assignment.**
 
 Pass: the dependency map summary, layer assignments, bottleneck systems list, any circular dependency resolutions.
 
@@ -195,7 +200,7 @@ Pure technical necessity ("X depends on Y") is insufficient alone when the syste
 - `lean` → skip (not a PHASE-GATE). Note: "PR-SCOPE skipped — Phase-gated mode." Proceed to writing the systems index.
 - `full` → delegate normally.
 
-**After priorities are approved, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`.codex/docs/director-gates.md`) before writing the index.**
+**After priorities are approved, delegate to `producer` through Codex custom-agent delegation using gate PR-SCOPE (`../../../.codex/docs/director-gates.md`) before writing the index.**
 
 Pass: total system count per milestone tier, estimated implementation volume per tier (system count × average complexity), team size, stated project timeline.
 
@@ -218,7 +223,7 @@ This is the order the team should write GDDs in.
 
 ### Step 5a: Draft the Document
 
-Using the template at `.codex/docs/templates/systems-index.md`, populate the
+Using the template at `../../../.codex/docs/templates/systems-index.md`, populate the
 systems index with all data from Phases 2-4:
 - Fill the enumeration table
 - Fill the dependency map
@@ -254,7 +259,7 @@ session-state record exactly as listed. Approval covers no other path or edit.
 - `lean` → skip (not a PHASE-GATE). Note: "CD-SYSTEMS skipped — Phase-gated mode." Proceed to Phase 7 next steps.
 - `full` → delegate normally.
 
-**After the initial systems index write, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`.codex/docs/director-gates.md`).**
+**After the initial systems index write, delegate to `creative-director` through Codex custom-agent delegation using gate CD-SYSTEMS (`../../../.codex/docs/director-gates.md`).**
 
 Pass: systems index path, game pillars and core fantasy (from `design/gdd/game-concept.md`), MVP priority tier system list.
 
@@ -294,12 +299,12 @@ declined, or CD-SYSTEMS returned REJECT again.
 
 ---
 
-## Phase 6: Design Individual Systems (Handoff to $design-system)
+## Phase 6: Design Individual Systems (Handoff to $codex-game-studios:design-system)
 
 This phase is entered when:
 - The user says "yes" to designing systems after creating the index
-- The user invokes `$map-systems [system-name]`
-- The user invokes `$map-systems next`
+- The user invokes `$codex-game-studios:map-systems [system-name]`
+- The user invokes `$codex-game-studios:map-systems next`
 
 ### Step 6a: Select the System
 
@@ -312,26 +317,26 @@ This phase is entered when:
 Ask one concise question and wait for the answer for: "Start designing [system-name] now, pick a different
 system, or stop here?"
 
-### Step 6b: Hand Off to $design-system
+### Step 6b: Hand Off to $codex-game-studios:design-system
 
-Once a system is selected, invoke the `$design-system [system-name]` skill.
+Once a system is selected, invoke the `$codex-game-studios:design-system [system-name]` skill.
 
-The `$design-system` skill handles the full GDD authoring process:
+The `$codex-game-studios:design-system` skill handles the full GDD authoring process:
 - Gathers context from game concept, systems index, and dependency GDDs
 - Creates a file skeleton immediately
 - Walks through all 8 required sections one at a time (collaborative, incremental)
 - Cross-references existing docs to prevent contradictions
 - Routes to specialist agents for domain expertise
 - Writes each section to file as soon as it's approved
-- Runs `$design-review` when complete
+- Runs `$codex-game-studios:design-review` when complete
 - Updates the systems index
 
-**Do not duplicate the $design-system workflow here.** This skill owns the systems
-*index*; `$design-system` owns individual system *GDDs*.
+**Do not duplicate the $codex-game-studios:design-system workflow here.** This skill owns the systems
+*index*; `$codex-game-studios:design-system` owns individual system *GDDs*.
 
 ### Step 6c: Loop or Stop
 
-After `$design-system` completes, ask one concise question and wait for the answer:
+After `$codex-game-studios:design-system` completes, ask one concise question and wait for the answer:
 - "Continue to the next system ([next system name])?"
 - "Pick a different system?"
 - "Stop here for this session?"
@@ -345,15 +350,15 @@ If continuing, return to Step 6a.
 After the systems index is created (or after designing some systems), present next actions using one concise question, then wait for the answer:
 
 - "Systems index is written. What would you like to do next?"
-  - [A] Start designing GDDs — run `$design-system [first-system-in-order]`
-  - [B] Run `$gate-check systems-design` — triggers the CD-SYSTEMS and TD-SYSTEM-BOUNDARY gates automatically for a formal director sign-off on the system set
+  - [A] Start designing GDDs — run `$codex-game-studios:design-system [first-system-in-order]`
+  - [B] Run `$codex-game-studios:gate-check systems-design` — triggers the CD-SYSTEMS and TD-SYSTEM-BOUNDARY gates automatically for a formal director sign-off on the system set
   - [C] Stop here for this session
 
-**The gate-check option ([B]) is worth highlighting**: running `$gate-check systems-design` triggers both the CD-SYSTEMS and TD-SYSTEM-BOUNDARY gates, catching scope issues, missing systems, and boundary problems before they're locked in across many documents. It is optional but recommended for new projects.
+**The gate-check option ([B]) is worth highlighting**: running `$codex-game-studios:gate-check systems-design` triggers both the CD-SYSTEMS and TD-SYSTEM-BOUNDARY gates, catching scope issues, missing systems, and boundary problems before they're locked in across many documents. It is optional but recommended for new projects.
 
 After any individual GDD is completed:
-- "Run `$design-review design/gdd/[system].md` in a fresh session to validate quality"
-- "Run `$gate-check systems-design` when all MVP GDDs are complete"
+- "Run `$codex-game-studios:design-review design/gdd/[system].md` in a fresh session to validate quality"
+- "Run `$codex-game-studios:gate-check systems-design` when all MVP GDDs are complete"
 
 ---
 
@@ -367,12 +372,12 @@ This skill follows the collaborative design principle at every phase:
    - Phase 3: "Dependency ordering correct?"
    - Phase 4: "Priority assignments match your vision?"
    - Phase 5: "May I write the systems index?"
-   - Phase 6: "Start designing, pick different, or stop?" then hand off to `$design-system`
+   - Phase 6: "Start designing, pick different, or stop?" then hand off to `$codex-game-studios:design-system`
 3. **Approval authorizes the listed writes** — show `design/gdd/systems-index.md`
    and `production/session-state/active.md` together as one complete proposed
    changeset and ask once before either write
 4. **Incremental writing**: Update the systems index after each system is designed
-5. **Handoff**: Individual GDD authoring is owned by `$design-system`, which handles
+5. **Handoff**: Individual GDD authoring is owned by `$codex-game-studios:design-system`, which handles
    incremental section writing, cross-referencing, design review, and index updates
 6. **Session state updates**: Include each session-state create/update in the
    applicable approved changeset; never append it silently
@@ -387,13 +392,13 @@ If context reaches or exceeds 70% at any point, append this notice:
 
 > **Context is approaching the limit (≥70%).** The systems index is saved to
 > `design/gdd/systems-index.md`. Open a fresh Codex session to continue
-> designing individual GDDs — run `$map-systems next` to pick up where you left off.
+> designing individual GDDs — run `$codex-game-studios:map-systems next` to pick up where you left off.
 
 ---
 
 ## Recommended Next Steps
 
-- Run `$design-system [first-system-in-order]` to author the first GDD (use design order from the index)
-- Run `$map-systems next` to always pick the highest-priority undesigned system automatically
-- Run `$design-review design/gdd/[system].md` in a fresh session after each GDD is authored
-- Run `$gate-check pre-production` when all MVP GDDs are authored and reviewed
+- Run `$codex-game-studios:design-system [first-system-in-order]` to author the first GDD (use design order from the index)
+- Run `$codex-game-studios:map-systems next` to always pick the highest-priority undesigned system automatically
+- Run `$codex-game-studios:design-review design/gdd/[system].md` in a fresh session after each GDD is authored
+- Run `$codex-game-studios:gate-check pre-production` when all MVP GDDs are authored and reviewed

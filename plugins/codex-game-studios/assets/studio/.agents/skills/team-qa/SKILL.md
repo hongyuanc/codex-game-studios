@@ -3,6 +3,11 @@ name: team-qa
 description: "Use when a sprint or feature needs a coordinated QA strategy, test cases, execution, and sign-off package."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Qa
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when a sprint or feature needs a coordinated QA strategy, test
 
 ## Invocation
 
-Usage: `$team-qa [sprint | feature: system-name] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-qa [sprint | feature: system-name] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -67,7 +72,7 @@ Prompt the qa-lead to:
 - Identify which stories require automated test evidence vs. manual QA
 - Flag any stories with missing acceptance criteria or missing test evidence that would block QA
 - Estimate manual QA effort (number of test sessions needed)
-- **Before assessing smoke status, check for an existing smoke check report**: File search `production/qa/smoke-*.md` and read the most recently modified file (if found). If a report exists, use its verdict and findings directly — do not re-interview the user. If no report exists, note: "No prior smoke check report found — run `$smoke-check sprint` before proceeding." and set smoke check status to UNKNOWN (treat as PASS WITH WARNINGS for the purpose of continuing). Produce a smoke check verdict: **PASS** / **PASS WITH WARNINGS [list]** / **FAIL [list of failures]** / **UNKNOWN (no report found)**
+- **Before assessing smoke status, check for an existing smoke check report**: File search `production/qa/smoke-*.md` and read the most recently modified file (if found). If a report exists, use its verdict and findings directly — do not re-interview the user. If no report exists, note: "No prior smoke check report found — run `$codex-game-studios:smoke-check sprint` before proceeding." and set smoke check status to UNKNOWN (treat as PASS WITH WARNINGS for the purpose of continuing). Produce a smoke check verdict: **PASS** / **PASS WITH WARNINGS [list]** / **FAIL [list of failures]** / **UNKNOWN (no report found)**
 - Produce a strategy summary table and smoke check result:
 
   | Story | Type | Automated Required | Manual Required | Blocker? |
@@ -87,8 +92,8 @@ options:
   - "Stop — resolve blockers or smoke failures first"
 ```
 
-If smoke check **FAIL**: do not proceed to Phase 3. Surface the failures from the smoke check report and stop. The user must fix them, re-run `$smoke-check sprint`, and then re-run `$team-qa`.
-If smoke check **UNKNOWN**: surface a warning — "No smoke check report found. Recommend running `$smoke-check sprint` before QA. Proceeding with caution."
+If smoke check **FAIL**: do not proceed to Phase 3. Surface the failures from the smoke check report and stop. The user must fix them, re-run `$codex-game-studios:smoke-check sprint`, and then re-run `$codex-game-studios:team-qa`.
+If smoke check **UNKNOWN**: surface a warning — "No smoke check report found. Recommend running `$codex-game-studios:smoke-check sprint` before QA. Proceeding with caution."
 If smoke check **PASS WITH WARNINGS**: note the warnings for the sign-off report and continue.
 If blockers are present: list them explicitly. The user may choose to skip blocked stories or cancel the cycle.
 
@@ -199,9 +204,9 @@ Verdict rules:
 - **NOT APPROVED**: Any S1/S2 bugs open; or stories FAIL without documented workaround
 
 Next step guidance by verdict:
-- APPROVED: "Build is ready for the next phase. Run `$gate-check` to validate advancement."
+- APPROVED: "Build is ready for the next phase. Run `$codex-game-studios:gate-check` to validate advancement."
 - APPROVED WITH CONDITIONS: "Resolve conditions before advancing. S3/S4 bugs may be deferred to polish."
-- NOT APPROVED: "Resolve S1/S2 bugs and re-run `$team-qa` or targeted manual QA before advancing."
+- NOT APPROVED: "Resolve S1/S2 bugs and re-run `$codex-game-studios:team-qa` or targeted manual QA before advancing."
 
 Return the sign-off draft and `production/qa/qa-signoff-[sprint]-[date].md` to the parent for inclusion in the one consolidated complete changeset approval. Do not write from the delegated task.
 
@@ -227,8 +232,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Output

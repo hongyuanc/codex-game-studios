@@ -6,12 +6,46 @@ from tools.codex_studio.validate import validate_skill
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DELEGATION_MARKER = "<!-- codex-studio-delegation: governed -->"
+DELEGATION_PREFLIGHT = (
+    "Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;\n"
+    "do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree."
+)
+DELEGATION_RESOLVER = (
+    "Before default delegation, run `python3 "
+    "../../../tools/codex_studio/agent_delegation.py resolve --project-root "
+    "<project-root> --role <role>` and use only its returned role contract."
+)
+EXPECTED_DELEGATING_SKILLS = set(
+    """architecture-decision architecture-review art-bible asset-spec brainstorm
+bug-report bug-triage changelog code-review create-architecture
+create-control-manifest create-epics create-stories day-one-patch design-review
+design-system dev-story estimate gate-check hotfix launch-checklist localize
+map-systems milestone-review onboard patch-notes playtest-report
+propagate-design-change prototype qa-plan regression-suite release-checklist
+retrospective reverse-document review-all-gdds security-audit skill-improve
+skill-test smoke-check soak-test sprint-plan sprint-status story-done
+story-readiness team-audio team-combat team-level team-live-ops team-narrative
+team-polish team-qa team-release team-ui test-evidence-review test-flakiness
+test-helpers test-setup ux-design vertical-slice""".split()
+)
 NAMES = set(
     """bug-report bug-triage code-review create-epics create-stories dev-story estimate
 milestone-review playtest-report qa-plan regression-suite retrospective smoke-check
 soak-test sprint-plan sprint-status story-done story-readiness test-evidence-review
 test-flakiness test-helpers test-setup""".split()
 )
+
+
+def delegating_skill_paths():
+    """Return skills opting into the authoritative delegation marker contract."""
+
+    paths = sorted((ROOT / ".agents/skills").glob("*/SKILL.md"))
+    return tuple(
+        path
+        for path in paths
+        if DELEGATION_MARKER in path.read_text(encoding="utf-8")
+    )
 
 
 class DeliverySkillTests(unittest.TestCase):
@@ -27,6 +61,28 @@ class DeliverySkillTests(unittest.TestCase):
         )
         packaged = set(re.findall(r"\.agents/skills/([^/]+)/SKILL\.md", report))
         self.assertEqual(NAMES, packaged)
+
+    def test_authoritative_delegation_inventory_has_no_omissions(self):
+        # Arrange / Act
+        discovered = {path.parent.name for path in delegating_skill_paths()}
+
+        # Assert
+        self.assertEqual(EXPECTED_DELEGATING_SKILLS, discovered)
+
+    def test_delegating_skills_use_plugin_portable_role_protocol(self):
+        # Arrange / Act / Assert
+        for path in delegating_skill_paths():
+            with self.subTest(skill=path.parent.name):
+                self.assertEqual(
+                    1,
+                    path.read_text(encoding="utf-8").count(DELEGATION_PREFLIGHT),
+                    path,
+                )
+                self.assertEqual(
+                    1,
+                    path.read_text(encoding="utf-8").count(DELEGATION_RESOLVER),
+                    path,
+                )
 
     def test_review_mode_uses_only_canonical_studio_config(self):
         for name in sorted(NAMES):

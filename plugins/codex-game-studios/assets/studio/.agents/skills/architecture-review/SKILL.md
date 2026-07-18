@@ -3,6 +3,11 @@ name: architecture-review
 description: Review the project architecture against approved GDD requirements, ADRs, engine constraints, and traceability contracts.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and manifest-version contracts. Keep reviewed source artifacts read-only, cite repository evidence, and delegate material architecture conflicts to the `technical-director` Sol Codex custom-agent role. Ask one question per turn. Write only an approved report changeset; source fixes require separate explicit authorization.
@@ -62,10 +67,10 @@ Read all inputs appropriate to the mode:
 - `docs/architecture/architecture.md` if it exists
 
 ### Engine Reference
-- `docs/engine-reference/[engine]/VERSION.md`
-- `docs/engine-reference/[engine]/breaking-changes.md`
-- `docs/engine-reference/[engine]/deprecated-apis.md`
-- All files in `docs/engine-reference/[engine]/modules/`
+- `../../../docs/engine-reference/[engine]/VERSION.md`
+- `../../../docs/engine-reference/[engine]/breaking-changes.md`
+- `../../../docs/engine-reference/[engine]/deprecated-apis.md`
+- All files in `../../../docs/engine-reference/[engine]/modules/`
 
 ### Project Standards
 - `.codex/docs/technical-preferences.md`
@@ -409,7 +414,7 @@ Total requirements: [N]
 ### Coverage Gaps (no ADR exists)
 For each gap:
   ❌ TR-[id]: [GDD] → [system] → [requirement]
-     Suggested ADR: "$architecture-decision [suggested title]"
+     Suggested ADR: "$codex-game-studios:architecture-decision [suggested title]"
      Domain: [Physics/Rendering/etc]
      Engine Risk: [LOW/MEDIUM/HIGH]
 
@@ -486,7 +491,7 @@ RTM file format:
 # Requirements Traceability Matrix (RTM)
 
 > Last Updated: [date]
-> Mode: $architecture-review rtm
+> Mode: $codex-game-studios:architecture-review rtm
 > Coverage: [N]% full chain complete (GDD → ADR → Story → Test)
 
 ## How to read this matrix
@@ -557,7 +562,7 @@ When applicable, include any proposed 🔴 CONFLICT entries for
 `docs/consistency-failures.md` in the complete changeset:
 
 ```markdown
-### [YYYY-MM-DD] — $architecture-review — 🔴 CONFLICT
+### [YYYY-MM-DD] — $codex-game-studios:architecture-review — 🔴 CONFLICT
 **Domain**: Architecture / [specific domain e.g. State Ownership, Performance]
 **Documents involved**: [ADR-NNNN] vs [ADR-MMMM]
 **What happened**: [specific conflict — what each ADR claims]
@@ -573,7 +578,7 @@ file if missing. If the complete changeset was not approved, defer this write.
 Include this proposed append to `production/session-state/active.md` in the
 complete changeset:
 
-    ## Session Extract — $architecture-review [date]
+    ## Session Extract — $codex-game-studios:architecture-review [date]
     - Verdict: [PASS / CONCERNS / FAIL]
     - Requirements: [N] total — [X] covered, [Y] partial, [Z] gaps
     - New TR-IDs registered: [N, or "None"]
@@ -617,26 +622,26 @@ After completing the review and writing approved files, present:
 1. **Immediate actions**: List the top 3 ADRs to create (highest-impact gaps first,
    Foundation layer before Feature layer)
 2. **Pre-gate checklist**: Check whether these exist via repository file search and mark each ✅ or ❌:
-   - `tests/unit/` and `tests/integration/` directories — if ❌: run `$test-setup`
-   - `.github/workflows/tests.yml` — if ❌: run `$test-setup`
-   - `design/accessibility-requirements.md` — if ❌: run `$ux-design`
-   - `design/ux/interaction-patterns.md` — if ❌: run `$ux-design`
-   Present ❌ items as required steps before gate-check. Do not offer `$gate-check`
+   - `tests/unit/` and `tests/integration/` directories — if ❌: run `$codex-game-studios:test-setup`
+   - `.github/workflows/tests.yml` — if ❌: run `$codex-game-studios:test-setup`
+   - `design/accessibility-requirements.md` — if ❌: run `$codex-game-studios:ux-design`
+   - `design/ux/interaction-patterns.md` — if ❌: run `$codex-game-studios:ux-design`
+   Present ❌ items as required steps before gate-check. Do not offer `$codex-game-studios:gate-check`
    as an option if any item is ❌ — offer the missing skill to run instead.
-3. **Rerun trigger**: "Re-run `$architecture-review` after each new ADR is written
+3. **Rerun trigger**: "Re-run `$codex-game-studios:architecture-review` after each new ADR is written
    to verify coverage improves"
 
 Then close with one concise question, then wait for the answer tailored to the pre-gate checklist state:
 - If ADR gaps remain or any pre-gate item is ❌:
   - "Architecture review complete. What would you like to do next?"
-    - [A] Write a missing ADR — open a fresh session and run `$architecture-decision [system]`
-    - [B] Run `$test-setup` — required before gate-check (only show if test infrastructure is ❌)
-    - [C] Run `$ux-design` — required before gate-check (only show if UX/accessibility files are ❌)
+    - [A] Write a missing ADR — open a fresh session and run `$codex-game-studios:architecture-decision [system]`
+    - [B] Run `$codex-game-studios:test-setup` — required before gate-check (only show if test infrastructure is ❌)
+    - [C] Run `$codex-game-studios:ux-design` — required before gate-check (only show if UX/accessibility files are ❌)
     - [D] Stop here for this session
 - If all pre-gate checklist items are ✅ and no blocking ADR gaps remain:
   - "Architecture review complete. All pre-gate items confirmed. What would you like to do next?"
-    - [A] Run `$gate-check pre-production`
-    - [B] Write a missing ADR — open a fresh session and run `$architecture-decision [system]`
+    - [A] Run `$codex-game-studios:gate-check pre-production`
+    - [B] Write a missing ADR — open a fresh session and run `$codex-game-studios:architecture-decision [system]`
     - [C] Stop here for this session
 
 ---

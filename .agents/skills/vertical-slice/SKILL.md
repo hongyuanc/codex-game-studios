@@ -3,6 +3,11 @@ name: vertical-slice
 description: Build and evaluate a production-quality vertical slice before advancing from Pre-Production to Production.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -40,7 +45,7 @@ Resolve the review mode:
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Read the following files to understand the full design intent:
 - `AGENTS.md` — tech stack and engine
@@ -222,8 +227,9 @@ Track velocity throughout the build. Log:
 This is the most honest data you will ever have about your production rate. Do not
 skip it. It feeds directly into sprint planning.
 
-Read `.codex/docs/templates/vertical-slice-report.md` to get the report structure.
+Read `../../../.codex/docs/templates/vertical-slice-report.md` to get the report structure.
 If the template file is not found, use this fallback structure:
+```markdown
 - `## Vertical Slice Report — [Game Title] — [Date]`
 - `### Executive Summary` (PROCEED / PIVOT / STOP verdict + 2-sentence rationale)
 - `### Core Loop Validation` (what was tested, what passed, what failed)
@@ -260,7 +266,7 @@ the project — cross-reference it with sprint estimates.
 - `solo` → skip. Note: "CD-PLAYTEST skipped — Solo mode."
 - `lean` → skip (not a PHASE-GATE). Note: "CD-PLAYTEST skipped — Lean mode."
 - `full` → delegate to `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST**
-  (`.codex/docs/director-gates.md`).
+  (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full REPORT.md content, the validation question, game pillars and core
 fantasy from `design/gdd/game-concept.md`.

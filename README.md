@@ -10,39 +10,63 @@ Engine 5 are supported through mutually exclusive engine packs.
 
 ## Install the plugin
 
-Install **Codex Game Studios** once from the public Codex Plugins Directory.
-Then open each Git game repository where you want the studio and run:
+Codex Game Studios is currently distributed through this repository's plugin
+marketplace. It is not yet listed in the public Codex Plugins Directory.
+
+### Codex app
+
+1. Clone this repository and open the source repository in the Codex app.
+2. Open **Plugins**, select the **Codex Game Studios** repository marketplace,
+   and install **Codex Game Studios**.
+3. Open the game repository. Start a new Codex task so Codex loads the plugin.
+4. Run this in-Codex skill invocation (not a shell command):
 
 ```text
-$codex-game-studios install
+$codex-game-studios:start
 ```
 
-The retained manager presents a complete, digest-bound plan and changes the
-repository only after you explicitly approve that exact plan. Project
-operations use the verified embedded payload and make no network requests.
-After installation, invoke `$start`; use `$setup-engine` when you are ready to
-choose Godot, Unity, or Unreal. The selected engine itself must be installed
-separately to run or export a game.
+You can close the source repository after the plugin is installed.
 
-For prerelease testing, install the pinned GitHub marketplace release:
+### Codex CLI
+
+Install Codex Game Studios from the repository marketplace by adding it and the
+plugin from the published `main` branch:
 
 ```bash
-codex plugin marketplace add hongyuanc/codex-game-studios --ref v1.0.0-rc.1
+codex plugin marketplace add hongyuanc/codex-game-studios --ref main
 codex plugin add codex-game-studios@codex-game-studios
 ```
 
-The same retained manager remains available for repository lifecycle work:
+Start a new Codex task in the game repository after installation. Then use this
+in-Codex skill invocation, not a shell command:
 
 ```text
-$codex-game-studios update
-$codex-game-studios verify
-$codex-game-studios repair
-$codex-game-studios uninstall
+$codex-game-studios:start
 ```
 
-`verify` is read-only. Mutating operations retain plan, approval, ownership,
-recovery, and validation safeguards. Existing game content and unrelated Codex
-configuration stay project-owned.
+The plugin makes all 73 studio skills immediately available when it is installed.
+Plugin installation and skill discovery make zero writes to the game repository.
+Start first detects the project read-only, then asks for approval only when it
+needs a small project-specific state changeset (at most ten mutations). It
+never installs a project-local skill catalog or creates `.agents/skills/`.
+Codex permissions, explicit approvals, and durable project instructions remain
+the authorization boundary.
+Marketplace-installed commands use the explicit
+`$codex-game-studios:<skill>` form. Use
+`$codex-game-studios:setup-engine` after Start when you are ready to choose
+Godot, Unity, or Unreal. The selected engine itself must be installed separately
+to run or export a game.
+
+## Legacy 1.0.0 lifecycle support
+
+Fresh repositories do not use the 1.0.0 manager. If Start finds the authenticated
+schema-1 installation record at `.codex/codex-game-studios/installation.json`, it
+offers four legacy choices: verify legacy installation, repair legacy installation,
+migrate to plugin-native, or uninstall legacy installation.
+Migration, repair, and uninstall present a complete digest-bound plan and wait
+for you to explicitly approve it; verification is read-only. This compatibility help is
+available only through Start during the migration window.
+
 
 <!-- upstream-attribution-start -->
 ## Origins and attribution
@@ -69,13 +93,13 @@ community, visit the
 > **Not a thin rename.** This edition rebuilds the studio as a native Codex
 > system instead of stopping at renamed agent definitions.
 
-- **Native Codex surfaces:** durable `AGENTS.md` guidance, 73 discoverable
-  skills in `.agents/skills/`, TOML agent profiles in `.codex/agents/`, and
-  repository-owned Codex configuration.
+- **Native Codex surfaces:** 73 plugin-bundled skills, durable project guidance,
+  and small repository-owned configuration created only when needed.
 - **GPT studio routing:** the 49 roles are organized as Sol, Terra, and Luna
   profiles with explicit model, reasoning, sandbox, and delegation policies.
-- **Native workflow semantics:** all workflows use `$skill-name` invocation,
-  phase-gated collaboration, and explicit approval boundaries.
+- **Native workflow semantics:** marketplace-installed workflows use explicit
+  `$codex-game-studios:<skill>` invocations, phase-gated collaboration, and
+  approval boundaries.
 - **Hardened lifecycle hooks:** 10 Python-based Codex hook actions provide
   session continuity, gap detection, asset/skill validation, command guardrails,
   and atomic repository I/O without the former shell runtime.
@@ -91,27 +115,13 @@ community, visit the
   projects moving from the upstream template without an operational
   compatibility bridge.
 
-## Getting started
-
-1. Clone this repository.
-2. Open the project in Codex and trust the repository configuration and hooks after review.
-3. Invoke `$start`.
-4. Choose Godot, Unity, or Unreal when `$setup-engine` runs.
-
-Review [AGENTS.md](AGENTS.md), [.codex/config.toml](.codex/config.toml), and
-[.codex/hooks.json](.codex/hooks.json) before trusting the project. Hooks are
-best-effort defense-in-depth guardrails with incomplete interception. Codex
-permissions, explicit approvals, and durable instructions remain the
-authorization boundary.
-
 ## What is included
 
 | Surface | Count | Purpose |
 | --- | ---: | --- |
-| Custom agents | 49 | 34 core roles plus three inactive five-role engine packs |
-| Skills | 73 | Design, architecture, delivery, QA, operations, and release workflows |
-| Nested instructions | 11 | Directory-scoped coding and content rules |
-| Document templates | 40 | GDD, architecture, UX, production, QA, and release artifacts |
+| Studio roles | 49 | Plugin-local coordination roles and three inactive engine packs |
+| Skills | 73 | Immediately available design, architecture, delivery, QA, operations, and release workflows |
+| Plugin resources | — | Templates, guidance, and selected-engine references read on demand |
 
 The balanced model policy routes 3 Sol roles (`gpt-5.6`), 44 Terra roles
 (`gpt-5.6-terra`), and 2 Luna roles (`gpt-5.6-luna`). Only the selected
@@ -130,27 +140,25 @@ The persistent setting lives only in `.codex/studio.toml`. Its default
 consultations may be skipped, but phase-transition and other mandatory director
 gates still run.
 
-Skills use `$name` invocation syntax. Common entry points include `$brainstorm`,
-`$map-systems`, `$design-system`, `$prototype`, `$create-architecture`,
-`$create-epics`, `$create-stories`, `$dev-story`, `$story-done`, `$qa-plan`, and
-`$gate-check`. `$help` reads project state and recommends the next workflow.
+Marketplace-installed skills use `$codex-game-studios:<skill>` invocation
+syntax. Common entry points include `$codex-game-studios:brainstorm`,
+`$codex-game-studios:map-systems`, `$codex-game-studios:design-system`,
+`$codex-game-studios:prototype`, `$codex-game-studios:create-architecture`,
+`$codex-game-studios:create-epics`, `$codex-game-studios:create-stories`,
+`$codex-game-studios:dev-story`, `$codex-game-studios:story-done`,
+`$codex-game-studios:qa-plan`, and `$codex-game-studios:gate-check`.
+`$codex-game-studios:help` reads project state and recommends the next workflow.
+When working directly in this source checkout with repository-local skill
+discovery, local commands may use the `$<skill>` shorthand; do not use that
+shorthand for marketplace-installed plugin instructions.
 
 ## Repository layout
 
 ```text
-AGENTS.md                         durable project instructions
-.agents/skills/                   73 Codex skills
-.codex/agents/                   34 core profiles, plus 5 managed profiles after engine setup
-.codex/agent-packs/              inactive Godot, Unity, and Unreal packs
-.codex/hooks.json                reviewed native hook registration
-.codex/hooks/                    native Python hook runner and modules
-.codex/docs/                     studio references and 40 templates
-Codex Studio Testing Framework/  agent and skill behavioral specifications
-design/                          game design and narrative
-docs/                            architecture and project documentation
-production/                      plans, stories, QA, and release evidence
-src/                             game source
-tests/                           game and studio tests
+plugins/codex-game-studios/      installable plugin package
+plugins/.../assets/studio/       bundled skills and shared studio resources
+docs/                            repository documentation and release design
+tests/                           plugin and studio contract tests
 ```
 
 ## Validate the studio

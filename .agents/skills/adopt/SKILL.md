@@ -50,7 +50,7 @@ Then read silently before presenting anything else.
 - Count ADR files: `docs/architecture/adr-*.md`
 - Count story files: `production/epics/**/*.md` (excluding EPIC.md)
 - `.codex/docs/technical-preferences.md` — engine configured?
-- `docs/engine-reference/` — engine reference docs present?
+- `../../../docs/engine-reference/` — engine reference docs present?
 - repository file search `docs/adoption-plan-*.md` — note the filename of the most recent prior plan if any exist
 
 ### Infer phase (if no stage.txt)
@@ -155,7 +155,7 @@ For each story file found:
 | Manifest version stamp | In manifest header: `Manifest Version:` | MEDIUM — staleness checks blind |
 | Sprint status | `production/sprint-status.yaml` | MEDIUM — `$sprint-status` falls back to markdown |
 | Stage file | `production/stage.txt` | MEDIUM — phase auto-detect unreliable |
-| Engine reference | `docs/engine-reference/[engine]/VERSION.md` | HIGH — ADR engine checks blind |
+| Engine reference | `Codex Game Studios bundled engine reference: [engine]/VERSION.md` | HIGH — ADR engine checks blind |
 | Architecture traceability | `docs/architecture/architecture-traceability.md` | MEDIUM — no persistent matrix |
 
 ### 2f: Technical Preferences Audit

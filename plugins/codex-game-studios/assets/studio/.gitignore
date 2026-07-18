@@ -101,9 +101,13 @@ node_modules/
 
 # === Archives ===
 *.zip
+!plugins/codex-game-studios/assets/legacy/1.0.0/studio.zip
 *.tar.gz
 *.rar
 *.7z
+
+# === Local Development Worktrees ===
+.worktrees/
 
 # === Secrets and Environment ===
 .env

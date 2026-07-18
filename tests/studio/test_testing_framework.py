@@ -4,6 +4,7 @@ import re
 import tomllib
 import unittest
 
+from tools.codex_studio.start_initialization import validate_documentation
 from tools.codex_studio.validate import validate_skill
 
 
@@ -276,6 +277,16 @@ class TestingFrameworkTests(unittest.TestCase):
             '`review_mode = "full"`',
             '`review_mode = "phase-gated"`',
             '`review_mode = "solo"`',
+            "Initialization changeset",
+            "at most 10 unique path mutations",
+            "No writes precede approval",
+            "Forbidden roots and every descendant",
+            '`engine = "unconfigured"`',
+            '`engine_version = ""`',
+            '`language = ""`',
+            '`active_engine_pack = "none"`',
+            '`model_policy = "balanced"`',
+            "Initialization changeset replaces the separate persistent",
         )
         for token in shared_runtime_contract:
             self.assertIn(token, runtime)
@@ -290,14 +301,22 @@ class TestingFrameworkTests(unittest.TestCase):
         correspondence = (
             "exclude every nested `AGENTS.md`",
             "instruction-only files such as `.gitkeep`",
-            "missing, unreadable, or invalid TOML",
-            "Verdict: **BLOCKED**",
+            "read-only",
+            "tools.codex_studio.start_initialization",
             "engine configured, concept exists",
             "Skip onboarding entirely",
         )
         for token in correspondence:
             self.assertIn(token, runtime)
             self.assertIn(token, text)
+
+    def test_start_spec_matches_runtime_executable_initialization_contract(self):
+        # Arrange
+        runtime = (ROOT / ".agents/skills/start/SKILL.md").read_text(encoding="utf-8")
+        spec = (NEW / "skills/utility/start.md").read_text(encoding="utf-8")
+
+        # Act / Assert
+        validate_documentation(runtime, spec)
 
     def test_incremental_authoring_specs_match_runtime_section_approval(self):
         incremental = (

@@ -3,6 +3,11 @@ name: vertical-slice
 description: Build and evaluate a production-quality vertical slice before advancing from Pre-Production to Production.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -28,7 +33,7 @@ It validates:
 4. **Velocity** (how long did this take? That's your real production rate estimate.)
 
 **Earlier in the project?** If you haven't written GDDs yet and want to validate
-whether the core idea is worth designing, run `$prototype` (concept prototype) instead.
+whether the core idea is worth designing, run `$codex-game-studios:prototype` (concept prototype) instead.
 
 ---
 
@@ -40,7 +45,7 @@ Resolve the review mode:
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Read the following files to understand the full design intent:
 - `AGENTS.md` — tech stack and engine
@@ -222,8 +227,9 @@ Track velocity throughout the build. Log:
 This is the most honest data you will ever have about your production rate. Do not
 skip it. It feeds directly into sprint planning.
 
-Read `.codex/docs/templates/vertical-slice-report.md` to get the report structure.
+Read `../../../.codex/docs/templates/vertical-slice-report.md` to get the report structure.
 If the template file is not found, use this fallback structure:
+```markdown
 - `## Vertical Slice Report — [Game Title] — [Date]`
 - `### Executive Summary` (PROCEED / PIVOT / STOP verdict + 2-sentence rationale)
 - `### Core Loop Validation` (what was tested, what passed, what failed)
@@ -260,7 +266,7 @@ the project — cross-reference it with sprint estimates.
 - `solo` → skip. Note: "CD-PLAYTEST skipped — Solo mode."
 - `lean` → skip (not a PHASE-GATE). Note: "CD-PLAYTEST skipped — Lean mode."
 - `full` → delegate to `creative-director` through Codex custom-agent delegation using gate **CD-PLAYTEST**
-  (`.codex/docs/director-gates.md`).
+  (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full REPORT.md content, the validation question, game pillars and core
 fantasy from `design/gdd/game-concept.md`.
@@ -281,13 +287,13 @@ Your vertical slice validated the full game loop. The project is ready for
 Production.
 
 Recommended next steps:
-- `$create-epics layer:foundation` — plan Foundation layer epics
-- `$create-epics layer:core` — plan Core layer epics
-- `$create-stories [epic-slug]` — break each epic into implementable stories
-- `$sprint-plan` — plan the first sprint using velocity data from the slice
-- `$gate-check pre-production` — formally advance the stage to Production
+- `$codex-game-studios:create-epics layer:foundation` — plan Foundation layer epics
+- `$codex-game-studios:create-epics layer:core` — plan Core layer epics
+- `$codex-game-studios:create-stories [epic-slug]` — break each epic into implementable stories
+- `$codex-game-studios:sprint-plan` — plan the first sprint using velocity data from the slice
+- `$codex-game-studios:gate-check pre-production` — formally advance the stage to Production
 
-**Playtest note:** `$gate-check` will look for documented playtest evidence.
+**Playtest note:** `$codex-game-studios:gate-check` will look for documented playtest evidence.
 At minimum, 1 documented session with a REPORT.md showing PROCEED is required
 to pass the gate. More sessions give more reliable signal — 3+ is recommended
 before committing the full team to Production, but is not a hard gate.
@@ -304,13 +310,13 @@ Ask: "May I write this to `prototypes/[concept-name]-vertical-slice/PIVOT-NOTE.m
 
 If yes, write the file with: what worked, what failed, the specific systems or
 architecture decisions that need revision, and what the next slice should prove
-differently. When `$vertical-slice` is next run after a PIVOT, check the
+differently. When `$codex-game-studios:vertical-slice` is next run after a PIVOT, check the
 `prototypes/` directory for a `PIVOT-NOTE.md` — use it to frame the new validation
 question and inform scope decisions.
 
-- Revise affected GDDs with `$design-system [mechanic]`
-- Address architecture issues via `$architecture-decision`
-- Then re-run `$vertical-slice` to validate the revised direction
+- Revise affected GDDs with `$codex-game-studios:design-system [mechanic]`
+- Address architecture issues via `$codex-game-studios:architecture-decision`
+- Then re-run `$codex-game-studios:vertical-slice` to validate the revised direction
 
 **If KILL:**
 
@@ -335,8 +341,8 @@ Ask: "May I append this to `prototypes/GRAVEYARD.md`?" If yes, add one entry:
 - **Next time:** [one specific change for the next time a similar concept is attempted]
 ```
 
-- Return to `$brainstorm` with what you learned
-- Or run `$prototype [new-concept]` to test a new direction cheaply first
+- Return to `$codex-game-studios:brainstorm` with what you learned
+- Or run `$codex-game-studios:prototype [new-concept]` to test a new direction cheaply first
 
 ---
 

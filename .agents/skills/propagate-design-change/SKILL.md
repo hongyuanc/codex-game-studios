@@ -3,6 +3,11 @@ name: propagate-design-change
 description: Trace an approved GDD change through ADRs and architecture artifacts and report affected decisions.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and manifest-version contracts. Keep reviewed source artifacts read-only, cite repository evidence, and delegate material architecture conflicts to the `technical-director` Sol Codex custom-agent role. Ask one question per turn. Write only an approved report changeset; source fixes require separate explicit authorization.
@@ -152,7 +157,7 @@ ADRs referencing this GDD: [M]
 Review mode may vary optional review depth, but it never skips this
 material architecture conflict gate.
 
-Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`.codex/docs/director-gates.md`).
+Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full Design Change Impact Report from Phase 6 (change summary, all affected ADRs with their Still Valid / Needs Review / Likely Superseded classifications, and recommended actions).
 

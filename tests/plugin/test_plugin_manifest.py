@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import unittest
 
+from tests.plugin.docs_contract_helpers import assert_plugin_native_descriptions
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
@@ -12,52 +14,78 @@ PLUGIN = ROOT / "plugins/codex-game-studios"
 class PluginManifestTests(unittest.TestCase):
     """Verify the public plugin metadata contract."""
 
-    def test_plugin_manifest_exposes_only_native_manager_skill(self):
+    def test_plugin_manifest_exposes_complete_native_skill_catalog(self):
         # Arrange
         manifest = PLUGIN / ".codex-plugin/plugin.json"
 
         # Act
         data = json.loads(manifest.read_text(encoding="utf-8"))
+        bundled = {
+            path.parent.name
+            for path in (PLUGIN / data["skills"]).resolve().glob("*/SKILL.md")
+        }
+        canonical = {
+            path.parent.name
+            for path in (ROOT / ".agents/skills").glob("*/SKILL.md")
+        }
 
         # Assert
         self.assertEqual("codex-game-studios", data["name"])
-        self.assertEqual("1.0.0", data["version"])
-        self.assertEqual("./skills/", data["skills"])
+        self.assertEqual("2.0.0", data["version"])
+        self.assertEqual("./assets/studio/.agents/skills/", data["skills"])
+        self.assertEqual(canonical, bundled)
+        self.assertEqual(73, len(bundled))
+        self.assertFalse((PLUGIN / "skills/codex-game-studios/SKILL.md").exists())
         self.assertNotIn("hooks", data)
 
     def test_plugin_manifest_publishes_approved_metadata(self):
         # Arrange
         manifest = PLUGIN / ".codex-plugin/plugin.json"
-        expected_interface = {
-            "displayName": "Codex Game Studios",
-            "shortDescription": "Install a complete Codex-native game studio.",
-            "longDescription": (
-                "Safely install, update, verify, repair, and remove a coordinated "
-                "Codex game-development studio in Git repositories."
-            ),
-            "developerName": "hongyuanc",
-            "category": "Developer Tools",
-            "capabilities": ["Read", "Write"],
-            "websiteURL": "https://github.com/hongyuanc/codex-game-studios",
-            "defaultPrompt": [
-                "Use $codex-game-studios install to add the studio to this game repository."
-            ],
-        }
-
         # Act
         data = json.loads(manifest.read_text(encoding="utf-8"))
 
         # Assert
-        self.assertEqual(
-            "Install and manage a complete Codex-native game-development studio in a repository.",
-            data["description"],
-        )
+        assert_plugin_native_descriptions(self, data)
         self.assertEqual({"name": "hongyuanc"}, data["author"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["repository"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["homepage"])
         self.assertEqual("MIT", data["license"])
         self.assertEqual(["codex", "game-development", "godot", "unity", "unreal"], data["keywords"])
-        self.assertEqual(expected_interface, data["interface"])
+        self.assertEqual("Codex Game Studios", data["interface"]["displayName"])
+        self.assertEqual("hongyuanc", data["interface"]["developerName"])
+        self.assertEqual("Developer Tools", data["interface"]["category"])
+        self.assertEqual(["Read", "Write"], data["interface"]["capabilities"])
+        self.assertEqual(
+            "https://github.com/hongyuanc/codex-game-studios",
+            data["interface"]["websiteURL"],
+        )
+        self.assertEqual(
+            ["Use $codex-game-studios:start to begin in this game repository."],
+            data["interface"]["defaultPrompt"],
+        )
+
+    def test_plugin_manifest_rejects_legacy_lifecycle_description_field_mutants(self):
+        # Arrange
+        manifest = PLUGIN / ".codex-plugin/plugin.json"
+        original = json.loads(manifest.read_text(encoding="utf-8"))
+        fields = ("description", "shortDescription", "longDescription")
+        bad_phrases = (
+            "Installing and managing a complete repository studio.",
+            "Updating, verifying, and repairing a complete repository studio.",
+            "Migrate or uninstall a repository studio.",
+        )
+
+        # Act / Assert
+        for field in fields:
+            for phrase in bad_phrases:
+                data = json.loads(json.dumps(original))
+                target = data if field == "description" else data["interface"]
+                target[field] = phrase
+                with (
+                    self.subTest(field=field, phrase=phrase),
+                    self.assertRaises(AssertionError),
+                ):
+                    assert_plugin_native_descriptions(self, data)
 
     def test_marketplace_points_to_local_plugin(self):
         # Arrange

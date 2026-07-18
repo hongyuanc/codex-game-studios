@@ -3,6 +3,11 @@ name: sprint-plan
 description: "Use when a sprint needs creation, replanning, capacity allocation, milestone alignment, or backlog prioritization."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -12,7 +17,8 @@ description: "Use when a sprint needs creation, replanning, capacity allocation,
 
 ### Native readiness gate for `$team-qa`
 
-Before invoking `$team-qa`, validate `.agents/skills/team-qa/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $team-qa is not Codex-native yet`, defer the QA-team handoff, and do not invoke it.
+Before invoking or routing to `$team-qa`, confirm that `team-qa` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $team-qa is not available`, defer the handoff, do not invoke `$team-qa`, do not route to `$team-qa`, and do not search for or copy a repository-local skill file.
 
 ## Phase 0: Parse Arguments
 
@@ -21,7 +27,7 @@ Extract the mode argument (`new`, `update`, or `status`) and resolve the review 
 2. Else read `.codex/studio.toml` and use its `review_mode` value
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. Never use a competing persistent setting
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Review mode check**: `.codex/studio.toml` is the single persistent source. A
 `--review` value is in-memory for this run only and is never written.
@@ -202,7 +208,7 @@ stories that haven't changed, add new stories, remove dropped ones.
 - `lean` → skip (not a PHASE-GATE). Note: "PR-SPRINT skipped — Lean mode." Proceed to Phase 5 (QA plan gate).
 - `full` → spawn as normal.
 
-Before finalising the sprint plan, spawn `producer` through Codex custom-agent delegation using gate **PR-SPRINT** (`.codex/docs/director-gates.md`).
+Before finalising the sprint plan, spawn `producer` through Codex custom-agent delegation using gate **PR-SPRINT** (`../../../.codex/docs/director-gates.md`).
 
 Pass: proposed story list (titles, estimates, dependencies), total team capacity in hours/days, any carryover from the previous sprint, milestone constraints and deadline.
 

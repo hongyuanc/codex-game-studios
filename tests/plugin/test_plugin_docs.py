@@ -1,12 +1,44 @@
-"""Contract tests for plugin documentation, licensing, and manager skill."""
+"""Contract tests for plugin documentation and licensing."""
 
 from pathlib import Path
+import re
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
-SKILL = PLUGIN / "skills/codex-game-studios"
+
+
+def markdown_section(text: str, heading: str) -> str:
+    """Return one Markdown heading body through the next peer/parent heading."""
+
+    marker = re.search(rf"(?m)^(?P<level>#+) {re.escape(heading)}\s*$", text)
+    if marker is None:
+        raise AssertionError(f"missing Markdown section: {heading}")
+    level = len(marker.group("level"))
+    following = re.search(rf"(?m)^#{{1,{level}}} ", text[marker.end() :])
+    end = marker.end() + following.start() if following else len(text)
+    return text[marker.end() : end]
+
+
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
 
 
 class PluginDocumentationTests(unittest.TestCase):
@@ -56,82 +88,75 @@ class PluginDocumentationTests(unittest.TestCase):
         self.assertIn("Codex-native", attribution)
         self.assertIn("plugin", attribution)
         self.assertIn("skills", attribution)
-        self.assertIn("agents", attribution)
-        self.assertIn("hooks", attribution)
-        self.assertIn("transaction", attribution)
+        self.assertIn("bundled", attribution)
+        self.assertIn("initialization", attribution)
+        self.assertIn("migration", attribution)
         self.assertIn("not endorsed by Donchitos, Anthropic, or OpenAI", attribution)  # enforcement-literal
 
-    def test_readme_lists_every_supported_manager_operation(self):
+    def test_readme_documents_plugin_native_start_and_separate_legacy_operations(self):
         # Arrange
         readme_path = PLUGIN / "README.md"
-        operations = ("install", "update", "verify", "repair", "uninstall")
 
         # Act
         readme = readme_path.read_text(encoding="utf-8")
+        app = markdown_section(readme, "Codex app")
+        cli = markdown_section(readme, "Codex CLI")
+        fresh, legacy = readme.split("## Legacy 1.0.0 lifecycle support", maxsplit=1)
 
         # Assert
-        for operation in operations:
-            self.assertIn(f"$codex-game-studios {operation}", readme)
-        self.assertIn("Python 3.11", readme)
+        for section in (app, cli):
+            self.assertIn("repository marketplace", section)
+            self.assertIn("Start a new Codex task", section)
+            self.assertIn("in-Codex", section)
+            self.assertIn("$codex-game-studios:start", section)
+        self.assertIn("Clone", app)
+        self.assertIn("open", app.lower())
+        self.assertIn("Plugins", app)
+        self.assertNotIn("codex plugin", app)
+        self.assertIn("codex plugin marketplace add", cli)
+        self.assertIn("codex plugin add", cli)
+        self.assertIn("all 73 studio skills", fresh.lower())
+        self.assertIn("$codex-game-studios:setup-engine", fresh)
+        self.assertIn("$codex-game-studios:<skill>", fresh)
+        self.assertNotIn("Use `$setup-engine`", fresh)
+        self.assertIn("small project-specific state", fresh)
+        assert_fresh_repository_contract(self, fresh)
+        self.assertNotIn("$codex-game-studios install", readme)
+        self.assertNotIn("$codex-game-studios update", readme)
+        for operation in (
+            "verify legacy installation",
+            "repair legacy installation",
+            "migrate to plugin-native",
+            "uninstall legacy installation",
+        ):
+            self.assertNotIn(operation, fresh)
+            self.assertIn(operation, legacy)
         self.assertIn("Git repository", readme)
-        self.assertIn("no network", readme)
 
-    def test_skill_declares_only_supported_operations(self):
+    def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
         # Arrange
-        skill_path = SKILL / "SKILL.md"
-
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        self.assertIn("name: codex-game-studios", skill)
-        self.assertIn("`install|update|verify|repair|uninstall`", skill)
-        for operation in ("install", "update", "verify", "repair", "uninstall"):
-            self.assertIn(operation, skill)
-
-    def test_skill_uses_digest_bound_two_phase_cli_protocol(self):
-        # Arrange
-        skill_path = SKILL / "SKILL.md"
-
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        self.assertIn(
-            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --format json",
-            skill,
-        )
-        self.assertIn(
-            "python3 <plugin-root>/scripts/studio_manager.py <operation> --root <git-root> --approve-digest <digest> --approval-context <context> --format json",
-            skill,
-        )
-        self.assertIn("approval_context", skill)
-        self.assertIn("full action list", skill)
-        self.assertIn("exact digest", skill)
-        self.assertIn("never invent", skill)
-        self.assertIn("explicit approval", skill)
-        self.assertIn("verify", skill)
-        self.assertIn("never requests approval", skill)
-
-    def test_skill_routes_contract_conflicts_and_recovery_to_references(self):
-        # Arrange
-        skill_path = SKILL / "SKILL.md"
-        references = {
-            "references/install-contract.md": "read-only",
-            "references/conflict-policy.md": "CUSTOMIZED_MANAGED_FILE",
-            "references/recovery.md": "ROLLBACK_FAILED",
+        invalid_mutants = {
+            "cap_only": (
+                "Plugin installation and skill discovery make zero writes to the game "
+                "repository. Start asks at most ten questions. It never creates "
+                "`.agents/skills/`."
+            ),
+            "path_only": (
+                "Plugin installation and skill discovery make zero writes to the game "
+                "repository. Start uses at most ten mutations. It may create "
+                "`.agents/skills/`, but never overwrites existing files."
+            ),
+            "zero_only": (
+                "Plugin installation writes project files. The help screen makes zero "
+                "writes to the game repository. Start uses at most ten mutations. "
+                "It never creates `.agents/skills/`."
+            ),
         }
 
-        # Act
-        skill = skill_path.read_text(encoding="utf-8")
-
-        # Assert
-        for relative_path, required_text in references.items():
-            self.assertIn(relative_path, skill)
-            self.assertIn(required_text, (SKILL / relative_path).read_text(encoding="utf-8"))
-        self.assertIn("ROLLBACK_FAILED", skill)
-        self.assertIn("references/recovery.md", skill)
-
+        # Act / Assert
+        for name, mutant in invalid_mutants.items():
+            with self.subTest(mutant=name), self.assertRaises(AssertionError):
+                assert_fresh_repository_contract(self, mutant)
 
 if __name__ == "__main__":
     unittest.main()

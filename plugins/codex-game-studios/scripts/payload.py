@@ -63,6 +63,48 @@ _ATTESTATION_PATTERN = re.compile(
     rb'_INSTALLED_INVENTORY_SHA256 = "[0-9a-f]{64}"\n'
     rb"# payload-inventory-attestation:end\n"
 )
+_CANONICAL_SKILL_PATH = re.compile(
+    r"\.agents/skills/(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)/SKILL\.md"
+)
+_SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+_PLUGIN_SKILL_NAMESPACE = b"$codex-game-studios:"
+
+
+def approved_skill_names(policy: dict[str, object]) -> tuple[str, ...]:
+    """Derive the closed skill-name set from exact approved canonical entries."""
+
+    approved = policy.get("approved_sources")
+    if not isinstance(approved, list):
+        raise PayloadError("invalid payload policy approved sources")
+    names: set[str] = set()
+    for item in approved:
+        if not isinstance(item, dict):
+            continue
+        source = item.get("source")
+        target = item.get("target")
+        if not isinstance(source, str) or target != source:
+            continue
+        match = _CANONICAL_SKILL_PATH.fullmatch(source)
+        if match is not None:
+            names.add(match.group("name"))
+    return tuple(sorted(names))
+
+
+def namespace_skill_invocations(
+    source: bytes, skill_names: Iterable[str]
+) -> bytes:
+    """Namespace exact known skill invocations for an installed plugin skill."""
+
+    names = tuple(sorted(set(skill_names), key=lambda value: (-len(value), value)))
+    if any(_SKILL_NAME.fullmatch(name) is None for name in names):
+        raise PayloadError("invalid approved skill name")
+    if not names:
+        return source
+    alternatives = b"|".join(re.escape(name.encode("ascii")) for name in names)
+    pattern = re.compile(
+        rb"(?<![A-Za-z0-9_$])\$(" + alternatives + rb")(?![A-Za-z0-9_-])"
+    )
+    return pattern.sub(lambda match: _PLUGIN_SKILL_NAMESPACE + match.group(1), source)
 
 
 def _entry_dict(entry: PayloadEntry) -> dict[str, object]:
@@ -494,6 +536,7 @@ def _materialize(
         raise PayloadError("plugin, policy, and payload versions must be equal")
     _validate_source_inventory(source_root, policy)
     _verify_license_sources(source_root, policy)
+    skill_names = approved_skill_names(policy)
     studio = destination_assets / "studio"
     studio.mkdir(mode=0o755)
     copy_file_secure(plugin_root, "assets/payload-policy.json", destination_assets, "payload-policy.json", 0o644)
@@ -508,7 +551,21 @@ def _materialize(
             parent = parent.parent
         _, source_stat = inspect_secure(source_root, item["source"], expect="file")
         mode = 0o755 if stat.S_IMODE(source_stat.st_mode) & 0o111 else 0o644
-        digest = copy_file_secure(source_root, item["source"], studio, target, mode)
+        skill_match = _CANONICAL_SKILL_PATH.fullmatch(item["source"])
+        if (
+            skill_match is not None
+            and target == item["source"]
+            and skill_match.group("name") in skill_names
+        ):
+            rendered = namespace_skill_invocations(
+                read_file_secure(source_root, item["source"]), skill_names
+            )
+            write_file_secure(studio, target, rendered, mode)
+            digest = hashlib.sha256(rendered).hexdigest()
+        else:
+            digest = copy_file_secure(
+                source_root, item["source"], studio, target, mode
+            )
         entries.append(
             PayloadEntry(target, "file", mode, digest, item["ownership"], item["merge"], item["required"])
         )
@@ -670,6 +727,91 @@ def _tree_fingerprint(root: pathlib.Path) -> dict[str, tuple[str, int, str | Non
     return result
 
 
+_LEGACY_CAPSULE_INVENTORY = {
+    "1.0.0": ("directory", 0o755),
+    "1.0.0/payload-manifest.json": ("file", 0o644),
+    "1.0.0/studio.zip": ("file", 0o644),
+}
+_LEGACY_CAPSULE_VERIFIER: tuple[type[Exception], object] | None = None
+
+
+def _operational_assets_fingerprint(
+    root: pathlib.Path,
+) -> dict[str, tuple[str, int, str | None]]:
+    """Fingerprint current payload files, excluding only the legacy capsule root."""
+
+    return {
+        path: value
+        for path, value in _tree_fingerprint(root).items()
+        if path != "legacy" and not path.startswith("legacy/")
+    }
+
+
+def _preserve_authenticated_legacy_capsule(
+    plugin: pathlib.Path, staged_assets: pathlib.Path
+) -> bool:
+    """Authenticate and copy only the exact supported immutable legacy capsule."""
+
+    legacy = plugin / "assets/legacy"
+    try:
+        legacy.lstat()
+    except FileNotFoundError:
+        return False
+    try:
+        if _safe_type(legacy)[0] != "directory":
+            raise PayloadError("legacy payload root is not a directory")
+        inventory = walk_tree_secure(legacy)
+    except (OSError, PayloadError) as error:
+        raise PayloadError("legacy payload inventory is unsafe") from error
+    observed = {path: entry_type for path, (entry_type, _mode) in inventory.items()}
+    expected = {
+        path: entry_type
+        for path, (entry_type, _mode) in _LEGACY_CAPSULE_INVENTORY.items()
+    }
+    if observed != expected:
+        raise PayloadError(
+            "legacy payload inventory mismatch: "
+            f"expected={sorted(expected)}, actual={sorted(observed)}"
+        )
+    for path, (_entry_type, expected_mode) in _LEGACY_CAPSULE_INVENTORY.items():
+        if not mode_matches(inventory[path][1], expected_mode):
+            raise PayloadError(f"legacy payload mode mismatch: {path}")
+
+    # Import locally because legacy_payload consumes this module's canonical
+    # manifest parser and snapshot verifier.
+    if _LEGACY_CAPSULE_VERIFIER is None:
+        from legacy_payload import LegacyPayloadError, verified_legacy_snapshot
+    else:
+        LegacyPayloadError, verified_legacy_snapshot = _LEGACY_CAPSULE_VERIFIER
+
+    try:
+        with verified_legacy_snapshot(plugin, "1.0.0"):
+            pass
+    except LegacyPayloadError as error:
+        raise PayloadError(f"legacy payload authentication failed: {error}") from error
+
+    staged_legacy = staged_assets / "legacy"
+    staged_version = staged_legacy / "1.0.0"
+    staged_legacy.mkdir(mode=0o755)
+    staged_version.mkdir(mode=0o755)
+    for name in ("payload-manifest.json", "studio.zip"):
+        copy_file_secure(
+            plugin,
+            f"assets/legacy/1.0.0/{name}",
+            staged_assets,
+            f"legacy/1.0.0/{name}",
+            0o644,
+        )
+    try:
+        with verified_legacy_snapshot(staged_assets.parent, "1.0.0"):
+            pass
+    except LegacyPayloadError as error:
+        raise PayloadError(
+            f"staged legacy payload authentication failed: {error}"
+        ) from error
+    return True
+
+
 def build_payload(
     source_root: pathlib.Path | str,
     plugin_root: pathlib.Path | str,
@@ -697,9 +839,15 @@ def build_payload(
         staged_issues = verify_payload(staged_plugin)
         if staged_issues:
             raise PayloadError("staged payload failed public verification: " + "; ".join(staged_issues))
+        _preserve_authenticated_legacy_capsule(plugin, staged_assets)
         if check:
             current_issues = verify_payload(plugin)
-            if current_issues or not assets.is_dir() or _tree_fingerprint(staged_assets) != _tree_fingerprint(assets):
+            if (
+                current_issues
+                or not assets.is_dir()
+                or _operational_assets_fingerprint(staged_assets)
+                != _operational_assets_fingerprint(assets)
+            ):
                 raise PayloadError("Codex Game Studios payload is stale")
             return manifest
         backup = pathlib.Path(temporary) / "previous-assets"

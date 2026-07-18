@@ -3,6 +3,11 @@ name: create-architecture
 description: Author the master technical architecture from approved design requirements and engine constraints.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and control-manifest version contracts. Ask at most one user question per turn and wait for the answer. Delegate material architecture choices or conflicts to the `technical-director` Sol Codex custom-agent role. Each displayed and approved section is its bounded changeset and may be written immediately to the already identified architecture path without per-file or per-line reapproval. Multi-file or non-section changes still require one complete proposed changeset listing every path and material edit before approval.
@@ -14,7 +19,7 @@ This skill produces `docs/architecture/architecture.md` — the master architect
 document that translates all approved GDDs into a concrete technical blueprint.
 It sits between design and implementation, and must exist before sprint planning begins.
 
-**Distinct from `$architecture-decision`**: ADRs record individual point decisions.
+**Distinct from `$codex-game-studios:architecture-decision`**: ADRs record individual point decisions.
 This skill creates the whole-system blueprint that gives ADRs their context.
 
 Resolve the review mode (once, store for all gate delegations this run):
@@ -23,7 +28,7 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 **Argument modes:**
 - **No argument / `full`**: Full guided walkthrough — all sections, start to finish
@@ -42,19 +47,19 @@ Before anything else, load the full project context in this order:
 
 Read the engine reference library completely:
 
-1. `docs/engine-reference/[engine]/VERSION.md`
+1. `../../../docs/engine-reference/[engine]/VERSION.md`
    → Extract: engine name, version, LLM cutoff, post-cutoff risk levels
-2. `docs/engine-reference/[engine]/breaking-changes.md`
+2. `../../../docs/engine-reference/[engine]/breaking-changes.md`
    → Extract: all HIGH and MEDIUM risk changes
-3. `docs/engine-reference/[engine]/deprecated-apis.md`
+3. `../../../docs/engine-reference/[engine]/deprecated-apis.md`
    → Extract: APIs to avoid
-4. `docs/engine-reference/[engine]/current-best-practices.md`
+4. `../../../docs/engine-reference/[engine]/current-best-practices.md`
    → Extract: post-cutoff best practices that differ from training data
-5. All files in `docs/engine-reference/[engine]/modules/`
+5. All files in `../../../docs/engine-reference/[engine]/modules/`
    → Extract: current API patterns per domain
 
 If no engine is configured, stop and prompt:
-> "No engine is configured. Run `$setup-engine` first. Architecture cannot be
+> "No engine is configured. Run `$codex-game-studios:setup-engine` first. Architecture cannot be
 > written without knowing which engine and version you are targeting."
 
 ### 0b. Design Context + Technical Requirements Extraction
@@ -179,7 +184,7 @@ relevant module reference doc. If an API is post-cutoff, flag it:
 
 ```
 ⚠️  [ClassName.method()] — Godot 4.6 (post-cutoff, HIGH risk)
-    Verified against: docs/engine-reference/godot/modules/[domain].md
+    Verified against: Codex Game Studios bundled engine reference: godot/modules/[domain].md
     Behaviour confirmed: [yes / NEEDS VERIFICATION]
 ```
 
@@ -263,10 +268,10 @@ not yet have a corresponding ADR, PLUS all uncovered Technical Requirements.
 Group by layer — Foundation first:
 
 **Foundation Layer (must create before any coding):**
-- `$architecture-decision [title]` → covers: TR-[id], TR-[id]
+- `$codex-game-studios:architecture-decision [title]` → covers: TR-[id], TR-[id]
 
 **Core Layer:**
-- `$architecture-decision [title]` → covers: TR-[id]
+- `$codex-game-studios:architecture-decision [title]` → covers: TR-[id]
 
 ---
 
@@ -354,7 +359,7 @@ After finalizing the assembled master architecture document, perform an explicit
 TD-ARCHITECTURE is mandatory in full, lean, and solo modes. Delegate it after
 Phase 7 regardless of optional-review depth.
 
-Delegate the completed architecture to the `technical-director` Sol Codex custom-agent role using gate **TD-ARCHITECTURE** (`.codex/docs/director-gates.md`). Require an evidence-backed verdict against all four gate criteria before proceeding.
+Delegate the completed architecture to the `technical-director` Sol Codex custom-agent role using gate **TD-ARCHITECTURE** (`../../../.codex/docs/director-gates.md`). Require an evidence-backed verdict against all four gate criteria before proceeding.
 
 **Review mode check** — apply before delegating to LP-FEASIBILITY:
 LP-FEASIBILITY is optional and runs only in full mode.
@@ -362,7 +367,7 @@ LP-FEASIBILITY is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "LP-FEASIBILITY skipped — Lean mode." Proceed to Phase 8 handoff.
 - `full` → delegate normally.
 
-**Step 2 — Delegate to `lead-programmer` through Codex custom-agent delegation using gate LP-FEASIBILITY (`.codex/docs/director-gates.md`):**
+**Step 2 — Delegate to `lead-programmer` through Codex custom-agent delegation using gate LP-FEASIBILITY (`../../../.codex/docs/director-gates.md`):**
 
 Pass: architecture document path, technical requirements baseline summary, ADR list.
 
@@ -405,13 +410,13 @@ Show the proposed Document Status block inline, then ask one concise question an
 
 ## Run These ADRs Next
 
-**1. `$architecture-decision "[Title]"` → ADR-[XXXX]**
+**1. `$codex-game-studios:architecture-decision "[Title]"` → ADR-[XXXX]**
 [One sentence: what it defines and what it unblocks.]
 
-**2. `$architecture-decision "[Title]"` → ADR-[XXXX]**
+**2. `$codex-game-studios:architecture-decision "[Title]"` → ADR-[XXXX]**
 [One sentence.]
 
-**3. `$architecture-decision "[Title]"` → ADR-[XXXX]**
+**3. `$codex-game-studios:architecture-decision "[Title]"` → ADR-[XXXX]**
 [One sentence.]
 
 List top 3 from Phase 6 in priority order. If fewer than 3 remain, list only what's outstanding.
@@ -420,16 +425,16 @@ List top 3 from Phase 6 in priority order. If fewer than 3 remain, list only wha
 
 ## Gate-Check Readiness
 
-> **Required before `$gate-check [stage]`:**
+> **Required before `$codex-game-studios:gate-check [stage]`:**
 > - [ ] Accept ADRs: [list Proposed ADR IDs that must be Accepted]
 > - [ ] Write ADRs: [list ADR IDs that must still be written]
-> - [ ] Run `$test-setup` — scaffolds `tests/unit/`, `tests/integration/`, CI workflow, and an example test file
-> - [ ] Run `$ux-design` — creates `design/ux/interaction-patterns.md` and `design/accessibility-requirements.md`
+> - [ ] Run `$codex-game-studios:test-setup` — scaffolds `tests/unit/`, `tests/integration/`, CI workflow, and an example test file
+> - [ ] Run `$codex-game-studios:ux-design` — creates `design/ux/interaction-patterns.md` and `design/accessibility-requirements.md`
 >
-> Run `$gate-check [stage]` when all boxes are checked.
+> Run `$codex-game-studios:gate-check [stage]` when all boxes are checked.
 
 If nothing is blocking, write instead:
-> No blockers — run `$gate-check [stage]` now.
+> No blockers — run `$codex-game-studios:gate-check [stage]` now.
 
 ---
 
@@ -471,9 +476,9 @@ unsure, present 2-4 options with pros/cons before asking them to decide.
 
 ## Recommended Next Steps
 
-- Run `$architecture-decision [title]` for each required ADR listed in Phase 6 — Foundation layer ADRs first
-- Run `$architecture-review` — bootstraps the Requirements Traceability Matrix and TR registry from the ADRs just written. Required before the Pre-Production gate.
-- Run `$test-setup` to scaffold `tests/unit/`, `tests/integration/`, CI workflow, and an example test (required for gate-check)
-- Run `$ux-design` to initialize `design/ux/interaction-patterns.md` and `design/accessibility-requirements.md` (required for gate-check)
-- Run `$create-control-manifest` once the required ADRs are written to produce the layer rules manifest
-- Run `$gate-check pre-production` when all required ADRs, `$test-setup`, and `$ux-design` are complete
+- Run `$codex-game-studios:architecture-decision [title]` for each required ADR listed in Phase 6 — Foundation layer ADRs first
+- Run `$codex-game-studios:architecture-review` — bootstraps the Requirements Traceability Matrix and TR registry from the ADRs just written. Required before the Pre-Production gate.
+- Run `$codex-game-studios:test-setup` to scaffold `tests/unit/`, `tests/integration/`, CI workflow, and an example test (required for gate-check)
+- Run `$codex-game-studios:ux-design` to initialize `design/ux/interaction-patterns.md` and `design/accessibility-requirements.md` (required for gate-check)
+- Run `$codex-game-studios:create-control-manifest` once the required ADRs are written to produce the layer rules manifest
+- Run `$codex-game-studios:gate-check pre-production` when all required ADRs, `$codex-game-studios:test-setup`, and `$codex-game-studios:ux-design` are complete

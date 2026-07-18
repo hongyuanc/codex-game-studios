@@ -3,6 +3,11 @@ name: art-bible
 description: Author the game's visual identity specification after the game concept is approved and before asset production begins.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Ask at most one user question per turn and wait for the answer. Preserve incremental approval for material concept and design sections. Identify the intended artifact paths before authoring; approval of a section or bounded changeset authorizes writing that approved content, so do not ask again per line or per file. Pause again for a new design decision or scope expansion.
@@ -15,10 +20,10 @@ Resolve the review mode (once, store for all gate delegations this run):
 3. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run
 4. If the config is unavailable or malformed, report it and use phase-gated behavior without writing configuration
 
-See `.codex/docs/director-gates.md` for the full check pattern.
+See `../../../.codex/docs/director-gates.md` for the full check pattern.
 
 Read `design/gdd/game-concept.md`. If it does not exist, fail with:
-> "No game concept found. Run `$brainstorm` first — the art bible is authored after the game concept is approved."
+> "No game concept found. Run `$codex-game-studios:brainstorm` first — the art bible is authored after the game concept is approved."
 
 Extract from game-concept.md:
 - Game title (working title)
@@ -194,7 +199,7 @@ AD-ART-BIBLE is optional and runs only in full mode.
 - `lean` → skip (not a PHASE-GATE). Note: "AD-ART-BIBLE skipped — Lean mode." Proceed to Phase 6.
 - `full` → delegate normally.
 
-After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`.codex/docs/director-gates.md`).
+After all sections are complete (or the scoped set from Phase 1 is complete), delegate to `art-director` through Codex custom-agent delegation using gate **AD-ART-BIBLE** (`../../../.codex/docs/director-gates.md`).
 
 Pass: art bible file path, game pillars, visual identity anchor.
 
@@ -210,23 +215,23 @@ Before presenting next steps, check project state:
 - Does `.codex/docs/technical-preferences.md` contain a configured engine (not `[TO BE CONFIGURED]`)? → setup-engine is done, skip that option
 - Does `design/gdd/` contain any `*.md` files? → design-system has been run, skip that option
 - Does `design/gdd/gdd-cross-review-*.md` exist? → review-all-gdds is done
-- Do GDDs exist (check above)? → include $consistency-check option
+- Do GDDs exist (check above)? → include $codex-game-studios:consistency-check option
 
 Ask one concise question and wait for the answer for next steps. Only include options that are genuinely next based on the state check above:
 
 **Option pool — include only if not already done:**
-- `[_] Run $map-systems — decompose the concept into systems before writing GDDs` (skip if systems-index.md exists)
-- `[_] Run $setup-engine — configure the engine (asset standards may need revisiting after engine is set)` (skip if engine configured)
-- `[_] Run $design-system — start the first GDD` (skip if any GDDs exist)
-- `[_] Run $review-all-gdds — cross-GDD consistency check (required before Technical Setup gate)` (skip if gdd-cross-review-*.md exists)
-- `[_] Run $asset-spec — generate per-asset visual specs and AI generation prompts from approved GDDs` (include if GDDs exist)
-- `[_] Run $consistency-check — scan existing GDDs against the art bible for visual direction conflicts` (include if GDDs exist)
-- `[_] Run $create-architecture — author the master architecture document (next Technical Setup step)`
+- `[_] Run $codex-game-studios:map-systems — decompose the concept into systems before writing GDDs` (skip if systems-index.md exists)
+- `[_] Run $codex-game-studios:setup-engine — configure the engine (asset standards may need revisiting after engine is set)` (skip if engine configured)
+- `[_] Run $codex-game-studios:design-system — start the first GDD` (skip if any GDDs exist)
+- `[_] Run $codex-game-studios:review-all-gdds — cross-GDD consistency check (required before Technical Setup gate)` (skip if gdd-cross-review-*.md exists)
+- `[_] Run $codex-game-studios:asset-spec — generate per-asset visual specs and AI generation prompts from approved GDDs` (include if GDDs exist)
+- `[_] Run $codex-game-studios:consistency-check — scan existing GDDs against the art bible for visual direction conflicts` (include if GDDs exist)
+- `[_] Run $codex-game-studios:create-architecture — author the master architecture document (next Technical Setup step)`
 - `[_] Stop here`
 
 Assign letters A, B, C… only to the options actually included. Mark the most logical pipeline-advancing option as `(recommended)`.
 
-> **Always include** `$create-architecture` and Stop here as options — these are always valid next steps once the art bible is complete.
+> **Always include** `$codex-game-studios:create-architecture` and Stop here as options — these are always valid next steps once the art bible is complete.
 
 ---
 
@@ -244,8 +249,8 @@ Every section follows: **Question → Options → Decision → Draft (from art-d
 ## Recommended Next Steps
 
 After the art bible is approved:
-- Run `$map-systems` to decompose the concept into game systems before authoring GDDs
-- Run `$setup-engine` if the engine is not yet configured (asset standards may need revisiting after engine selection)
-- Run `$design-system [first-system]` to start authoring per-system GDDs
-- Run `$consistency-check` once GDDs exist to validate them against the art bible's visual rules
-- Run `$create-architecture` to produce the master architecture document
+- Run `$codex-game-studios:map-systems` to decompose the concept into game systems before authoring GDDs
+- Run `$codex-game-studios:setup-engine` if the engine is not yet configured (asset standards may need revisiting after engine selection)
+- Run `$codex-game-studios:design-system [first-system]` to start authoring per-system GDDs
+- Run `$codex-game-studios:consistency-check` once GDDs exist to validate them against the art bible's visual rules
+- Run `$codex-game-studios:create-architecture` to produce the master architecture document

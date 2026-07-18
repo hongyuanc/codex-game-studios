@@ -3,6 +3,11 @@ name: test-helpers
 description: "Use when repeated test setup, assertions, factories, or engine-specific fixtures are creating boilerplate across test files."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -12,11 +17,13 @@ description: "Use when repeated test setup, assertions, factories, or engine-spe
 
 ### Native readiness gate for `$setup-engine`
 
-Before invoking `$setup-engine`, validate `.agents/skills/setup-engine/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $setup-engine is not Codex-native yet`, defer engine setup, and do not invoke it.
+Before invoking or routing to `$setup-engine`, confirm that `setup-engine` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $setup-engine is not available`, defer the handoff, do not invoke `$setup-engine`, do not route to `$setup-engine`, and do not search for or copy a repository-local skill file.
 
 ### Native readiness gate for `$skill-test`
 
-Before invoking `$skill-test`, validate `.agents/skills/skill-test/SKILL.md` with the native skill validator (or equivalent frontmatter, path, invocation, model, and legacy-runtime-primitive checks). If it is absent or non-native, report `Staged dependency: $skill-test is not Codex-native yet`, defer the skill-validation handoff, and do not invoke it.
+Before invoking or routing to `$skill-test`, confirm that `skill-test` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $skill-test is not available`, defer the handoff, do not invoke `$skill-test`, do not route to `$skill-test`, and do not search for or copy a repository-local skill file.
 
 # Test Helpers
 

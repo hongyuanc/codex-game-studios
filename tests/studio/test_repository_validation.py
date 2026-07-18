@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import tools.codex_studio.validate as validate_module
 from tools.codex_studio.engine_pack import apply_activation, plan_activation
 from tools.codex_studio.validate import (
     validate_repository,
@@ -21,6 +22,7 @@ from tools.codex_studio.validate import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PLUGIN = ROOT / "plugins/codex-game-studios"
 
 
 def _minimal_runtime_tree(root: Path) -> None:
@@ -38,11 +40,228 @@ def _minimal_runtime_tree(root: Path) -> None:
 
 
 class RepositoryValidationTests(unittest.TestCase):
+    def _configured_plugin_native_target(self, directory: str) -> Path:
+        target = Path(directory) / "target"
+        shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+        apply_activation(
+            target,
+            plan_activation(
+                target, "godot", version="4.6", language="gdscript",
+                source_root=ROOT,
+            ),
+        )
+        return target
+
+    def test_plugin_skill_catalog_validator_accepts_canonical_catalog(self):
+        # Arrange
+        validator = getattr(validate_module, "validate_plugin_skill_catalog", None)
+
+        # Act / Assert
+        self.assertIsNotNone(validator)
+        self.assertEqual([], validator(ROOT, PLUGIN))
+
+    def test_final_repository_validation_enforces_plugin_skill_catalog(self):
+        # Arrange
+        expected = validate_module.ValidationIssue(
+            "error", "plugins/codex-game-studios", "catalog sentinel"
+        )
+
+        # Act
+        with mock.patch.object(
+            validate_module,
+            "validate_plugin_skill_catalog",
+            create=True,
+            return_value=[expected],
+        ) as validator:
+            issues = validate_repository(ROOT, "final")
+
+        # Assert
+        validator.assert_called_once_with(ROOT.resolve(), PLUGIN.resolve())
+        self.assertIn(expected, issues)
+
     def test_source_mode_remains_default_and_backward_compatible(self):
         # Arrange / Act / Assert
         self.assertEqual([], validate_repository(ROOT, "final"))
         self.assertEqual(0, main(["--root", str(ROOT), "--phase", "final"]))
         self.assertEqual(0, main(["--root", str(ROOT), "--mode", "source", "--phase", "final"]))
+
+    def test_plugin_native_validator_accepts_fresh_target_without_global_payload(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            apply_activation(
+                target,
+                plan_activation(
+                    target, "godot", version="4.6", language="gdscript", source_root=ROOT,
+                ),
+            )
+
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            status = main([
+                "--mode", "plugin-native", "--root", str(target), "--source-root", str(ROOT), "--phase", "final",
+            ])
+
+            # Assert
+            self.assertEqual([], issues)
+            self.assertEqual(0, status)
+            self.assertFalse((target / ".codex/agent-packs").exists())
+            self.assertFalse((target / ".agents/skills").exists())
+
+    def test_plugin_native_validator_requires_distinct_trusted_source_root(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+
+            # Act
+            with self.assertRaises(SystemExit) as raised:
+                main(["--mode", "plugin-native", "--root", str(target), "--phase", "final"])
+
+            # Assert
+            self.assertEqual(2, raised.exception.code)
+
+    def test_plugin_native_validator_accepts_exact_unconfigured_authority_without_pack_read(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+
+            # Act
+            with mock.patch(
+                "tools.codex_studio.engine_pack._validate_packs",
+                side_effect=AssertionError("unconfigured validation read an engine pack"),
+            ):
+                issues = validate_module.validate_plugin_native_project(
+                    target, source_root=ROOT
+                )
+
+            # Assert
+            self.assertEqual([], issues)
+
+    def test_plugin_native_validator_rejects_empty_engine_version(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = self._configured_plugin_native_target(directory)
+            studio = target / ".codex/studio.toml"
+            studio.write_text(
+                studio.read_text(encoding="utf-8").replace('engine_version = "4.6"', 'engine_version = ""'),
+                encoding="utf-8",
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_empty_language(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = self._configured_plugin_native_target(directory)
+            studio = target / ".codex/studio.toml"
+            studio.write_text(
+                studio.read_text(encoding="utf-8").replace('language = "gdscript"', 'language = ""'),
+                encoding="utf-8",
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_incompatible_language(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = self._configured_plugin_native_target(directory)
+            studio = target / ".codex/studio.toml"
+            studio.write_text(
+                studio.read_text(encoding="utf-8").replace('language = "gdscript"', 'language = "python"'),
+                encoding="utf-8",
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_bogus_review_mode(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = self._configured_plugin_native_target(directory)
+            studio = target / ".codex/studio.toml"
+            studio.write_text(
+                studio.read_text(encoding="utf-8").replace('review_mode = "phase-gated"', 'review_mode = "bogus"'),
+                encoding="utf-8",
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_bogus_model_policy(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = self._configured_plugin_native_target(directory)
+            studio = target / ".codex/studio.toml"
+            studio.write_text(
+                studio.read_text(encoding="utf-8").replace('model_policy = "balanced"', 'model_policy = "bogus"'),
+                encoding="utf-8",
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_unconfigured_manifest_state(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            (target / ".codex/active-engine.json").write_text(
+                '{"engine":"godot","generated":{}}\n', encoding="utf-8"
+            )
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_validator_rejects_unconfigured_active_agents_state(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            (target / ".codex/agents").mkdir()
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            # Assert
+            self.assertTrue(issues)
+
+    def test_plugin_native_cli_rejects_non_final_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            with self.assertRaises(SystemExit):
+                main(["--mode", "plugin-native", "--phase", "pre-cleanup", "--root", str(target), "--source-root", str(ROOT)])
+
+    def test_source_cli_rejects_source_root(self):
+        with self.assertRaises(SystemExit):
+            main(["--mode", "source", "--root", str(ROOT), "--source-root", str(ROOT)])
+
+    def test_installed_cli_rejects_source_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(SystemExit):
+                main(["--mode", "installed", "--root", directory, "--source-root", str(ROOT)])
+
+    def test_skill_file_cli_rejects_installed_mode(self):
+        skill = ROOT / ".agents/skills/start/SKILL.md"
+        with self.assertRaises(SystemExit):
+            main(["--skill-file", str(skill), "--mode", "installed"])
+
+    def test_skill_file_cli_rejects_plugin_native_source_root_mode(self):
+        skill = ROOT / ".agents/skills/start/SKILL.md"
+        with self.assertRaises(SystemExit):
+            main([
+                "--skill-file", str(skill), "--mode", "plugin-native",
+                "--source-root", str(ROOT),
+            ])
 
     def test_final_repository_validation_accepts_each_configured_engine_pack(self):
         targets = {

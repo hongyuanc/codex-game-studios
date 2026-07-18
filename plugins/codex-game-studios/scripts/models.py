@@ -64,6 +64,19 @@ class InstallationState:
 
 
 @dataclasses.dataclass(frozen=True)
+class MigrationState:
+    """Checksum-bound plugin-native record of one authenticated migration."""
+
+    schema_version: int
+    plugin_version: str
+    legacy_version: str
+    legacy_state_checksum: str
+    preserved_paths: tuple[str, ...]
+    migrated_at: str
+    checksum: str
+
+
+@dataclasses.dataclass(frozen=True)
 class Conflict:
     """One stable, content-free reason a planned operation cannot proceed."""
 

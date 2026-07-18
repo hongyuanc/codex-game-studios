@@ -3,6 +3,11 @@ name: team-combat
 description: "Use when a combat feature needs coordinated design, implementation, integration, and QA validation."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 # Team Combat
 
 ## Codex Interaction Contract
@@ -15,11 +20,11 @@ description: "Use when a combat feature needs coordinated design, implementation
 
 ## Invocation
 
-Usage: `$team-combat [combat feature] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
+Usage: `$codex-game-studios:team-combat [combat feature] [--review full|lean|solo]`. If the required objective cannot be inferred safely, ask for that single missing decision and wait; do not delegate yet.
 
 ## Review Mode
 
-Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
+Read `.codex/studio.toml` as the only persistent review-mode source. Map `review_mode = "phase-gated"` to lean optional-review depth; mandatory director gates still run. A `--review` argument applies only to the current run. Use `../../../.codex/docs/director-gates.md` and `.codex/docs/technical-preferences.md` for native gate and engine context.
 
 ## Team Roster
 
@@ -118,8 +123,8 @@ If any delegated agent (through Codex custom-agent delegation) returns BLOCKED, 
 
 Common blockers:
 - Input file missing (story not found, GDD absent) → redirect to the skill that creates it
-- ADR status is Proposed → do not implement; run `$architecture-decision` first
-- Scope too large → split into two stories via `$create-stories`
+- ADR status is Proposed → do not implement; run `$codex-game-studios:architecture-decision` first
+- Scope too large → split into two stories via `$codex-game-studios:create-stories`
 - Conflicting instructions between ADR and story → surface the conflict, do not guess
 
 ## Output
@@ -131,6 +136,6 @@ Verdict: **BLOCKED** — one or more phases could not complete; partial report p
 
 ## Next Steps
 
-- Run `$code-review` on the implemented combat code before closing stories.
-- Run `$balance-check` to validate combat formulas and tuning values.
-- Run `$team-polish` if VFX, audio, or performance polish is needed.
+- Run `$codex-game-studios:code-review` on the implemented combat code before closing stories.
+- Run `$codex-game-studios:balance-check` to validate combat formulas and tuning values.
+- Run `$codex-game-studios:team-polish` if VFX, audio, or performance polish is needed.

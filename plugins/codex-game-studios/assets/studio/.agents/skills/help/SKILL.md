@@ -5,7 +5,12 @@ description: Orient the user from current repository state and recommend the nex
 
 ## Codex-native operating rules
 
-Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$start`; engine-dependent work with no configured engine routes to `$setup-engine`.
+Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$codex-game-studios:start`; engine-dependent work with no configured engine routes to `$codex-game-studios:setup-engine`.
+
+### Native readiness gate for `$[command]`
+
+Before invoking or routing to `$[command]`, confirm that `[command]` is present in the current task's available skill catalog. If unavailable, report
+`Staged dependency: $[command] is not available`, defer the handoff, do not invoke `$[command]`, do not route to `$[command]`, and do not search for or copy a repository-local skill file.
 
 # Studio Help — What Do I Do Next?
 
@@ -14,13 +19,13 @@ This skill is read-only — it reports findings but writes no files.
 
 This skill figures out exactly where you are in the game development pipeline and
 tells you what comes next. It is **lightweight** — not a full audit. For a full
-gap analysis, use `$project-stage-detect`.
+gap analysis, use `$codex-game-studios:project-stage-detect`.
 
 ---
 
 ## Step 1: Read the Catalog
 
-Read `.codex/docs/workflow-catalog.yaml`. This is the authoritative list of all
+Read `../../../.codex/docs/workflow-catalog.yaml`. This is the authoritative list of all
 phases, their steps (in order), whether each step is required or optional, and
 the artifact globs that indicate completion.
 
@@ -28,8 +33,9 @@ the artifact globs that indicate completion.
 
 ## Step 1b: Find Skills Not in the Catalog
 
-After reading the catalog, Search `.agents/skills/*/SKILL.md` to get the full list
-of installed skills. For each file, extract the `name:` field from its frontmatter.
+After reading the catalog, use the current task's available skill catalog to get
+the full list of installed skills. Do not search for or copy repository-local
+skill files to reconstruct the catalog.
 
 Compare against the `command:` values in the catalog. Any skill whose name does
 not appear as a catalog command is an **uncataloged skill** — still usable but not
@@ -39,7 +45,7 @@ Collect these for the output in Step 7 — show them as a footer block:
 
 ```
 ### Also installed (not in workflow)
-- `$skill-name` — [description from SKILL.md frontmatter]
+- `$skill-name` — [description from the available skill catalog]
 - `$skill-name` — [description]
 ```
 
@@ -176,7 +182,7 @@ Command: `[/command]`
 - [Next required step name] (`$command`)
 
 ---
-Approaching **[next phase]** gate → run `$gate-check` when ready.
+Approaching **[next phase]** gate → run `$codex-game-studios:gate-check` when ready.
 ```
 
 **Formatting rules:**
@@ -195,7 +201,7 @@ Verdict: **COMPLETE** — next steps identified.
 
 After the current phase's steps, check if the user is likely approaching a gate:
 - If all required steps in the current phase are complete (or nearly complete),
-  add: "You're close to the **[Current] → [Next]** gate. Run `$gate-check` when ready."
+  add: "You're close to the **[Current] → [Next]** gate. Run `$codex-game-studios:gate-check` when ready."
 - If multiple required steps remain, skip the gate warning — it's not relevant yet.
 
 ---
@@ -207,9 +213,9 @@ After the recommendations, if the user seems stuck or confused, add:
 ```
 ---
 Need more detail?
-- `$project-stage-detect` — full gap analysis with all missing artifacts listed
-- `$gate-check` — formal readiness check for your next phase
-- `$start` — re-orient from scratch
+- `$codex-game-studios:project-stage-detect` — full gap analysis with all missing artifacts listed
+- `$codex-game-studios:gate-check` — formal readiness check for your next phase
+- `$codex-game-studios:start` — re-orient from scratch
 ```
 
 Only show this if the user's input suggested confusion (e.g. "I don't know", "stuck",

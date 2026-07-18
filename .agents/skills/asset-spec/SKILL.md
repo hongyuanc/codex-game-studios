@@ -3,6 +3,11 @@ name: asset-spec
 description: Generate approved per-asset visual specifications and prompts from the art bible and design documents.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Require the approved art bible and relevant GDD or level source before production specifications. Ask at most one user question per turn and wait for the answer. Preserve stable asset IDs, manifest updates, and per-asset prompts. List every spec and manifest file in one full changeset and obtain explicit approval before writing it; pause again for any scope expansion.

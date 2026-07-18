@@ -3,6 +3,11 @@ name: propagate-design-change
 description: Trace an approved GDD change through ADRs and architecture artifacts and report affected decisions.
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex-native operating rules
 
 Preserve TR-ID, ADR status, traceability, and manifest-version contracts. Keep reviewed source artifacts read-only, cite repository evidence, and delegate material architecture conflicts to the `technical-director` Sol Codex custom-agent role. Ask one question per turn. Write only an approved report changeset; source fixes require separate explicit authorization.
@@ -14,14 +19,14 @@ When a GDD changes, architectural decisions written against it may no longer be
 valid. This skill finds every affected ADR, compares what the ADR assumed against
 what the GDD now says, and guides the user through resolution.
 
-**Usage:** `$propagate-design-change design/gdd/combat-system.md`
+**Usage:** `$codex-game-studios:propagate-design-change design/gdd/combat-system.md`
 
 ---
 
 ## 1. Validate Argument
 
 A GDD path argument is **required**. If missing, fail with:
-> "Usage: `$propagate-design-change design/gdd/[system].md`
+> "Usage: `$codex-game-studios:propagate-design-change design/gdd/[system].md`
 > Provide the path to the GDD that was changed."
 
 Verify the file exists. If not, fail with:
@@ -152,7 +157,7 @@ ADRs referencing this GDD: [M]
 Review mode may vary optional review depth, but it never skips this
 material architecture conflict gate.
 
-Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`.codex/docs/director-gates.md`).
+Delegate to `technical-director` through Codex custom-agent delegation using gate **TD-CHANGE-IMPACT** (`../../../.codex/docs/director-gates.md`).
 
 Pass: the full Design Change Impact Report from Phase 6 (change summary, all affected ADRs with their Still Valid / Needs Review / Likely Superseded classifications, and recommended actions).
 
@@ -221,10 +226,10 @@ If user declined: Verdict: **BLOCKED** — user declined write.
 
 Based on the resolution decisions, suggest:
 
-- **ADRs marked Superseded**: "Run `$architecture-decision [title]` to write the
-  replacement ADR. Then re-run `$propagate-design-change` to verify coverage."
+- **ADRs marked Superseded**: "Run `$codex-game-studios:architecture-decision [title]` to write the
+  replacement ADR. Then re-run `$codex-game-studios:propagate-design-change` to verify coverage."
 - **ADRs to update in place**: List the specific fields to update in each ADR
-- **If many ADRs affected**: "Run `$architecture-review` after all ADRs are updated
+- **If many ADRs affected**: "Run `$codex-game-studios:architecture-review` after all ADRs are updated
   to verify the full traceability matrix is still coherent."
 
 ---

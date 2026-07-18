@@ -5,7 +5,7 @@ description: Audit an existing game project for Codex Game Studios artifact comp
 
 ## Codex-native operating rules
 
-Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$start`; engine-dependent work with no configured engine routes to `$setup-engine`.
+Ask at most one user question per turn and wait for the answer before asking another. Preserve the documented choices, but present one decision at a time. Discovery is read-only until a documented artifact changeset and target path are shown and approved. Fresh projects route to `$codex-game-studios:start`; engine-dependent work with no configured engine routes to `$codex-game-studios:setup-engine`.
 
 # Adopt — Brownfield Template Adoption
 
@@ -13,9 +13,9 @@ Ask at most one user question per turn and wait for the answer before asking ano
 This skill audits an existing project's artifacts for **format compliance** with
 the template's skill pipeline, then produces a prioritised migration plan.
 
-**This is not `$project-stage-detect`.**
-`$project-stage-detect` answers: *what exists?*
-`$adopt` answers: *will what exists actually work with the template's skills?*
+**This is not `$codex-game-studios:project-stage-detect`.**
+`$codex-game-studios:project-stage-detect` answers: *what exists?*
+`$codex-game-studios:adopt` answers: *will what exists actually work with the template's skills?*
 
 A project can have GDDs, ADRs, and stories — and every format-sensitive skill
 will still fail silently or produce wrong results if those artifacts are in the
@@ -50,22 +50,22 @@ Then read silently before presenting anything else.
 - Count ADR files: `docs/architecture/adr-*.md`
 - Count story files: `production/epics/**/*.md` (excluding EPIC.md)
 - `.codex/docs/technical-preferences.md` — engine configured?
-- `docs/engine-reference/` — engine reference docs present?
+- `../../../docs/engine-reference/` — engine reference docs present?
 - repository file search `docs/adoption-plan-*.md` — note the filename of the most recent prior plan if any exist
 
 ### Infer phase (if no stage.txt)
-Use the same heuristic as `$project-stage-detect`:
+Use the same heuristic as `$codex-game-studios:project-stage-detect`:
 - 10+ source files in `src/` → Production
 - Stories in `production/epics/` → Pre-Production
 - ADRs exist → Technical Setup
 - systems-index.md exists → Systems Design
 - game-concept.md exists → Concept
-- Nothing → Fresh (not a brownfield project — suggest `$start`)
+- Nothing → Fresh (not a brownfield project — suggest `$codex-game-studios:start`)
 
 If the project appears fresh (no artifacts at all), ask one concise question and wait for the answer:
-- "This looks like a fresh project — no existing artifacts found. `$adopt` is for
+- "This looks like a fresh project — no existing artifacts found. `$codex-game-studios:adopt` is for
   projects with work to migrate. What would you like to do?"
-  - "Run `$start` — begin guided first-time onboarding"
+  - "Run `$codex-game-studios:start` — begin guided first-time onboarding"
   - "My artifacts are in a non-standard location — help me find them"
   - "Cancel"
 
@@ -111,8 +111,8 @@ For each ADR file found, check for these critical sections:
 
 | Section | Impact if missing |
 |---|---|
-| `## Status` | **BLOCKING** — `$story-readiness` ADR status check silently passes everything |
-| `## ADR Dependencies` | HIGH — dependency ordering in `$architecture-review` breaks |
+| `## Status` | **BLOCKING** — `$codex-game-studios:story-readiness` ADR status check silently passes everything |
+| `## ADR Dependencies` | HIGH — dependency ordering in `$codex-game-studios:architecture-review` breaks |
 | `## Engine Compatibility` | HIGH — post-cutoff API risk is unknown |
 | `## GDD Requirements Addressed` | MEDIUM — traceability matrix loses coverage |
 | `## Performance Implications` | LOW — not pipeline-critical |
@@ -126,8 +126,8 @@ If `design/gdd/systems-index.md` exists:
 
 1. **Parenthetical status values** — Search for any Status cell containing
    parentheses: `"Needs Revision ("`, `"In Progress ("`, etc.
-   These break exact-string matching in `$gate-check`, `$create-stories`,
-   and `$architecture-review`. **BLOCKING.**
+   These break exact-string matching in `$codex-game-studios:gate-check`, `$codex-game-studios:create-stories`,
+   and `$codex-game-studios:architecture-review`. **BLOCKING.**
 
 2. **Valid status values** — check that Status column values are only from:
    `Not Started`, `In Progress`, `In Review`, `Designed`, `Approved`, `Needs Revision`
@@ -153,9 +153,9 @@ For each story file found:
 | TR registry | `docs/architecture/tr-registry.yaml` | HIGH — no stable requirement IDs |
 | Control manifest | `docs/architecture/control-manifest.md` | HIGH — no layer rules for stories |
 | Manifest version stamp | In manifest header: `Manifest Version:` | MEDIUM — staleness checks blind |
-| Sprint status | `production/sprint-status.yaml` | MEDIUM — `$sprint-status` falls back to markdown |
+| Sprint status | `production/sprint-status.yaml` | MEDIUM — `$codex-game-studios:sprint-status` falls back to markdown |
 | Stage file | `production/stage.txt` | MEDIUM — phase auto-detect unreliable |
-| Engine reference | `docs/engine-reference/[engine]/VERSION.md` | HIGH — ADR engine checks blind |
+| Engine reference | `Codex Game Studios bundled engine reference: [engine]/VERSION.md` | HIGH — ADR engine checks blind |
 | Architecture traceability | `docs/architecture/architecture-traceability.md` | MEDIUM — no persistent matrix |
 
 ### 2f: Technical Preferences Audit
@@ -214,19 +214,19 @@ and the exact replacement text. Offer to fix this immediately before writing the
 
 **Special case — ADRs missing Status field:**
 For each affected ADR, the fix is:
-`$architecture-decision retrofit docs/architecture/adr-[NNNN]-[slug].md`
+`$codex-game-studios:architecture-decision retrofit docs/architecture/adr-[NNNN]-[slug].md`
 List each ADR as a separate checkable item.
 
 **Special case — GDDs missing sections:**
 For each affected GDD, list which sections are missing and the fix:
-`$design-system retrofit design/gdd/[filename].md`
+`$codex-game-studios:design-system retrofit design/gdd/[filename].md`
 
 **Infrastructure bootstrap ordering** — always present in this sequence:
 1. Fix ADR formats first (registry depends on reading ADR Status fields)
-2. Run `$architecture-review` → bootstraps `tr-registry.yaml`
-3. Run `$create-control-manifest` → creates manifest with version stamp
-4. Run `$sprint-plan update` → creates `sprint-status.yaml`
-5. Run `$gate-check [phase]` → writes `stage.txt` authoritatively
+2. Run `$codex-game-studios:architecture-review` → bootstraps `tr-registry.yaml`
+3. Run `$codex-game-studios:create-control-manifest` → creates manifest with version stamp
+4. Run `$codex-game-studios:sprint-plan update` → creates `sprint-status.yaml`
+5. Run `$codex-game-studios:gate-check [phase]` → writes `stage.txt` authoritatively
 
 **Existing stories** — note explicitly:
 > "Existing stories continue to work with all template skills — all new format
@@ -250,7 +250,7 @@ Stories audited: [N]
 
 Gap counts:
   BLOCKING: [N] — template skills will malfunction without these fixes
-  HIGH:     [N] — unsafe to run $create-stories or $story-readiness
+  HIGH:     [N] — unsafe to run $codex-game-studios:create-stories or $codex-game-studios:story-readiness
   MEDIUM:   [N] — quality degradation
   LOW:      [N] — optional improvements
 
@@ -293,7 +293,7 @@ If approved, write `docs/adoption-plan-[date].md` with this structure:
 > **Template version**: v1.0+
 
 Work through these steps in order. Check off each item as you complete it.
-Re-run `$adopt` anytime to check remaining gaps.
+Re-run `$codex-game-studios:adopt` anytime to check remaining gaps.
 
 ---
 
@@ -312,23 +312,23 @@ Re-run `$adopt` anytime to check remaining gaps.
 ## Step 3: Bootstrap Infrastructure
 
 ### 3a. Register existing requirements (creates tr-registry.yaml)
-Run `$architecture-review` — even if ADRs already exist, this run bootstraps
+Run `$codex-game-studios:architecture-review` — even if ADRs already exist, this run bootstraps
 the TR registry from your existing GDDs and ADRs.
 **Time**: 1 session (review can be long for large codebases)
 - [ ] tr-registry.yaml created
 
 ### 3b. Create control manifest
-Run `$create-control-manifest`
+Run `$codex-game-studios:create-control-manifest`
 **Time**: 30 min
 - [ ] docs/architecture/control-manifest.md created
 
 ### 3c. Create sprint tracking file
-Run `$sprint-plan update`
+Run `$codex-game-studios:sprint-plan update`
 **Time**: 5 min (if sprint plan already exists as markdown)
 - [ ] production/sprint-status.yaml created
 
 ### 3d. Set authoritative project stage
-Run `$gate-check [current-phase]`
+Run `$codex-game-studios:gate-check [current-phase]`
 **Time**: 5 min
 - [ ] production/stage.txt written
 
@@ -357,7 +357,7 @@ regenerated. Do not regenerate stories that are in progress or done.
 
 ## Re-run
 
-Run `$adopt` again after completing Step 3 to verify all blocking and high gaps
+Run `$codex-game-studios:adopt` again after completing Step 3 to verify all blocking and high gaps
 are resolved. The new run will reflect the current state of the project.
 ```
 
@@ -392,8 +392,8 @@ branch that applies:
 **If there are parenthetical status values in systems-index.md:**
 Ask one concise question and wait for the answer:
 - "The most urgent fix is `systems-index.md` — [N] rows have parenthetical status
-  values (e.g. `Needs Revision (see notes)`) that break $gate-check,
-  $create-stories, and $architecture-review right now. I can fix these in-place."
+  values (e.g. `Needs Revision (see notes)`) that break $codex-game-studios:gate-check,
+  $codex-game-studios:create-stories, and $codex-game-studios:architecture-review right now. I can fix these in-place."
   - "Fix it now — edit systems-index.md"
   - "I'll fix it myself"
   - "Done — leave me with the plan"
@@ -401,7 +401,7 @@ Ask one concise question and wait for the answer:
 **If ADRs are missing `## Status` (and no parenthetical issue):**
 Ask one concise question and wait for the answer:
 - "The most urgent fix is adding `## Status` to [N] ADR(s): [list filenames].
-  Without it, $story-readiness silently passes all ADR checks. Start with
+  Without it, $codex-game-studios:story-readiness silently passes all ADR checks. Start with
   [first affected filename]?"
   - "Yes — retrofit [first affected filename] now"
   - "Retrofit all [N] ADRs one by one"
@@ -410,7 +410,7 @@ Ask one concise question and wait for the answer:
 **If GDDs are missing Acceptance Criteria (and no blocking issues above):**
 Ask one concise question and wait for the answer:
 - "The most urgent gap is missing Acceptance Criteria in [N] GDD(s):
-  [list filenames]. Without them, $create-stories can't generate stories.
+  [list filenames]. Without them, $codex-game-studios:create-stories can't generate stories.
   Start with [highest-priority GDD filename]?"
   - "Yes — add Acceptance Criteria to [GDD filename] now"
   - "Do all [N] GDDs one by one"
@@ -420,10 +420,10 @@ Ask one concise question and wait for the answer:
 Ask one concise question and wait for the answer:
 - "No blocking gaps — this project is template-compatible. What next?"
   - "Walk me through the medium-priority improvements"
-  - "Run $project-stage-detect for a broader health check"
+  - "Run $codex-game-studios:project-stage-detect for a broader health check"
   - "Done — I'll work through the plan at my own pace"
 
-> **Adoption plan saved to `docs/adoption-plan-[date].md`.** Re-run `$adopt` at any time to re-check remaining gaps as you complete them.
+> **Adoption plan saved to `docs/adoption-plan-[date].md`.** Re-run `$codex-game-studios:adopt` at any time to re-check remaining gaps as you complete them.
 
 ---
 

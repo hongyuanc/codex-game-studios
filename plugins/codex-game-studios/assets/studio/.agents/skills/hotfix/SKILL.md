@@ -3,6 +3,11 @@ name: hotfix
 description: "Use when an S1 or S2 production defect requires an emergency fix with an audit trail and rollback plan."
 ---
 
+<!-- codex-studio-delegation: governed -->
+Resolve every role through `../../../.codex/docs/plugin-agent-delegation.md`;
+do not require a repository-local `.codex/agents/` or `.codex/agent-packs/` tree.
+Before default delegation, run `python3 ../../../tools/codex_studio/agent_delegation.py resolve --project-root <project-root> --role <role>` and use only its returned role contract.
+
 ## Codex Interaction Contract
 
 - Ask one decision question per turn and wait for the answer before asking another.
@@ -24,7 +29,7 @@ Creating or switching branches, committing, pushing, deploying, releasing, or pu
 - No subagent commits, publishes, or expands scope.
 - Before an approved changeset, delegated work is read-only or draft-only.
 
-> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$hotfix`. Do not auto-invoke based on context matching.
+> **Explicit invocation only**: This skill should only run when the user explicitly requests it with `$codex-game-studios:hotfix`. Do not auto-invoke based on context matching.
 
 ## Phase 1: Assess Severity
 
@@ -134,9 +139,9 @@ After approvals, determine the QA scope required before deploying the hotfix. De
 Ask qa-lead: **Is a full smoke check sufficient, or does this fix require a targeted team-qa pass?**
 
 Apply the verdict:
-- **Smoke check sufficient** — run `$smoke-check` against the hotfix build. If PASS, proceed to Phase 6.
-- **Targeted QA pass required** — run `$team-qa [affected-system]` scoped to the changed system only. If QA returns APPROVED or APPROVED WITH CONDITIONS, proceed to Phase 6.
-- **Full QA required** — S1 fixes that touch core systems may require a full `$team-qa sprint`. This delays deployment but prevents a bad patch.
+- **Smoke check sufficient** — run `$codex-game-studios:smoke-check` against the hotfix build. If PASS, proceed to Phase 6.
+- **Targeted QA pass required** — run `$codex-game-studios:team-qa [affected-system]` scoped to the changed system only. If QA returns APPROVED or APPROVED WITH CONDITIONS, proceed to Phase 6.
+- **Full QA required** — S1 fixes that touch core systems may require a full `$codex-game-studios:team-qa sprint`. This delays deployment but prevents a bad patch.
 
 Do not skip this gate. A hotfix that breaks something else is worse than the original bug.
 
@@ -168,7 +173,7 @@ Output a deployment summary:
 **Rollback plan**: [from Phase 2 record]
 
 Merge to: release branch AND development branch
-Next: $bug-report verify [BUG-ID] after deploy to confirm resolution
+Next: $codex-game-studios:bug-report verify [BUG-ID] after deploy to confirm resolution
 ```
 
 ### Rules
@@ -182,16 +187,16 @@ Next: $bug-report verify [BUG-ID] after deploy to confirm resolution
 
 ## Phase 7: Post-Deploy Verification
 
-After deploying, run `$bug-report verify [BUG-ID]` to confirm the fix resolved the issue in the deployed build.
+After deploying, run `$codex-game-studios:bug-report verify [BUG-ID]` to confirm the fix resolved the issue in the deployed build.
 
-If VERIFIED FIXED: run `$bug-report close [BUG-ID]` to formally close it.
+If VERIFIED FIXED: run `$codex-game-studios:bug-report close [BUG-ID]` to formally close it.
 If STILL PRESENT: the hotfix failed — immediately re-open, assess rollback, and escalate.
 
-Schedule a post-incident review within 48 hours using `$retrospective hotfix`.
+Schedule a post-incident review within 48 hours using `$codex-game-studios:retrospective hotfix`.
 
 Use `request_user_input`:
 - Prompt: "Hotfix complete. What's the next step?"
 - Options:
-  - `[A] Run $smoke-check to verify the fix`
-  - `[B] Run $patch-notes to document this hotfix`
+  - `[A] Run $codex-game-studios:smoke-check to verify the fix`
+  - `[B] Run $codex-game-studios:patch-notes to document this hotfix`
   - `[C] Stop here`
