@@ -19,7 +19,6 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-import types
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 
@@ -191,9 +190,71 @@ class ApprovalContext:
     installed_at: str
 
 
+@dataclasses.dataclass(frozen=True)
+class _InstalledValidationFinding:
+    severity: str
+    path: str
+    message: str
+
+
 _APPROVAL_CONTEXT_KEYS = {"schema_version", "operation", "transaction_id", "installed_at"}
 _SHELL_SAFE_CONTEXT = re.compile(r"[A-Za-z0-9_-]+\Z")
 _RFC3339_UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
+
+_ISOLATED_VALIDATOR_RUNNER = r"""
+import argparse
+import base64
+import json
+import pathlib
+import sys
+import types
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--validator", required=True, type=pathlib.Path)
+parser.add_argument("--root", required=True, type=pathlib.Path)
+parser.add_argument("--mode", required=True, choices=("installed",))
+parser.add_argument("--phase", required=True, choices=("final",))
+arguments = parser.parse_args()
+
+def emit(document):
+    sys.stdout.write(json.dumps(
+        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ) + "\n")
+
+try:
+    source = sys.stdin.buffer.read()
+    studio_root = arguments.validator.resolve(strict=True).parents[2]
+    sys.path.insert(0, str(studio_root))
+    module = types.ModuleType("_codex_studio_isolated_validator")
+    module.__file__ = str(arguments.validator)
+    sys.modules[module.__name__] = module
+    exec(compile(source, module.__file__, "exec"), module.__dict__)
+    validate = module.__dict__["_validate_installed_repository_secure"]
+    issues, state_raw = validate(arguments.root)
+    emit({
+        "error": None,
+        "issues": [
+            {
+                "message": issue.message,
+                "path": issue.path,
+                "severity": issue.severity,
+            }
+            for issue in issues
+        ],
+        "state": (
+            None if state_raw is None
+            else base64.b64encode(state_raw).decode("ascii")
+        ),
+    })
+except BaseException as error:
+    names = {item.__name__ for item in type(error).__mro__}
+    category = (
+        "filesystem" if "OSError" in names
+        else "payload" if "PayloadError" in names
+        else "invalid"
+    )
+    emit({"error": category, "issues": [], "state": None})
+"""
 
 
 def new_approval_context(operation: str) -> ApprovalContext:
@@ -1904,7 +1965,7 @@ def _validate_installed_against_payload(
     *,
     authenticated_manifest: PayloadManifest | None = None,
 ) -> list[object]:
-    """Run the embedded installed validator without writing bytecode to the target."""
+    """Run the embedded installed validator in an isolated interpreter."""
 
     try:
         plugin_request = Path(plugin_root)
@@ -1931,45 +1992,89 @@ def _validate_installed_against_payload(
             source = read_file_secure(plugin_pin.root / "assets/studio", entry.path)
             if hashlib.sha256(source).hexdigest() != entry.sha256:
                 raise ManagerError("INVALID_PAYLOAD", "installed validator hash mismatch")
-            module_name = "_codex_studio_installed_validator"
-            module = types.ModuleType(module_name)
-            module.__file__ = str(plugin_pin.root / "assets/studio" / entry.path)
-            previous = sys.dont_write_bytecode
-            import_root = str(plugin_pin.root / "assets/studio")
+            environment = {
+                name: os.environ[name]
+                for name in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP")
+                if name in os.environ
+            }
             try:
-                sys.dont_write_bytecode = True
-                sys.path.insert(0, import_root)
-                sys.modules[module_name] = module
-                exec(compile(source, module.__file__, "exec"), module.__dict__)
-                validator = module.__dict__["_validate_installed_repository_secure"]
-                result, state_raw = validator(target_pin.root)
-                if state_raw is None:
-                    raise ManagerError("INVALID_INSTALLATION_STATE", "installation state could not be read securely")
-                state = _parse_state(state_raw)
-                if isinstance(state, MigrationState):
-                    if (
-                        state.plugin_version != manifest.version
-                        or state.legacy_version not in SUPPORTED_LEGACY_VERSIONS
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        "-I",
+                        "-B",
+                        "-c",
+                        _ISOLATED_VALIDATOR_RUNNER,
+                        "--validator",
+                        str(plugin_pin.root / "assets/studio" / entry.path),
+                        "--root",
+                        str(target_pin.root),
+                        "--mode",
+                        "installed",
+                        "--phase",
+                        "final",
+                    ],
+                    input=source,
+                    capture_output=True,
+                    env=environment,
+                    timeout=120,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                raise OSError("isolated installed validation failed") from error
+            if completed.returncode != 0 or completed.stderr:
+                raise OSError("isolated installed validation failed")
+            try:
+                document = json.loads(completed.stdout.decode("utf-8"))
+                if set(document) != {"error", "issues", "state"}:
+                    raise ValueError("malformed isolated validator result")
+                error_category = document["error"]
+                if error_category is not None:
+                    if error_category == "filesystem":
+                        raise OSError("isolated installed validation failed")
+                    raise PayloadError("isolated installed validation failed")
+                encoded_state = document["state"]
+                issue_documents = document["issues"]
+                if not isinstance(encoded_state, str) or not isinstance(
+                    issue_documents, list
+                ):
+                    raise ValueError("malformed isolated validator result")
+                state_raw = base64.b64decode(encoded_state, validate=True)
+                result: list[object] = []
+                for issue in issue_documents:
+                    if not isinstance(issue, dict) or set(issue) != {
+                        "severity", "path", "message"
+                    } or not all(
+                        isinstance(issue[key], str)
+                        for key in ("severity", "path", "message")
                     ):
-                        raise ManagerError(
-                            "INVALID_INSTALLATION_STATE",
-                            "migration provenance does not match the current plugin",
-                        )
-                elif state.payload_digest != manifest.digest or state.plugin_version != manifest.version:
+                        raise ValueError("malformed isolated validator result")
+                    result.append(_InstalledValidationFinding(
+                        issue["severity"], issue["path"], issue["message"]
+                    ))
+            except (UnicodeError, ValueError, TypeError, binascii.Error) as error:
+                raise PayloadError(
+                    "isolated installed validator returned malformed data"
+                ) from error
+            state = _parse_state(state_raw)
+            if isinstance(state, MigrationState):
+                if (
+                    state.plugin_version != manifest.version
+                    or state.legacy_version not in SUPPORTED_LEGACY_VERSIONS
+                ):
                     raise ManagerError(
                         "INVALID_INSTALLATION_STATE",
-                        "installed payload provenance does not match the current embedded payload",
+                        "migration provenance does not match the current plugin",
                     )
-                else:
-                    _validate_state_manifest_parity(state, manifest)
-                target_pin.verify()
-                plugin_pin.verify()
-                return result
-            finally:
-                sys.modules.pop(module_name, None)
-                if sys.path and sys.path[0] == import_root:
-                    sys.path.pop(0)
-                sys.dont_write_bytecode = previous
+            elif state.payload_digest != manifest.digest or state.plugin_version != manifest.version:
+                raise ManagerError(
+                    "INVALID_INSTALLATION_STATE",
+                    "installed payload provenance does not match the current embedded payload",
+                )
+            else:
+                _validate_state_manifest_parity(state, manifest)
+            target_pin.verify()
+            plugin_pin.verify()
+            return result
     except PayloadError:
         raise
 
@@ -2018,6 +2123,28 @@ def _plan_document(plan: OperationPlan) -> dict[str, object]:
         "digest": plan.digest,
         "approval_context_digest": plan.approval_context_digest,
     }
+
+
+def _approval_document(
+    plan: OperationPlan, approval_context: str
+) -> dict[str, object]:
+    """Return the complete digest-bound plan plus approval response metadata."""
+
+    document = _plan_document(plan)
+    document.update({
+        "status": "awaiting-approval",
+        "wrote": False,
+        "recovery": None,
+        "next_action": "approve this exact digest to apply",
+        "approval_context": approval_context,
+        "findings": [],
+        "warnings": [],
+        "preserved_paths": sorted({
+            action.path for action in plan.actions if action.kind == "preserve"
+        }),
+        "failure_phase": None,
+    })
+    return document
 
 
 def _result_document(
@@ -2769,10 +2896,8 @@ def main(argv: list[str] | None = None) -> int:
             )).decode("utf-8"), end="")
             return 0 if not findings else 1
         if arguments.approve_digest is None:
-            print(canonical_json(_result_document(
-                plan, status="awaiting-approval", wrote=False,
-                next_action="approve this exact digest to apply",
-                approval_context=encode_approval_context(context),
+            print(canonical_json(_approval_document(
+                plan, encode_approval_context(context)
             )).decode("utf-8"), end="")
             return 2
         if arguments.approve_digest != plan.digest:

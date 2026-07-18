@@ -13,6 +13,7 @@ import unittest
 import shutil
 import stat
 import types
+import runpy
 from unittest import mock
 
 from tests.plugin.helpers import init_git_repo, snapshot_tree, write_installed_fixture
@@ -47,6 +48,70 @@ class InstalledValidationTests(unittest.TestCase):
         canonical = (json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
         document["checksum"] = hashlib.sha256(canonical).hexdigest()
         state_path.write_bytes(canonical_json_with_checksum(document))
+
+    def test_schema_two_state_requires_exact_digest_type_and_utc_timestamp(self):
+        # Arrange: exercise the source validator and the actual bundled validator
+        # against the same canonical state documents.
+        bundled_path = (
+            PLUGIN / "assets/studio/tools/codex_studio/validate.py"
+        )
+        previous_path = list(sys.path)
+        try:
+            bundled = runpy.run_path(
+                str(bundled_path), run_name="_bundled_validator_contract"
+            )
+        finally:
+            sys.path[:] = previous_path
+        loaders = (
+            validator_module._load_installed_state,
+            bundled["_load_installed_state"],
+        )
+
+        def state_raw(*, legacy_checksum: object, migrated_at: str) -> bytes:
+            body = {
+                "schema_version": 2,
+                "plugin_version": "2.0.0",
+                "legacy_version": "1.0.0",
+                "legacy_state_checksum": legacy_checksum,
+                "preserved_paths": [],
+                "migrated_at": migrated_at,
+            }
+            body["checksum"] = hashlib.sha256(
+                canonical_json_with_checksum(body)
+            ).hexdigest()
+            return canonical_json_with_checksum(body)
+
+        invalid = (
+            (int("1" * 64), "2026-07-18T01:02:03Z"),
+            ("A" * 64, "2026-07-18T01:02:03Z"),
+            ("a" * 64, "2026-07-18T01:02:03+00:00"),
+            ("a" * 64, "2026-07-18T01:02:03.000Z"),
+            ("a" * 64, "2026-07-18T01:02:03z"),
+            ("a" * 64, "2026-02-30T01:02:03Z"),
+        )
+
+        # Act / Assert
+        for loader in loaders:
+            document, issues = loader(
+                state_raw(
+                    legacy_checksum="a" * 64,
+                    migrated_at="2026-07-18T01:02:03Z",
+                )
+            )
+            self.assertIsNotNone(document)
+            self.assertEqual([], issues)
+            for legacy_checksum, migrated_at in invalid:
+                with self.subTest(
+                    loader=loader.__module__,
+                    legacy_checksum=legacy_checksum,
+                    migrated_at=migrated_at,
+                ):
+                    document, issues = loader(state_raw(
+                        legacy_checksum=legacy_checksum,
+                        migrated_at=migrated_at,
+                    ))
+                    self.assertIsNone(document)
+                    self.assertTrue(issues)
 
     def test_installed_mode_accepts_game_owned_files_and_excluded_maintainer_material(self):
         # Arrange

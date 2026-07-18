@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -21,7 +22,7 @@ from tests.plugin.helpers import (
 )
 
 import legacy_payload
-from models import MigrationState, canonical_json
+from models import MigrationState, canonical_json, digest_document
 import studio_manager
 import transaction
 
@@ -320,6 +321,93 @@ class LegacyMigrationTests(unittest.TestCase):
             findings = studio_manager.validate_installed_read_only(self.repo, PLUGIN)
         self.assertEqual([], findings)
 
+    def test_isolated_legacy_validation_does_not_pollute_schema_two_process(self):
+        # Arrange: emulate a long-lived manager process with no validator package
+        # imported before the first authenticated legacy operation.
+        prefix = "tools.codex_studio"
+        saved = {
+            name: module
+            for name, module in tuple(sys.modules.items())
+            if name == "tools" or name == prefix or name.startswith(prefix + ".")
+        }
+        for name in saved:
+            sys.modules.pop(name, None)
+
+        try:
+            # Act: verify, repair, migrate, and verify schema 2 in one process.
+            verify = studio_manager.plan_operation("verify", self.repo, PLUGIN)
+            self.assertFalse(verify.conflicts)
+            self.assertFalse(any(
+                name == prefix or name.startswith(prefix + ".")
+                for name in sys.modules
+            ))
+
+            damaged = self.repo / ".agents/skills/adopt/SKILL.md"
+            damaged.unlink()
+            repair_context = studio_manager.new_approval_context("repair")
+            repair = studio_manager.plan_operation(
+                "repair", self.repo, PLUGIN, repair_context
+            )
+            studio_manager.apply_operation(
+                repair, self.repo, PLUGIN, approval_context=repair_context
+            )
+
+            migration_context, migration = self._approved()
+            studio_manager.apply_operation(
+                migration,
+                self.repo,
+                PLUGIN,
+                approval_context=migration_context,
+            )
+            self.assertEqual(
+                [], studio_manager.validate_installed_read_only(self.repo, PLUGIN)
+            )
+            self.assertFalse(any(
+                name == prefix or name.startswith(prefix + ".")
+                for name in sys.modules
+            ))
+        finally:
+            for name in tuple(sys.modules):
+                if name == "tools" or name == prefix or name.startswith(prefix + "."):
+                    sys.modules.pop(name, None)
+            sys.modules.update(saved)
+
+    def test_legacy_validation_uses_snapshot_dependencies_without_touching_parent_modules(self):
+        # Arrange: preload the current validator family and make its validation
+        # dependency incomplete. Authenticated legacy validation must not import it.
+        import tools.codex_studio.validate as current_validator
+        import tools.codex_studio.engine_pack as current_engine_pack
+
+        prefix = "tools.codex_studio"
+        before = {
+            name: module
+            for name, module in sys.modules.items()
+            if name == "tools" or name == prefix or name.startswith(prefix + ".")
+        }
+        before_path = tuple(sys.path)
+        before_bytecode_policy = sys.dont_write_bytecode
+
+        # Act
+        loader = current_engine_pack.load_studio_config
+        del current_engine_pack.load_studio_config
+        try:
+            findings = studio_manager.validate_installed_read_only(self.repo, PLUGIN)
+        finally:
+            current_engine_pack.load_studio_config = loader
+
+        # Assert
+        self.assertEqual([], findings)
+        after = {
+            name: module
+            for name, module in sys.modules.items()
+            if name == "tools" or name == prefix or name.startswith(prefix + ".")
+        }
+        self.assertEqual(set(before), set(after))
+        for name, module in before.items():
+            self.assertIs(module, after[name])
+        self.assertEqual(before_path, tuple(sys.path))
+        self.assertEqual(before_bytecode_policy, sys.dont_write_bytecode)
+
     def test_legacy_repair_and_uninstall_apply_through_authenticated_snapshot(self):
         # Arrange: damage one authenticated legacy file, then repair it.
         target = self.repo / ".agents/skills/adopt/SKILL.md"
@@ -466,11 +554,64 @@ class LegacyMigrationTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(2, completed.returncode, completed.stderr)
+        self.assertEqual(
+            {
+                "actions",
+                "approval_context",
+                "approval_context_digest",
+                "conflicts",
+                "digest",
+                "failure_phase",
+                "findings",
+                "next_action",
+                "operation",
+                "payload_digest",
+                "plugin_version",
+                "preserved_paths",
+                "recovery",
+                "shared_hashes",
+                "state_digest",
+                "status",
+                "target_hashes",
+                "target_observations",
+                "target_results",
+                "warnings",
+                "wrote",
+            },
+            set(document),
+        )
         self.assertEqual("migrate", document["operation"])
         self.assertEqual("awaiting-approval", document["status"])
         self.assertRegex(document["digest"], r"^[0-9a-f]{64}$")
-        self.assertIsInstance(document["actions"], list)
+        self.assertEqual(923, len(document["actions"]))
         self.assertTrue(document["approval_context"])
+        self.assertEqual([], document["findings"])
+        self.assertEqual([], document["warnings"])
+        self.assertEqual(
+            sorted(
+                action["path"]
+                for action in document["actions"]
+                if action["kind"] == "preserve"
+            ),
+            document["preserved_paths"],
+        )
+        digest_body = {
+            key: document[key]
+            for key in (
+                "operation",
+                "plugin_version",
+                "payload_digest",
+                "state_digest",
+                "target_observations",
+                "target_results",
+                "actions",
+                "conflicts",
+                "approval_context_digest",
+            )
+        }
+        digest_body["target_hashes"] = sorted(document["target_hashes"].items())
+        digest_body["shared_hashes"] = sorted(document["shared_hashes"].items())
+        self.assertEqual(document["digest"], digest_document(digest_body))
         self.assertEqual(before, snapshot_tree(self.repo))
 
 

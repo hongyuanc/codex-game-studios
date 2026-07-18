@@ -1867,14 +1867,20 @@ def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[Va
                 raise ValueError("unsupported migrated plugin version")
             if document.get("legacy_version") != "1.0.0":
                 raise ValueError("unsupported migrated legacy version")
-            if not _HASH.fullmatch(str(document.get("legacy_state_checksum", ""))):
+            legacy_state_checksum = document.get("legacy_state_checksum")
+            if not isinstance(legacy_state_checksum, str) or not _HASH.fullmatch(
+                legacy_state_checksum
+            ):
                 raise ValueError("invalid legacy state checksum")
             migrated_at = document.get("migrated_at")
-            if not isinstance(migrated_at, str):
+            if not isinstance(migrated_at, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", migrated_at
+            ):
                 raise ValueError("malformed migrated_at")
-            timestamp = datetime.fromisoformat(migrated_at.replace("Z", "+00:00"))
-            if timestamp.tzinfo is None:
-                raise ValueError("malformed migrated_at")
+            try:
+                datetime.strptime(migrated_at, "%Y-%m-%dT%H:%M:%SZ")
+            except ValueError as error:
+                raise ValueError("malformed migrated_at") from error
             preserved = document.get("preserved_paths")
             if not isinstance(preserved, list):
                 raise ValueError("preserved paths are malformed")
