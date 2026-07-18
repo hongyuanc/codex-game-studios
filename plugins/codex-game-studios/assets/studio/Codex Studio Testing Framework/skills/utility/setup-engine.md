@@ -52,18 +52,20 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 **Fixture:**
 - `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `godot`
+- User decisions during workflow: exact version `Godot 4`; primary language `GDScript`.
 
 **Input:** `$setup-engine godot`
 
 **Expected behavior:**
 1. Skill skips engine-selection step (argument provided)
-2. Skill presents language options for Godot: GDScript or C#
-3. User selects GDScript
+2. Skill asks for the exact engine version; user selects Godot 4
+3. Skill presents Godot language options; user selects GDScript
 4. Skill drafts all engine sections: engine/language/rendering/physics fields,
    naming conventions (snake_case for GDScript), specialist assignments
-   (godot-specialist, gdscript-specialist, godot-shader-specialist, etc.)
-5. Skill populates the routing table: `.gd` → gdscript-specialist, `.gdshader` →
-   godot-shader-specialist, `.tscn` → godot-specialist
+   (`godot-specialist`, `godot-gdscript-specialist`,
+   `godot-shader-specialist`, etc.)
+5. Skill populates the routing table: `.gd` → `godot-gdscript-specialist`,
+   `.gdshader` → `godot-shader-specialist`, `.tscn` → `godot-specialist`
 6. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 7. File is written after approval; verdict is COMPLETE
 
@@ -89,16 +91,17 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 **Expected behavior:**
 1. Skill sets engine to Unity, language to C#
 2. Naming conventions are C#-appropriate (PascalCase for classes, camelCase for fields)
-3. Specialist assignments reference unity-specialist, csharp-specialist
-4. Routing table: `.cs` → csharp-specialist, `.asmdef` → unity-specialist,
-   `.unity` (scene) → unity-specialist
+3. Specialist assignments reference `unity-specialist` and other profiles from
+   the exact five-profile Unity pack
+4. Routing table: `.cs` → `unity-specialist`, `.asmdef` → `unity-specialist`,
+   `.unity` → `unity-specialist` for scene files
 5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Engine field is set to Unity (not Godot or Unreal)
 - [ ] Language field is set to C#
 - [ ] Naming conventions reflect C# conventions
-- [ ] Routing table includes `.cs` and `.unity` entries
+- [ ] Routing table includes `.cs`, `.asmdef`, and `.unity` entries
 - [ ] Verdict is COMPLETE
 
 ---
@@ -108,19 +111,25 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 **Fixture:**
 - `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `unreal`
+- User decisions during workflow: exact version `Unreal Engine 5`; primary language `Blueprint (Visual Scripting)`.
 
 **Input:** `$setup-engine unreal`
 
 **Expected behavior:**
-1. Skill sets engine to Unreal Engine 5, primary language to Blueprint (Visual Scripting)
-2. Specialist assignments reference unreal-specialist, blueprint-specialist
-3. Routing table: `.uasset` → blueprint-specialist or unreal-specialist,
-   `.umap` → unreal-specialist
-4. Performance budgets are pre-set with Unreal defaults (e.g., higher draw call budget)
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+1. Skill skips engine-selection step (argument provided)
+2. Skill asks for the exact engine version; user selects Unreal Engine 5
+3. Skill presents Unreal language options; user selects Blueprint (Visual Scripting)
+4. Skill sets engine to Unreal Engine 5 and primary language to Blueprint (Visual Scripting)
+5. Specialist assignments reference `unreal-specialist` and
+   `ue-blueprint-specialist`
+6. Routing table: `.uasset` → `ue-blueprint-specialist` for Blueprint assets or
+   `unreal-specialist` otherwise; `.umap` → `unreal-specialist`
+7. Skill asks for the performance budget; user accepts the offered frame/memory defaults or supplies a target
+8. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Engine field is set to Unreal Engine 5
+- [ ] Language field is Blueprint (Visual Scripting)
 - [ ] Routing table includes `.uasset` and `.umap` entries
 - [ ] Blueprint specialist is assigned
 - [ ] Verdict is COMPLETE
@@ -130,13 +139,15 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 ### Case 4: Engine Already Configured — Offers to reconfigure specific sections
 
 **Fixture:**
-- `.codex/docs/technical-preferences.md` has engine set to Godot 4 with all fields populated
+- The six-field studio authority is valid for Godot 4 + GDScript
+- `.codex/active-engine.json` validates for that selection, and exactly five Godot profiles exist and match their recorded hashes
+- For Godot 4 + GDScript, all technical-preference sections are populated in `.codex/docs/technical-preferences.md`
 - No engine argument provided
 
 **Input:** `$setup-engine`
 
 **Expected behavior:**
-1. Skill reads `.codex/docs/technical-preferences.md` and detects fully configured engine (Godot 4)
+1. Skill reads studio authority, the active manifest and profiles, and technical preferences, then detects a fully configured Godot 4 + GDScript engine
 2. Skill reports: "Engine already configured as Godot 4 + GDScript"
 3. Skill presents options: reconfigure all, reconfigure specific section only
    (Engine/Language, Naming Conventions, Specialists, Performance Budgets)
@@ -189,5 +200,5 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
   This variant is not separately tested.
 - The engine-version-specific guidance (e.g., Godot 4.6 knowledge gap warning
   from VERSION.md) is surfaced by the skill but not assertion-tested here.
-- Performance budget defaults per engine are noted as engine-specific but
-  exact default values are not assertion-tested.
+- Performance budget values are user-approved: the user may accept offered
+  frame/memory defaults or supply a target. Exact values are not assertion-tested.

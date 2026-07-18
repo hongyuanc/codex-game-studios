@@ -10,6 +10,11 @@ BUNDLED_SKILL = (
     ROOT
     / "plugins/codex-game-studios/assets/studio/.agents/skills/setup-engine/SKILL.md"
 )
+CANONICAL_SPEC = ROOT / "Codex Studio Testing Framework/skills/utility/setup-engine.md"
+BUNDLED_SPEC = (
+    ROOT
+    / "plugins/codex-game-studios/assets/studio/Codex Studio Testing Framework/skills/utility/setup-engine.md"
+)
 
 
 def setup_engine_texts() -> tuple[str, str]:
@@ -19,7 +24,110 @@ def setup_engine_texts() -> tuple[str, str]:
     )
 
 
+def setup_engine_spec_texts() -> tuple[str, str]:
+    return (
+        CANONICAL_SPEC.read_text(encoding="utf-8"),
+        BUNDLED_SPEC.read_text(encoding="utf-8"),
+    )
+
+
+def spec_case(text: str, case_number: int) -> str:
+    start = text.index(f"### Case {case_number}:")
+    end = text.find("\n### Case ", start + 1)
+    return text[start:] if end == -1 else text[start:end]
+
+
 class SetupEngineSkillTests(unittest.TestCase):
+    def test_setup_engine_behavioral_spec_routes_files_to_real_active_profiles(self):
+        # Arrange / Act
+        texts = setup_engine_spec_texts()
+
+        # Assert
+        for text in texts:
+            godot = spec_case(text, 1)
+            self.assertIn("`godot-gdscript-specialist`", godot)
+            self.assertIn("`.gd` → `godot-gdscript-specialist`", godot)
+            self.assertNotIn("`gdscript-specialist`", godot)
+
+            unity = spec_case(text, 2)
+            self.assertIn("Specialist assignments reference `unity-specialist`", unity)
+            self.assertIn("`.cs` → `unity-specialist`", unity)
+            self.assertIn("`.asmdef` → `unity-specialist`", unity)
+            self.assertIn("`.unity` → `unity-specialist`", unity)
+            self.assertNotIn("csharp-specialist", unity)
+
+            unreal = spec_case(text, 3)
+            self.assertIn("`ue-blueprint-specialist`", unreal)
+            self.assertIn("`.uasset` → `ue-blueprint-specialist`", unreal)
+            self.assertNotIn("`blueprint-specialist`", unreal)
+
+    def test_setup_engine_behavioral_spec_orders_version_and_language_choices(self):
+        # Arrange / Act
+        texts = setup_engine_spec_texts()
+
+        # Assert
+        for text in texts:
+            godot = spec_case(text, 1)
+            self.assertIn(
+                "User decisions during workflow: exact version `Godot 4`; primary language `GDScript`.",
+                godot,
+            )
+            self.assertIn(
+                "Skill asks for the exact engine version; user selects Godot 4",
+                godot,
+            )
+            self.assertIn(
+                "Skill presents Godot language options; user selects GDScript",
+                godot,
+            )
+
+            unreal = spec_case(text, 3)
+            self.assertIn(
+                "User decisions during workflow: exact version `Unreal Engine 5`; primary language `Blueprint (Visual Scripting)`.",
+                unreal,
+            )
+            self.assertIn(
+                "Skill asks for the exact engine version; user selects Unreal Engine 5",
+                unreal,
+            )
+            self.assertIn(
+                "Skill presents Unreal language options; user selects Blueprint (Visual Scripting)",
+                unreal,
+            )
+            self.assertIn(
+                "- [ ] Language field is Blueprint (Visual Scripting)",
+                unreal,
+            )
+
+    def test_setup_engine_behavioral_spec_complete_fixture_matches_secure_runtime(self):
+        # Arrange / Act
+        cases = tuple(spec_case(text, 4) for text in setup_engine_spec_texts())
+
+        # Assert
+        for case in cases:
+            self.assertIn("six-field studio authority is valid", case)
+            self.assertIn("`.codex/active-engine.json` validates", case)
+            self.assertIn("exactly five Godot profiles", case)
+            self.assertIn("all technical-preference sections are populated", case)
+
+    def test_setup_engine_behavioral_spec_uses_user_approved_performance_budget(self):
+        # Arrange / Act
+        texts = setup_engine_spec_texts()
+
+        # Assert
+        for text in texts:
+            unreal = spec_case(text, 3)
+            self.assertIn(
+                "Skill asks for the performance budget; user accepts the offered frame/memory defaults or supplies a target",
+                unreal,
+            )
+            self.assertNotIn("pre-set with Unreal defaults", unreal)
+            self.assertNotIn("higher draw call budget", unreal)
+            self.assertIn(
+                "Performance budget values are user-approved",
+                text,
+            )
+
     def test_setup_engine_complete_config_offers_safe_section_specific_reconfiguration(self):
         # Arrange / Act
         texts = setup_engine_texts()
