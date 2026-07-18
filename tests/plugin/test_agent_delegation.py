@@ -98,8 +98,17 @@ class InstalledAgentDelegationTests(unittest.TestCase):
             self.assertEqual("core", core_data["source_kind"])
             self.assertEqual("godot-specialist", engine_data["name"])
             self.assertEqual("godot", engine_data["source_kind"])
-            self.assertIn("assets/studio/.codex/agents", core_data["path"])
-            self.assertIn("assets/studio/.codex/agent-packs/godot", engine_data["path"])
+            self.assertEqual(
+                (PLUGIN_STUDIO / ".codex/agents/qa-tester.toml").resolve(),
+                Path(core_data["path"]).resolve(),
+            )
+            self.assertEqual(
+                (
+                    PLUGIN_STUDIO
+                    / ".codex/agent-packs/godot/godot-specialist.toml"
+                ).resolve(),
+                Path(engine_data["path"]).resolve(),
+            )
 
     def test_bundled_resolver_rejects_traversal_unknown_and_cross_pack(self):
         self.assertTrue(

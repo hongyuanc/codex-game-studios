@@ -307,7 +307,11 @@ class LegacyPayloadSecurityTests(unittest.TestCase):
             extracted_into_plugin = (self.plugin / "assets/studio").exists()
 
         # Assert
-        self.assertEqual(0o700, mode)
+        if os.name == "nt":
+            self.assertTrue(mode & stat.S_IREAD)
+            self.assertTrue(mode & stat.S_IWRITE)
+        else:
+            self.assertEqual(0o700, mode)
         self.assertFalse(inside_plugin)
         self.assertFalse(extracted_into_plugin)
         self.assertFalse(snapshot.exists())

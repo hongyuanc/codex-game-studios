@@ -95,12 +95,12 @@ def _copy_catalog_fixture(directory: str) -> tuple[Path, Path]:
 
 
 def _write_fixture_skill(root: Path, plugin: Path, name: str, text: str) -> None:
-    (root / ".agents/skills" / name / "SKILL.md").write_text(text, encoding="utf-8")
-    (plugin / "assets/studio/.agents/skills" / name / "SKILL.md").write_text(
+    source_bytes = text.encode("utf-8")
+    (root / ".agents/skills" / name / "SKILL.md").write_bytes(source_bytes)
+    (plugin / "assets/studio/.agents/skills" / name / "SKILL.md").write_bytes(
         payload.namespace_skill_invocations(
-            text.encode("utf-8"), tuple(sorted(EXPECTED_SKILL_NAMES))
-        ).decode("utf-8"),
-        encoding="utf-8",
+            source_bytes, tuple(sorted(EXPECTED_SKILL_NAMES))
+        )
     )
 
 
@@ -227,7 +227,9 @@ class PluginSkillCatalogTests(unittest.TestCase):
     def test_skills_do_not_probe_repo_local_skill_installation(self):
         pattern = re.compile(r"\.agents/skills/[a-z0-9-]+/SKILL\.md")
         for path in sorted((ROOT / ".agents/skills").glob("*/SKILL.md")):
-            self.assertIsNone(pattern.search(path.read_text()), path)
+            self.assertIsNone(
+                pattern.search(path.read_text(encoding="utf-8")), path
+            )
 
     def test_skills_resolve_static_resources_from_the_plugin_bundle(self):
         resource = re.compile(

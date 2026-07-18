@@ -93,7 +93,7 @@ class LegacyMigrationTests(unittest.TestCase):
         content = self.repo / ".agents/skills/start/SKILL.md"
         content.write_bytes(content.read_bytes() + b"custom\n")
         mode = self.repo / ".agents/skills/adopt/SKILL.md"
-        os.chmod(mode, 0o600)
+        os.chmod(mode, stat.S_IREAD if os.name == "nt" else 0o600)
         wrong_type = self.repo / ".codex/agents/ai-programmer.toml"
         wrong_type.unlink()
         wrong_type.mkdir()
@@ -247,7 +247,7 @@ class LegacyMigrationTests(unittest.TestCase):
         def injected(*args, **kwargs):
             def failpoint(phase):
                 if phase == "validation-started":
-                    sibling.write_text("concurrent\n", encoding="utf-8")
+                    sibling.write_bytes(b"concurrent\n")
 
             kwargs["failpoint"] = failpoint
             return real_apply(*args, **kwargs)
