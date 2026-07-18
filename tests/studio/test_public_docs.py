@@ -66,6 +66,26 @@ def markdown_section(text: str, heading: str) -> str:
     return text[marker.end() : end]
 
 
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
+
+
 def readme_upstream_attribution(text: str) -> tuple[str, str]:
     start = "<!-- upstream-" + "attribution-start -->"
     end = "<!-- upstream-" + "attribution-end -->"
@@ -160,10 +180,7 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("in-Codex", cli)
         self.assertIn("$codex-game-studios:start", cli)
         self.assertIn("all 73 studio skills", fresh.lower())
-        self.assertIn("zero writes to the game repository", fresh)
-        self.assertIn("at most ten", fresh)
-        self.assertIn("never", fresh)
-        self.assertIn("`.agents/skills/`", fresh)
+        assert_fresh_repository_contract(self, fresh)
         for operation in (
             "verify legacy installation",
             "repair legacy installation",
@@ -208,10 +225,7 @@ class PublicDocumentationTests(unittest.TestCase):
                 for required in (
                     "$codex-game-studios:start",
                     "all 73 studio skills",
-                    "zero writes to the game repository",
                     "small project-specific state",
-                    "at most ten",
-                    "`.agents/skills/`",
                     "$setup-engine",
                     "Godot",
                     "Unity",
@@ -219,6 +233,7 @@ class PublicDocumentationTests(unittest.TestCase):
                     "installed separately",
                 ):
                     self.assertIn(required, fresh)
+                assert_fresh_repository_contract(self, fresh)
                 for required in (
                     "digest-bound",
                     "verify legacy installation",
@@ -227,6 +242,26 @@ class PublicDocumentationTests(unittest.TestCase):
                     "uninstall legacy installation",
                 ):
                     self.assertIn(required, legacy)
+
+    def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
+        # Arrange
+        invalid_mutants = {
+            "cap_and_path": (
+                "Plugin installation and skill discovery make zero writes to the "
+                "game repository. Start asks at most ten questions. It may create "
+                "`.agents/skills/`, but never overwrites existing files."
+            ),
+            "unbound_zero_writes": (
+                "Plugin installation writes project files. The help screen makes zero "
+                "writes to the game repository. Start uses at most ten mutations. "
+                "It never creates `.agents/skills/`."
+            ),
+        }
+
+        # Act / Assert
+        for name, mutant in invalid_mutants.items():
+            with self.subTest(mutant=name), self.assertRaises(AssertionError):
+                assert_fresh_repository_contract(self, mutant)
 
     def test_root_entry_links_and_native_instruction_contract_resolve(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

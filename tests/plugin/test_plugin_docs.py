@@ -21,6 +21,26 @@ def markdown_section(text: str, heading: str) -> str:
     return text[marker.end() : end]
 
 
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
+
+
 class PluginDocumentationTests(unittest.TestCase):
     """Verify user-facing plugin and skill contracts."""
 
@@ -96,11 +116,8 @@ class PluginDocumentationTests(unittest.TestCase):
         self.assertIn("codex plugin marketplace add", cli)
         self.assertIn("codex plugin add", cli)
         self.assertIn("all 73 studio skills", fresh.lower())
-        self.assertIn("zero writes to the game repository", fresh)
         self.assertIn("small project-specific state", fresh)
-        self.assertIn("at most ten", fresh)
-        self.assertIn("never", fresh)
-        self.assertIn("`.agents/skills/`", fresh)
+        assert_fresh_repository_contract(self, fresh)
         self.assertNotIn("$codex-game-studios install", readme)
         self.assertNotIn("$codex-game-studios update", readme)
         for operation in (
@@ -112,6 +129,18 @@ class PluginDocumentationTests(unittest.TestCase):
             self.assertNotIn(operation, fresh)
             self.assertIn(operation, legacy)
         self.assertIn("Git repository", readme)
+
+    def test_fresh_repository_contract_rejects_unbound_invalid_mutants(self):
+        # Arrange
+        mutant = (
+            "Plugin installation and skill discovery make zero writes to the game "
+            "repository. Start asks at most ten questions. It may create "
+            "`.agents/skills/`, but never overwrites existing files."
+        )
+
+        # Act / Assert
+        with self.assertRaises(AssertionError):
+            assert_fresh_repository_contract(self, mutant)
 
 if __name__ == "__main__":
     unittest.main()

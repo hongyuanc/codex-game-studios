@@ -9,6 +9,34 @@ ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/codex-game-studios"
 
 
+def assert_plugin_native_descriptions(testcase: unittest.TestCase, data: dict) -> None:
+    """Assert the public description fields present the plugin-native product."""
+
+    metadata = " ".join(
+        (
+            data["description"],
+            data["interface"]["shortDescription"],
+            data["interface"]["longDescription"],
+        )
+    )
+    testcase.assertIn("73", metadata)
+    testcase.assertIn("bundled skills", metadata)
+    testcase.assertIn("$codex-game-studios:start", metadata)
+    testcase.assertIn("bounded", metadata)
+    testcase.assertIn("project", metadata)
+    descriptions = {
+        "description": data["description"],
+        "shortDescription": data["interface"]["shortDescription"],
+        "longDescription": data["interface"]["longDescription"],
+    }
+    for field, value in descriptions.items():
+        testcase.assertNotRegex(
+            value.lower(),
+            r"\b(?:manager|manage|install|update|verify|repair|remove)\b",
+            msg=f"{field} must not advertise the legacy lifecycle as fresh",
+        )
+
+
 class PluginManifestTests(unittest.TestCase):
     """Verify the public plugin metadata contract."""
 
@@ -41,22 +69,9 @@ class PluginManifestTests(unittest.TestCase):
         manifest = PLUGIN / ".codex-plugin/plugin.json"
         # Act
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        metadata = " ".join(
-            (
-                data["description"],
-                data["interface"]["shortDescription"],
-                data["interface"]["longDescription"],
-            )
-        )
 
         # Assert
-        self.assertIn("73", metadata)
-        self.assertIn("bundled skills", metadata)
-        self.assertIn("$codex-game-studios:start", metadata)
-        self.assertIn("bounded", metadata)
-        self.assertIn("project", metadata)
-        for manager_first in ("install and manage", "install, update", "remove"):
-            self.assertNotIn(manager_first, metadata.lower())
+        assert_plugin_native_descriptions(self, data)
         self.assertEqual({"name": "hongyuanc"}, data["author"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["repository"])
         self.assertEqual("https://github.com/hongyuanc/codex-game-studios", data["homepage"])
@@ -74,6 +89,16 @@ class PluginManifestTests(unittest.TestCase):
             ["Use $codex-game-studios:start to begin in this game repository."],
             data["interface"]["defaultPrompt"],
         )
+
+    def test_plugin_manifest_rejects_manager_first_description_field_mutant(self):
+        # Arrange
+        manifest = PLUGIN / ".codex-plugin/plugin.json"
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data["interface"]["shortDescription"] = "Manage a complete repository studio."
+
+        # Act / Assert
+        with self.assertRaises(AssertionError):
+            assert_plugin_native_descriptions(self, data)
 
     def test_marketplace_points_to_local_plugin(self):
         # Arrange

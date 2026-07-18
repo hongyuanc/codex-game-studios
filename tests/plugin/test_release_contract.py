@@ -21,6 +21,26 @@ PLUGIN = ROOT / "plugins/codex-game-studios"
 WORKFLOW = ROOT / ".github/workflows/plugin-ci.yml"
 
 
+def assert_fresh_repository_contract(testcase: unittest.TestCase, text: str) -> None:
+    """Assert the documented fresh repository mutation boundary."""
+
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:plugin installation|skill discovery)\b"
+        r"[^.!?]*\bzero writes\b[^.!?]*\bgame repository\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\bat most ten (?:mutations|mutating actions)\b",
+    )
+    testcase.assertRegex(
+        text,
+        r"(?is)\b(?:never|does not|do not)\b[^.!?]*"
+        r"\b(?:creat(?:e|es|ed|ing)|cop(?:y|ies|ied|ying)|"
+        r"install(?:s|ed|ing)?)\b[^.!?]*`\.agents/skills/`",
+    )
+
+
 def release_tag_matches_version(tag: str, version: str) -> bool:
     """Return whether a stable or prerelease tag belongs to the plugin version."""
 
@@ -254,9 +274,7 @@ class ReleaseContractTests(unittest.TestCase):
                 "## Legacy 1.0.0 lifecycle support", maxsplit=1
             )
             self.assertIn("$codex-game-studios:start", fresh)
-            self.assertIn("at most ten", fresh)
-            self.assertIn("zero writes to the game repository", fresh)
-            self.assertIn("`.agents/skills/`", fresh)
+            assert_fresh_repository_contract(self, fresh)
             for operation in (
                 "verify legacy installation",
                 "repair legacy installation",
@@ -270,7 +288,17 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertIn("73 bundled skills", metadata_text)
         self.assertIn("$codex-game-studios:start", metadata_text)
         self.assertIn("bounded", metadata_text)
-        self.assertNotIn("install and manage", metadata_text.lower())
+        for field in ("description", "shortDescription", "longDescription"):
+            value = (
+                metadata[field]
+                if field == "description"
+                else metadata["interface"][field]
+            )
+            with self.subTest(description_field=field):
+                self.assertNotRegex(
+                    value.lower(),
+                    r"\b(?:manager|manage|install|update|verify|repair|remove)\b",
+                )
 
     def test_release_archive_is_deterministic_and_checksummed(self):
         # Arrange
