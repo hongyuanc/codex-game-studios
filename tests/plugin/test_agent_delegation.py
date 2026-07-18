@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+from tools.codex_studio.engine_pack import load_studio_config
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_STUDIO = ROOT / "plugins/codex-game-studios/assets/studio"
@@ -14,11 +16,12 @@ PLUGIN_STUDIO = ROOT / "plugins/codex-game-studios/assets/studio"
 
 def _write_studio_config(project: Path, engine: str = "unconfigured") -> None:
     active_pack = "none" if engine == "unconfigured" else engine
+    version, language = ("", "") if engine == "unconfigured" else ("4.6", "gdscript")
     (project / ".codex").mkdir(parents=True, exist_ok=True)
     (project / ".codex/studio.toml").write_text(
         f'engine = "{engine}"\n'
-        'engine_version = ""\n'
-        'language = ""\n'
+        f'engine_version = "{version}"\n'
+        f'language = "{language}"\n'
         'review_mode = "phase-gated"\n'
         f'active_engine_pack = "{active_pack}"\n'
         'model_policy = "balanced"\n',
@@ -49,6 +52,28 @@ def _run_resolver(studio: Path, project: Path, role: str) -> subprocess.Complete
 
 
 class InstalledAgentDelegationTests(unittest.TestCase):
+    def test_studio_config_fixture_is_strictly_valid(self):
+        # Arrange / Act / Assert
+        cases = (
+            ("unconfigured", "", "", "none"),
+            ("godot", "4.6", "gdscript", "godot"),
+        )
+        for engine, version, language, active_pack in cases:
+            with self.subTest(engine=engine), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory) / "project"
+                project.mkdir()
+                _write_studio_config(project, engine)
+                try:
+                    config = load_studio_config(project)
+                except ValueError as error:
+                    self.fail(f"studio config fixture must be strictly valid: {error}")
+                self.assertEqual((engine, version, language, active_pack), (
+                    config.engine,
+                    config.engine_version,
+                    config.language,
+                    config.active_engine_pack,
+                ))
+
     def test_bundled_resolver_loads_core_and_selected_pack_without_project_agents(self):
         # Arrange
         resolver = PLUGIN_STUDIO / "tools/codex_studio/agent_delegation.py"
