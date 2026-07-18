@@ -976,20 +976,29 @@ def copy_file_secure(
                     raise PayloadError(
                         f"cannot create exclusive payload destination: {destination_relative}: {error}"
                     ) from error
-                destination_before = os.fstat(destination_fd)
-                if _kind(destination_before) != "file":
-                    raise PayloadError(f"payload destination is not regular: {destination_relative}")
-                digest = _copy_stream(source_fd, destination_fd)
-                if not hasattr(os, "fchmod"):
-                    raise PayloadError("descriptor chmod is unavailable")
-                os.fchmod(destination_fd, mode)
-                os.fsync(destination_fd)
-                source_after = os.fstat(source_fd)
-                destination_after = os.fstat(destination_fd)
-                if not _same_identity(source_before, source_after):
-                    raise PayloadError(f"source changed during secure copy: {source_relative}")
-                if not _same_object(destination_before, destination_after):
-                    raise PayloadError(f"destination changed during secure copy: {destination_relative}")
+                try:
+                    destination_before = os.fstat(destination_fd)
+                    if _kind(destination_before) != "file":
+                        raise PayloadError(
+                            f"payload destination is not regular: {destination_relative}"
+                        )
+                    digest = _copy_stream(source_fd, destination_fd)
+                    if not hasattr(os, "fchmod"):
+                        raise PayloadError("descriptor chmod is unavailable")
+                    os.fchmod(destination_fd, mode)
+                    os.fsync(destination_fd)
+                    source_after = os.fstat(source_fd)
+                    destination_after = os.fstat(destination_fd)
+                    if not _same_identity(source_before, source_after):
+                        raise PayloadError(
+                            f"source changed during secure copy: {source_relative}"
+                        )
+                    if not _same_object(destination_before, destination_after):
+                        raise PayloadError(
+                            f"destination changed during secure copy: {destination_relative}"
+                        )
+                finally:
+                    os.close(destination_fd)
         if not _path_identity(source_root, source_relative, source_before) or not _path_identity(
             destination_root, destination_relative, destination_before
         ):

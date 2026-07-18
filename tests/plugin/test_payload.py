@@ -1030,6 +1030,95 @@ class PayloadGenerationTests(unittest.TestCase):
                             b"approved\n", destination_backup.read_bytes()
                         )
 
+    @unittest.skipIf(os.name == "nt", "POSIX descriptor lifetime contract")
+    def test_secure_copy_success_closes_destination_descriptor(self):
+        # Arrange
+        import safe_fs
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_root.mkdir()
+            destination_root.mkdir()
+            (source_root / "file.txt").write_bytes(b"approved\n")
+            original_open = safe_fs.os.open
+            destination_descriptors = []
+
+            def recording_open(path, flags, *args, **kwargs):
+                descriptor = original_open(path, flags, *args, **kwargs)
+                if flags & os.O_WRONLY and flags & os.O_EXCL:
+                    destination_descriptors.append(descriptor)
+                return descriptor
+
+            # Act
+            with mock.patch.object(safe_fs.os, "open", side_effect=recording_open):
+                safe_fs.copy_file_secure(
+                    source_root,
+                    "file.txt",
+                    destination_root,
+                    "file.txt",
+                    0o644,
+                )
+
+            # Assert
+            self.assertEqual(1, len(destination_descriptors))
+            try:
+                with self.assertRaises(OSError):
+                    os.fstat(destination_descriptors[0])
+            finally:
+                try:
+                    os.close(destination_descriptors[0])
+                except OSError:
+                    pass
+
+    @unittest.skipIf(os.name == "nt", "POSIX descriptor lifetime contract")
+    def test_secure_copy_failure_closes_destination_descriptor(self):
+        # Arrange
+        import safe_fs
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_root.mkdir()
+            destination_root.mkdir()
+            (source_root / "file.txt").write_bytes(b"approved\n")
+            original_open = safe_fs.os.open
+            destination_descriptors = []
+
+            def recording_open(path, flags, *args, **kwargs):
+                descriptor = original_open(path, flags, *args, **kwargs)
+                if flags & os.O_WRONLY and flags & os.O_EXCL:
+                    destination_descriptors.append(descriptor)
+                return descriptor
+
+            # Act
+            with mock.patch.object(
+                safe_fs.os, "open", side_effect=recording_open
+            ), mock.patch.object(
+                safe_fs, "_copy_stream", side_effect=RuntimeError("copy failed")
+            ):
+                with self.assertRaisesRegex(RuntimeError, "copy failed"):
+                    safe_fs.copy_file_secure(
+                        source_root,
+                        "file.txt",
+                        destination_root,
+                        "file.txt",
+                        0o644,
+                    )
+
+            # Assert
+            self.assertEqual(1, len(destination_descriptors))
+            try:
+                with self.assertRaises(OSError):
+                    os.fstat(destination_descriptors[0])
+            finally:
+                try:
+                    os.close(destination_descriptors[0])
+                except OSError:
+                    pass
+
     def test_payload_policy_rejects_rogue_and_missing_root_inventory(self):
         for mutation in ("rogue", "rogue-directory", "missing"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
