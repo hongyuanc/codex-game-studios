@@ -81,6 +81,28 @@ class SetupEngineSkillTests(unittest.TestCase):
                 godot,
             )
 
+            unity = spec_case(text, 2)
+            unity_order = (
+                "Skill skips engine-selection step (argument provided)",
+                "Skill asks for the exact engine version; user selects an exact supported Unity version",
+                "Skill records and confirms C# as Unity's only supported primary language",
+                "Skill gathers target platform",
+                "Skill gathers primary input",
+                "Skill gathers testing framework",
+                "Skill gathers performance budget",
+                "Skill sets engine to Unity and language to C#",
+            )
+            self.assertIn(
+                "User decisions during workflow: an exact supported Unity version; primary language `C#`; concrete target platform, primary input, testing framework, and performance budget.",
+                unity,
+            )
+            for step in unity_order:
+                self.assertIn(step, unity)
+            self.assertEqual(
+                sorted(unity.index(step) for step in unity_order),
+                [unity.index(step) for step in unity_order],
+            )
+
             unreal = spec_case(text, 3)
             self.assertIn(
                 "User decisions during workflow: exact version `Unreal Engine 5`; primary language `Blueprint (Visual Scripting)`.",

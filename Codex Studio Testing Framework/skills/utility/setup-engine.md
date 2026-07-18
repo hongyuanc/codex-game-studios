@@ -85,17 +85,25 @@ None. `$setup-engine` is a technical configuration skill. No director gates appl
 **Fixture:**
 - `.codex/docs/technical-preferences.md` contains only placeholders
 - Engine argument provided: `unity`
+- User decisions during workflow: an exact supported Unity version; primary language `C#`; concrete target platform, primary input, testing framework, and performance budget.
 
 **Input:** `$setup-engine unity`
 
 **Expected behavior:**
-1. Skill sets engine to Unity, language to C#
-2. Naming conventions are C#-appropriate (PascalCase for classes, camelCase for fields)
-3. Specialist assignments reference `unity-specialist` and other profiles from
+1. Skill skips engine-selection step (argument provided)
+2. Skill asks for the exact engine version; user selects an exact supported Unity version
+3. Skill records and confirms C# as Unity's only supported primary language
+4. Skill gathers target platform
+5. Skill gathers primary input
+6. Skill gathers testing framework
+7. Skill gathers performance budget
+8. Skill sets engine to Unity and language to C#
+9. Naming conventions are C#-appropriate (PascalCase for classes, camelCase for fields)
+10. Specialist assignments reference `unity-specialist` and other profiles from
    the exact five-profile Unity pack
-4. Routing table: `.cs` → `unity-specialist`, `.asmdef` → `unity-specialist`,
+11. Routing table: `.cs` → `unity-specialist`, `.asmdef` → `unity-specialist`,
    `.unity` → `unity-specialist` for scene files
-5. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
+12. The parent presents one complete proposed changeset containing every target path and material edit, then obtains approval before any write.
 
 **Assertions:**
 - [ ] Engine field is set to Unity (not Godot or Unreal)
