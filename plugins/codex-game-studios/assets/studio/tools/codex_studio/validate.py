@@ -1341,7 +1341,7 @@ _MIGRATION_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 516
-_INSTALLED_INVENTORY_SHA256 = "56ed000c9bebb1c4a7d96eefdf8b60b97b5a808668edb05188c6674095f7286a"
+_INSTALLED_INVENTORY_SHA256 = "73c7a18aca5107c4ddcd264fed501769f9273b6bee9ed22f067c0363507e57f9"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")

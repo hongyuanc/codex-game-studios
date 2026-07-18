@@ -94,8 +94,8 @@ class ActivationPlan:
 
     root: Path
     source_root: Path
-    source_root_identity: tuple[int, int, int]
-    source_pack_identity: tuple[int, int, int]
+    source_root_identity: tuple[int, ...]
+    source_pack_identities: tuple[tuple[str, tuple[int, ...]], ...]
     engine: str
     install: tuple[Path, ...]
     remove: tuple[Path, ...]
@@ -179,8 +179,172 @@ def _normalize_source_root(source_root: Path | None, target_root: Path) -> Path:
     return normalized
 
 
-def _directory_identity(path: Path, label: str) -> tuple[int, int, int]:
+@dataclasses.dataclass(frozen=True)
+class _WindowsDirectoryInfo:
+    """Native Windows identity and change metadata for one directory handle."""
+
+    volume: int
+    file_id: int
+    creation_time: int
+    change_time: int
+    directory: bool
+    reparse: bool
+    disk: bool
+
+
+class _NativeWindowsDirectoryApi:
+    """Minimal Win32 API for no-follow directory change tokens."""
+
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    FILE_SHARE_READ = 0x1
+    FILE_SHARE_WRITE = 0x2
+    FILE_SHARE_DELETE = 0x4
+
+    def __init__(self) -> None:  # pragma: no cover - exercised by native Windows CI.
+        import ctypes
+        from ctypes import wintypes
+
+        class FileBasicInfo(ctypes.Structure):
+            _fields_ = [
+                ("CreationTime", ctypes.c_longlong),
+                ("LastAccessTime", ctypes.c_longlong),
+                ("LastWriteTime", ctypes.c_longlong),
+                ("ChangeTime", ctypes.c_longlong),
+                ("FileAttributes", wintypes.DWORD),
+            ]
+
+        class ByHandleFileInformation(ctypes.Structure):
+            _fields_ = [
+                ("FileAttributes", wintypes.DWORD),
+                ("CreationTimeLow", wintypes.DWORD),
+                ("CreationTimeHigh", wintypes.DWORD),
+                ("LastAccessTimeLow", wintypes.DWORD),
+                ("LastAccessTimeHigh", wintypes.DWORD),
+                ("LastWriteTimeLow", wintypes.DWORD),
+                ("LastWriteTimeHigh", wintypes.DWORD),
+                ("VolumeSerialNumber", wintypes.DWORD),
+                ("FileSizeHigh", wintypes.DWORD),
+                ("FileSizeLow", wintypes.DWORD),
+                ("NumberOfLinks", wintypes.DWORD),
+                ("FileIndexHigh", wintypes.DWORD),
+                ("FileIndexLow", wintypes.DWORD),
+            ]
+
+        self.ctypes = ctypes
+        self.wintypes = wintypes
+        self.FileBasicInfo = FileBasicInfo
+        self.ByHandleFileInformation = ByHandleFileInformation
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel32.CreateFileW.argtypes = [
+            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        ]
+        self.kernel32.CreateFileW.restype = wintypes.HANDLE
+        self.kernel32.GetFileInformationByHandleEx.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+        ]
+        self.kernel32.GetFileInformationByHandleEx.restype = wintypes.BOOL
+        self.kernel32.GetFileInformationByHandle.argtypes = [
+            wintypes.HANDLE, ctypes.POINTER(ByHandleFileInformation),
+        ]
+        self.kernel32.GetFileInformationByHandle.restype = wintypes.BOOL
+        self.kernel32.GetFileType.argtypes = [wintypes.HANDLE]
+        self.kernel32.GetFileType.restype = wintypes.DWORD
+        self.kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.kernel32.CloseHandle.restype = wintypes.BOOL
+
+    def _error(self, operation: str) -> OSError:  # pragma: no cover - Windows only.
+        code = self.ctypes.get_last_error()
+        return OSError(code, f"{operation} failed: {self.ctypes.FormatError(code)}")
+
+    def open(self, path: str, *, flags: int, share: int) -> int:  # pragma: no cover - Windows only.
+        handle = self.kernel32.CreateFileW(path, 0x80, share, None, 3, flags, None)
+        handle_value = handle if isinstance(handle, int) else handle.value
+        if handle_value == self.ctypes.c_void_p(-1).value:
+            raise self._error("CreateFileW")
+        if handle_value is None:
+            raise self._error("CreateFileW")
+        return int(handle_value)
+
+    def info(self, handle: int) -> _WindowsDirectoryInfo:  # pragma: no cover - Windows only.
+        basic = self.FileBasicInfo()
+        if not self.kernel32.GetFileInformationByHandleEx(
+            handle, 0, self.ctypes.byref(basic), self.ctypes.sizeof(basic)
+        ):
+            raise self._error("GetFileInformationByHandleEx(FileBasicInfo)")
+        stable = self.ByHandleFileInformation()
+        if not self.kernel32.GetFileInformationByHandle(
+            handle, self.ctypes.byref(stable)
+        ):
+            raise self._error("GetFileInformationByHandle")
+        attributes = int(basic.FileAttributes)
+        return _WindowsDirectoryInfo(
+            volume=int(stable.VolumeSerialNumber),
+            file_id=(int(stable.FileIndexHigh) << 32) | int(stable.FileIndexLow),
+            creation_time=int(basic.CreationTime),
+            change_time=int(basic.ChangeTime),
+            directory=bool(attributes & 0x10),
+            reparse=bool(attributes & 0x400),
+            disk=int(self.kernel32.GetFileType(handle)) == 1,
+        )
+
+    def close(self, handle: int) -> None:  # pragma: no cover - Windows only.
+        if not self.kernel32.CloseHandle(handle):
+            raise self._error("CloseHandle")
+
+
+def _windows_directory_identity(
+    path: Path, label: str, *, windows_api=None,
+) -> tuple[int, int, int, int]:
+    """Return a handle-derived Windows identity including native ChangeTime."""
+
+    api = windows_api if windows_api is not None else _NativeWindowsDirectoryApi()
+    flags = api.FILE_FLAG_OPEN_REPARSE_POINT | api.FILE_FLAG_BACKUP_SEMANTICS
+    share = api.FILE_SHARE_READ | api.FILE_SHARE_WRITE | api.FILE_SHARE_DELETE
+    handle: int | None = None
+    identity: tuple[int, int, int, int] | None = None
+    failure: BaseException | None = None
+    try:
+        handle = api.open(str(path), flags=flags, share=share)
+        info = api.info(handle)
+        if info.reparse:
+            raise ValueError(f"{label} native Windows directory handle is a reparse point: {path}")
+        if not info.disk or not info.directory:
+            raise ValueError(f"{label} native Windows handle is not a disk directory: {path}")
+        identity = (
+            int(info.volume), int(info.file_id),
+            int(info.creation_time), int(info.change_time),
+        )
+    except ValueError as error:
+        failure = error
+    except OSError as error:
+        failure = ValueError(
+            f"{label} native Windows directory identity check failed for {path}: {error}"
+        )
+    finally:
+        if handle is not None:
+            try:
+                api.close(handle)
+            except OSError as error:
+                if failure is None:
+                    failure = ValueError(
+                        f"{label} native Windows directory handle cleanup failed for {path}: {error}"
+                    )
+    if failure is not None:
+        raise failure
+    assert identity is not None
+    return identity
+
+
+def _is_windows_platform() -> bool:
+    return os.name == "nt"
+
+
+def _directory_identity(path: Path, label: str) -> tuple[int, ...]:
     metadata = _require_directory(path, label)
+    if _is_windows_platform():
+        return _windows_directory_identity(path, label)
     return (int(metadata.st_dev), int(metadata.st_ino), int(metadata.st_ctime_ns))
 
 
@@ -625,23 +789,50 @@ def plan_activation(
     if journal is not None and journal["phase"] not in {"committed", "rolled-back"}:
         raise ValueError("incomplete engine-pack recovery journal; run the CLI with --recover before planning")
     config = load_studio_config(root)
+    pack_selection = _source_pack_selection(source_root, root, config, engine)
+    source_root_identity: tuple[int, ...] = ()
+    source_pack_identities: tuple[tuple[str, tuple[int, ...]], ...] = ()
+    if source_root != root:
+        assert pack_selection is not None
+        source_root_identity = _directory_identity(
+            source_root, "engine pack source root"
+        )
+        source_pack_identities = tuple(
+            (
+                pack_engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / pack_engine,
+                    f"{pack_engine} source engine pack",
+                ),
+            )
+            for pack_engine in sorted(pack_selection)
+        )
     packs = _validate_packs(
         source_root,
-        selected=_source_pack_selection(source_root, root, config, engine),
+        selected=pack_selection,
         external=source_root != root,
     )
+    if source_root != root:
+        if _directory_identity(
+            source_root, "engine pack source root"
+        ) != source_root_identity:
+            raise ValueError("source root identity changed during activation planning")
+        after_pack_identities = tuple(
+            (
+                pack_engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / pack_engine,
+                    f"{pack_engine} source engine pack",
+                ),
+            )
+            for pack_engine, _identity in source_pack_identities
+        )
+        if after_pack_identities != source_pack_identities:
+            raise ValueError("source pack identity changed during activation planning")
     manifest = _load_manifest(root, config, packs)
     managed = _validate_managed_profiles(root, manifest)
     selected = packs[engine]
     selected_hashes = tuple((source.name, digest) for source, digest in selected)
-    source_root_identity = (
-        _directory_identity(source_root, "engine pack source root")
-        if source_root != root else (0, 0, 0)
-    )
-    source_pack_identity = (
-        _directory_identity(source_root / ".codex/agent-packs" / engine, "selected engine pack")
-        if source_root != root else (0, 0, 0)
-    )
     agents = _agents_directory(root)
     for source, _digest in selected:
         target = agents / source.name
@@ -662,7 +853,7 @@ def plan_activation(
         root=root,
         source_root=source_root,
         source_root_identity=source_root_identity,
-        source_pack_identity=source_pack_identity,
+        source_pack_identities=source_pack_identities,
         engine=engine,
         install=install,
         remove=remove,
@@ -1038,8 +1229,19 @@ def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
     _require_trusted_bundle_source(source_root)
     if source_root != root and _directory_identity(source_root, "engine pack source root") != plan.source_root_identity:
         raise ValueError("source root identity changed after activation planning (concurrent source replacement)")
-    if source_root != root and _directory_identity(source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != plan.source_pack_identity:
-        raise ValueError("selected source pack identity changed after activation planning")
+    if source_root != root:
+        current_pack_identities = tuple(
+            (
+                engine,
+                _directory_identity(
+                    source_root / ".codex/agent-packs" / engine,
+                    f"{engine} source engine pack",
+                ),
+            )
+            for engine, _identity in plan.source_pack_identities
+        )
+        if current_pack_identities != plan.source_pack_identities:
+            raise ValueError("source pack identity changed after activation planning")
     packs = _validate_packs(
         source_root,
         selected=frozenset({plan.engine}) if source_root != root else None,
@@ -1096,8 +1298,9 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _write_journal(recovery, journal, "remove")
             _checkpoint("remove")
             expected_hashes = dict(plan.source_hashes)
+            selected_pack_identity = dict(plan.source_pack_identities).get(plan.engine)
             for source in plan.install:
-                if plan.source_root != root and _directory_identity(plan.source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != plan.source_pack_identity:
+                if plan.source_root != root and _directory_identity(plan.source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != selected_pack_identity:
                     raise ValueError("selected source pack identity changed during activation")
                 raw = _secure_read(source, "engine pack source profile")
                 if _sha256(raw) != expected_hashes[source.name]:
