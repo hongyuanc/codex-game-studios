@@ -1341,7 +1341,7 @@ _MIGRATION_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 516
-_INSTALLED_INVENTORY_SHA256 = "21d77e27c321a751c50fb21992c8c2012fe4a27ffe1c2dbe43e2dfa17dc7ac6e"
+_INSTALLED_INVENTORY_SHA256 = "d3e6c74513601362329baf3516aa1e31997ba1eee17a58eebe766cd5aec34837"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -2151,12 +2151,76 @@ def validate_installed_repository(root: pathlib.Path) -> list[ValidationIssue]:
     return _validate_installed_repository_secure(root)[0]
 
 
+def validate_plugin_native_project(
+    target_root: pathlib.Path, *, source_root: pathlib.Path,
+) -> list[ValidationIssue]:
+    """Validate fresh plugin-native engine activation without legacy payload state."""
+
+    target_input = pathlib.Path(target_root).absolute()
+    source_input = pathlib.Path(source_root).absolute()
+    target = target_input.resolve()
+    source = source_input.resolve()
+    trusted_source = pathlib.Path(__file__).resolve().parents[2]
+    if source.resolve() != trusted_source:
+        return [_installed_issue("--source-root", "plugin-native source root must equal this validator's bundled studio root")]
+    if source.resolve() == target.resolve():
+        return [_installed_issue("--source-root", "plugin-native source root must differ from the target root")]
+    activation_issues = validate_activation(target_input, source_root=source_input)
+    if activation_issues:
+        return [_installed_issue(".codex", issue) for issue in activation_issues]
+    issues: list[ValidationIssue] = []
+    try:
+        with _SecureInstalledRoot(target) as target_secure, _SecureInstalledRoot(source) as source_secure:
+            studio = tomllib.loads(target_secure.read(".codex/studio.toml").decode("utf-8"))
+            fields = {
+                "engine", "engine_version", "language", "review_mode", "active_engine_pack", "model_policy",
+            }
+            if set(studio) != fields or any(not isinstance(studio.get(key), str) for key in fields):
+                raise ValueError("studio configuration must contain exactly six string authority fields")
+            engine = studio["engine"]
+            active_pack = studio["active_engine_pack"]
+            if engine == "unconfigured":
+                if active_pack != "none":
+                    raise ValueError("unconfigured project has an active engine pack")
+                for relative in (".codex/active-engine.json", ".codex/agents"):
+                    try:
+                        target_secure.kind(relative)
+                    except OSError:
+                        continue
+                    raise ValueError("unconfigured project retains active engine state")
+            elif engine in EXPECTED_PACK_NAMES and active_pack == engine:
+                expected_names = {f"{name}.toml" for name in EXPECTED_PACK_NAMES[engine]}
+                manifest = json.loads(target_secure.read(".codex/active-engine.json").decode("utf-8"))
+                generated = manifest.get("generated") if isinstance(manifest, dict) and manifest.get("engine") == engine else None
+                if not isinstance(generated, dict) or set(generated) != expected_names:
+                    raise ValueError("active engine manifest does not declare exactly five selected profiles")
+                source_paths = source_secure.walk_files(f".codex/agent-packs/{engine}")
+                if source_paths != {f".codex/agent-packs/{engine}/{name}" for name in expected_names}:
+                    raise ValueError("selected source engine pack does not contain exactly five expected profiles")
+                for name in sorted(expected_names):
+                    expected_hash = generated[name]
+                    if not isinstance(expected_hash, str) or not _HASH.fullmatch(expected_hash):
+                        raise ValueError(f"active engine manifest hash is invalid: {name}")
+                    active = target_secure.read(f".codex/agents/{name}")
+                    source_profile = source_secure.read(f".codex/agent-packs/{engine}/{name}")
+                    if hashlib.sha256(active).hexdigest() != expected_hash or active != source_profile:
+                        raise ValueError(f"active profile does not match selected source pack: {name}")
+            else:
+                raise ValueError("configured engine and active pack are invalid or disagree")
+            target_secure.verify()
+            source_secure.verify()
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError, json.JSONDecodeError, ValueError) as error:
+        issues.append(_installed_issue(".codex", f"plugin-native validation failed: {error}"))
+    return issues
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Codex Game Studios")
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path("."))
-    parser.add_argument("--mode", choices=("source", "installed"), default="source")
+    parser.add_argument("--mode", choices=("source", "installed", "plugin-native"), default="source")
     parser.add_argument("--phase", choices=("pre-cleanup", "final"), default="final")
     parser.add_argument("--skill-file", type=pathlib.Path)
+    parser.add_argument("--source-root", type=pathlib.Path)
     args = parser.parse_args(argv)
     if args.skill_file is not None:
         issues = validate_skill(args.skill_file)
@@ -2167,7 +2231,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print("Skill validation: PASS")
         return 0
-    issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
+    if args.mode == "plugin-native":
+        if args.source_root is None:
+            parser.error("--mode plugin-native requires --source-root")
+        issues = validate_plugin_native_project(args.root, source_root=args.source_root)
+    else:
+        if args.source_root is not None:
+            parser.error("--source-root is only valid with --mode plugin-native")
+        issues = validate_repository(args.root, args.phase) if args.mode == "source" else validate_installed_repository(args.root)
     for issue in issues:
         print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
     if any(issue.severity == "error" for issue in issues):

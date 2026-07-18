@@ -73,6 +73,43 @@ class RepositoryValidationTests(unittest.TestCase):
         self.assertEqual(0, main(["--root", str(ROOT), "--phase", "final"]))
         self.assertEqual(0, main(["--root", str(ROOT), "--mode", "source", "--phase", "final"]))
 
+    def test_plugin_native_validator_accepts_fresh_target_without_global_payload(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            apply_activation(
+                target,
+                plan_activation(
+                    target, "godot", version="4.6", language="gdscript", source_root=ROOT,
+                ),
+            )
+
+            # Act
+            issues = validate_module.validate_plugin_native_project(target, source_root=ROOT)
+            status = main([
+                "--mode", "plugin-native", "--root", str(target), "--source-root", str(ROOT), "--phase", "final",
+            ])
+
+            # Assert
+            self.assertEqual([], issues)
+            self.assertEqual(0, status)
+            self.assertFalse((target / ".codex/agent-packs").exists())
+            self.assertFalse((target / ".agents/skills").exists())
+
+    def test_plugin_native_validator_requires_distinct_trusted_source_root(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+
+            # Act
+            with self.assertRaises(SystemExit) as raised:
+                main(["--mode", "plugin-native", "--root", str(target), "--phase", "final"])
+
+            # Assert
+            self.assertEqual(2, raised.exception.code)
+
     def test_final_repository_validation_accepts_each_configured_engine_pack(self):
         targets = {
             "godot": ("4.6", "gdscript"),

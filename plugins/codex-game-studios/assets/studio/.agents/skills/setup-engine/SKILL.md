@@ -33,10 +33,21 @@ Ask exactly one unresolved decision, then stop and wait. Use `request_user_input
 
 ## Plan before mutation
 
-Run a read-only plan with the chosen values:
+This skill must run plugin-bundled utilities, not target-local Python modules.
+First obtain the **physical installed SKILL.md path** supplied by Codex for this
+invocation. Resolve it to an absolute regular file, then derive the absolute
+`BUNDLE` directory from its installed setup-engine resource location. Resolve
+the target project root independently. If the runtime cannot provide that
+physical resource path, stop and report the missing plugin-resource capability;
+do not fall back to CWD, search or guess for resources, inspect environment
+hints, or copy plugin resources into the project.
+
+`BUNDLE` is immutable read-only plugin material. `TARGET` is the only location
+the transaction may lock, write, recover, or repair. Run a read-only plan with
+the chosen values:
 
 ```bash
-python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <exact-version> --language <primary-language> --dry-run
+python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --source-root <resolved BUNDLE> --engine <engine> --version <exact-version> --language <primary-language> --dry-run
 ```
 
 Replace the example values with the user's selection. The command must exit successfully. Present its complete activation plan, including every install, every removal, and the configuration change. Also summarize the proposed `AGENTS.md`, `.codex/docs/technical-preferences.md`, build/test command, and bundled engine-reference provenance as one bounded changeset.
@@ -48,13 +59,13 @@ Request explicit approval for that complete changeset. No project write is allow
 After explicit approval, run the exact corresponding transaction:
 
 ```bash
-python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <exact-version> --language <primary-language> --apply
+python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --source-root <resolved BUNDLE> --engine <engine> --version <exact-version> --language <primary-language> --apply
 ```
 
 The transaction rejects unmanaged collisions, symlinks/reparse points, modified generated profiles, malformed state, stale plans, source changes, and path traversal. It is serialized for cooperating writers and recoverable, not magically atomic to lock-ignorant readers or across arbitrary power-loss/filesystem behavior. Before mutation it persists the original agent tree, manifest, and studio configuration under `.codex/engine-pack-recovery`. It attempts byte-for-byte logical rollback on failure; if rollback itself fails, it preserves the only good backup and journal for explicit recovery:
 
 ```bash
-python3 -m tools.codex_studio.engine_pack --root . --recover
+python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --recover
 ```
 
 If activation fails:
@@ -70,7 +81,7 @@ Only after activation succeeds, apply the complete approved write scope:
 
 - Update the Technology Stack and bundled engine-reference provenance in `AGENTS.md`.
 - Populate `.codex/docs/technical-preferences.md`, including **Active Engine Pack**, exact build/test commands, naming conventions, platform/input choices, and routing to the five active profiles.
-- Read `../../../docs/engine-reference/<engine>/VERSION.md` for the selected engine and record its stable Codex Game Studios provenance label in project-owned configuration. The bundled engine references are read-only; never create, refresh, or edit them during project setup.
+- Read the selected bundled engine `VERSION.md` using the resolved BUNDLE resource path and record its stable Codex Game Studios provenance label in project-owned configuration. The bundled engine references are read-only; never create, refresh, or edit them during project setup.
 - Do not add speculative libraries or dependencies.
 
 ## Post-apply validation
@@ -78,10 +89,8 @@ Only after activation succeeds, apply the complete approved write scope:
 Run all of the following before reporting success:
 
 ```bash
-python3 -m unittest tests.studio.test_engine_pack tests.studio.test_setup_engine_skill -v
-python3 -m unittest discover -s tests/studio -v
-python3 -m tools.codex_studio.validate --root . --phase final
-python3 -m tools.codex_studio.engine_pack --root . --engine <engine> --version <version> --language <language> --dry-run
+python3 -B <resolved BUNDLE>/tools/codex_studio/validate.py --mode plugin-native --root <resolved TARGET> --source-root <resolved BUNDLE> --phase final
+python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack.py --root <resolved TARGET> --source-root <resolved BUNDLE> --engine <engine> --version <version> --language <language> --dry-run
 ```
 
 Confirm that:
@@ -89,7 +98,7 @@ Confirm that:
 - `.codex/studio.toml` names the selected engine and pack.
 - `.codex/active-engine.json` validates.
 - The five active profiles exist and match their recorded hashes.
-- Final repository validation accepts the configured core-plus-engine roster.
+- Plugin-native validation accepts the six-field project authority and selected five-profile activation without requiring target-local packs, skills, tools, or references.
 - The final dry run reports a no-op.
 - The approved `AGENTS.md` and technical-preference updates exist, and the bundled engine reference remains readable and unchanged.
 

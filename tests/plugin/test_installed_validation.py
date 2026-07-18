@@ -125,6 +125,69 @@ class InstalledValidationTests(unittest.TestCase):
         self.assertFalse((self.repo / "README.md").exists())
         self.assertFalse((self.repo / "docs/superpowers").exists())
 
+    def test_bundled_plugin_scripts_activate_and_validate_a_fresh_minimal_target(self):
+        # Arrange
+        target = Path(self.temporary.name).resolve() / "plugin-native-target"
+        shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+        bundle = PLUGIN / "assets/studio"
+        engine_pack = bundle / "tools/codex_studio/engine_pack.py"
+        validator = bundle / "tools/codex_studio/validate.py"
+        before = snapshot_tree(target)
+
+        # Act
+        dry_run = subprocess.run(
+            [
+                sys.executable, "-B", str(engine_pack), "--root", str(target),
+                "--source-root", str(bundle), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--dry-run",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+
+        # Assert
+        self.assertEqual(0, dry_run.returncode, dry_run.stderr)
+        self.assertEqual(5, dry_run.stdout.count("INSTALL SOURCE .codex/agent-packs/godot/"))
+        self.assertEqual(before, snapshot_tree(target))
+        apply = subprocess.run(
+            [
+                sys.executable, "-B", str(engine_pack), "--root", str(target),
+                "--source-root", str(bundle), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--apply",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, apply.returncode, apply.stderr)
+        self.assertFalse((target / ".codex/agent-packs").exists())
+        self.assertFalse((target / ".agents/skills").exists())
+        self.assertEqual(
+            0,
+            subprocess.run(
+                [
+                    sys.executable, "-B", str(validator), "--mode", "plugin-native",
+                    "--root", str(target), "--source-root", str(bundle), "--phase", "final",
+                ], cwd=target, text=True, capture_output=True, check=False,
+            ).returncode,
+        )
+
+    def test_bundled_engine_pack_rejects_a_swapped_source_root_without_target_writes(self):
+        # Arrange
+        target = Path(self.temporary.name).resolve() / "swapped-source-target"
+        shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+        before = snapshot_tree(target)
+        engine_pack = PLUGIN / "assets/studio/tools/codex_studio/engine_pack.py"
+
+        # Act
+        result = subprocess.run(
+            [
+                sys.executable, "-B", str(engine_pack), "--root", str(target),
+                "--source-root", str(ROOT), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--dry-run",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+
+        # Assert
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("bundled studio root", result.stderr)
+        self.assertEqual(before, snapshot_tree(target))
+
     def test_installed_validator_accepts_configured_39_profile_routing(self):
         # Arrange
         apply_activation(self.repo, plan_activation(self.repo, "godot", version="4.6", language="gdscript"))

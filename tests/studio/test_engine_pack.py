@@ -770,6 +770,100 @@ class EnginePackTests(unittest.TestCase):
         self.assertEqual(dataclasses.asdict(config), parsed)
 
 
+class PluginNativeEnginePackTests(unittest.TestCase):
+    """Activation reads a separate trusted bundle and mutates only the target."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.target = Path(self.temp.name) / "target"
+        self.source = Path(self.temp.name) / "bundle"
+        shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", self.target)
+        shutil.copytree(ROOT / ".codex/agent-packs", self.source / ".codex/agent-packs")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_plugin_native_source_root_dry_run_apply_and_no_op_leave_bundle_immutable(self):
+        # Arrange
+        target_before = tree_bytes(self.target)
+        source_before = tree_bytes(self.source)
+
+        # Act
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+        )
+
+        # Assert
+        self.assertEqual(self.source.resolve(), plan.source_root)
+        self.assertEqual(5, len(plan.install))
+        self.assertEqual(target_before, tree_bytes(self.target))
+        self.assertEqual(source_before, tree_bytes(self.source))
+        apply_activation(self.target, plan)
+        self.assertEqual([], validate_activation(self.target, source_root=self.source))
+        self.assertFalse((self.target / ".codex/agent-packs").exists())
+        self.assertFalse((self.target / ".agents/skills").exists())
+        self.assertEqual(source_before, tree_bytes(self.source))
+        self.assertTrue(
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+            ).no_op
+        )
+
+    def test_plugin_native_external_source_rendering_and_cli_are_read_only(self):
+        # Arrange
+        before = tree_bytes(self.target)
+        script = ROOT / "tools/codex_studio/engine_pack.py"
+
+        # Act
+        result = subprocess.run(
+            [
+                sys.executable, "-B", str(script), "--root", str(self.target),
+                "--source-root", str(self.source), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--dry-run",
+            ],
+            cwd=self.target,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        # Assert
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(5, result.stdout.count("INSTALL SOURCE .codex/agent-packs/godot/"))
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_plan_reads_only_the_selected_source_pack(self):
+        # Arrange
+        next((self.source / ".codex/agent-packs/unity").glob("*.toml")).unlink()
+        before = tree_bytes(self.target)
+
+        # Act
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript", source_root=self.source,
+        )
+
+        # Assert
+        self.assertEqual(5, len(plan.install))
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_source_root_rejects_target_links_and_source_drift_without_target_writes(self):
+        # Arrange / Act / Assert
+        before = tree_bytes(self.target)
+        with self.assertRaisesRegex(ValueError, "must differ"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.target)
+        self.assertEqual(before, tree_bytes(self.target))
+        linked = Path(self.temp.name) / "linked-bundle"
+        linked.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "source root.*symlink"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=linked)
+        plan = plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        source = plan.install[0]
+        source.write_bytes(source.read_bytes() + b"\n# source drift\n")
+        with self.assertRaisesRegex(ValueError, "source pack changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+
 class EnginePackCliTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

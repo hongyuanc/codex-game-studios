@@ -85,6 +85,7 @@ class ActivationPlan:
     """Immutable plan bound to one project state and source-pack revision."""
 
     root: Path
+    source_root: Path
     engine: str
     install: tuple[Path, ...]
     remove: tuple[Path, ...]
@@ -147,6 +148,34 @@ def _normalize_root(root: Path) -> Path:
     candidate = Path(root).absolute()
     _require_directory(candidate, "project root")
     return candidate.resolve()
+
+
+def _normalize_source_root(source_root: Path | None, target_root: Path) -> Path:
+    """Pin the immutable pack boundary independently of the mutation target."""
+
+    if source_root is None:
+        return target_root
+    candidate = Path(source_root).absolute()
+    _require_directory(candidate, "engine pack source root")
+    normalized = candidate.resolve()
+    if normalized == target_root:
+        raise ValueError("engine pack source root must differ from project root when explicitly supplied")
+    return normalized
+
+
+def _executing_bundled_studio_root() -> Path | None:
+    """Return the immutable bundle boundary when this is a packaged script."""
+
+    candidate = Path(__file__).resolve().parents[2]
+    if candidate.name == "studio" and candidate.parent.name == "assets":
+        return candidate
+    return None
+
+
+def _require_trusted_bundle_source(source_root: Path) -> None:
+    bundled_root = _executing_bundled_studio_root()
+    if bundled_root is not None and source_root != bundled_root:
+        raise ValueError("engine pack source root must equal this executing bundled studio root")
 
 
 def _control_directory(root: Path) -> Path:
@@ -250,7 +279,14 @@ def load_studio_config(root: Path) -> StudioConfig:
     return config
 
 
-def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
+def _validate_packs(
+    root: Path, *, selected: frozenset[str] | None = None,
+) -> dict[str, tuple[tuple[Path, str], ...]]:
+    """Validate all local packs or only the immutable packs needed by a plan."""
+
+    selected = frozenset(SUPPORTED_ENGINES) if selected is None else selected
+    if not selected or not selected <= set(SUPPORTED_ENGINES):
+        raise ValueError("invalid selected engine-pack set")
     packs_root = _control_directory(root) / "agent-packs"
     _require_directory(packs_root, "engine packs directory")
     entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
@@ -259,6 +295,8 @@ def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
     result: dict[str, tuple[tuple[Path, str], ...]] = {}
     for directory in entries:
         _require_directory(directory, f"{directory.name} engine pack")
+        if directory.name not in selected:
+            continue
         children = sorted(directory.iterdir(), key=lambda path: path.name)
         profiles: list[tuple[Path, str]] = []
         for source in children:
@@ -275,6 +313,19 @@ def _validate_packs(root: Path) -> dict[str, tuple[tuple[Path, str], ...]]:
             raise ValueError(f"engine pack {directory.name} must contain exactly five profiles")
         result[directory.name] = tuple(profiles)
     return result
+
+
+def _source_pack_selection(
+    source_root: Path, target_root: Path, config: StudioConfig, requested_engine: str | None,
+) -> frozenset[str] | None:
+    """Keep legacy project-local inventory checks while minimizing bundle reads."""
+
+    if source_root == target_root:
+        return None
+    engines = {requested_engine} if requested_engine is not None else set()
+    if config.engine in SUPPORTED_ENGINES:
+        engines.add(config.engine)
+    return frozenset(engines)
 
 
 def _load_manifest(
@@ -519,10 +570,19 @@ def _inspect_auxiliary_paths(root: Path) -> tuple[Path, dict[str, object] | None
     return recovery, _read_journal(recovery, root)
 
 
-def plan_activation(root: Path, engine: str, *, version: str = "", language: str = "") -> ActivationPlan:
+def plan_activation(
+    root: Path,
+    engine: str,
+    *,
+    version: str = "",
+    language: str = "",
+    source_root: Path | None = None,
+) -> ActivationPlan:
     """Build a deterministic, read-only activation plan."""
 
     root = _normalize_root(root)
+    source_root = _normalize_source_root(source_root, root)
+    _require_trusted_bundle_source(source_root)
     if engine not in SUPPORTED_ENGINES:
         raise ValueError(f"unsupported engine: {engine}")
     _validate_target_values(engine, version, language, require_complete=False)
@@ -530,7 +590,10 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
     if journal is not None and journal["phase"] not in {"committed", "rolled-back"}:
         raise ValueError("incomplete engine-pack recovery journal; run the CLI with --recover before planning")
     config = load_studio_config(root)
-    packs = _validate_packs(root)
+    packs = _validate_packs(
+        source_root,
+        selected=_source_pack_selection(source_root, root, config, engine),
+    )
     manifest = _load_manifest(root, config, packs)
     managed = _validate_managed_profiles(root, manifest)
     selected = packs[engine]
@@ -553,6 +616,7 @@ def plan_activation(root: Path, engine: str, *, version: str = "", language: str
     remove = () if same_profiles else tuple(agents / name for name in sorted(managed))
     return ActivationPlan(
         root=root,
+        source_root=source_root,
         engine=engine,
         install=install,
         remove=remove,
@@ -879,11 +943,18 @@ def _checkpoint(_phase: str) -> None:
     return None
 
 
-def validate_activation(root: Path, *, _allow_current_transaction: bool = False) -> list[str]:
+def validate_activation(
+    root: Path,
+    *,
+    source_root: Path | None = None,
+    _allow_current_transaction: bool = False,
+) -> list[str]:
     """Return validation errors for the installed engine-pack state."""
 
     try:
         root = _normalize_root(root)
+        source_root = _normalize_source_root(source_root, root)
+        _require_trusted_bundle_source(source_root)
         recovery, journal = _inspect_auxiliary_paths(root)
         if journal is not None:
             if journal["phase"] in {"committed", "rolled-back"}:
@@ -891,7 +962,10 @@ def validate_activation(root: Path, *, _allow_current_transaction: bool = False)
             elif not _allow_current_transaction:
                 raise ValueError("incomplete engine-pack recovery transaction is pending")
         config = load_studio_config(root)
-        packs = _validate_packs(root)
+        packs = _validate_packs(
+            source_root,
+            selected=_source_pack_selection(source_root, root, config, None),
+        )
         manifest = _load_manifest(root, config, packs)
         managed = _validate_managed_profiles(root, manifest)
         if config.engine == "unconfigured":
@@ -907,7 +981,16 @@ def validate_activation(root: Path, *, _allow_current_transaction: bool = False)
 def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
     if plan.engine not in SUPPORTED_ENGINES:
         raise ValueError("invalid activation plan engine")
-    packs = _validate_packs(root)
+    source_root = _normalize_source_root(
+        plan.source_root if plan.source_root != root else None, root
+    )
+    if source_root != plan.source_root:
+        raise ValueError("invalid activation plan source root")
+    _require_trusted_bundle_source(source_root)
+    packs = _validate_packs(
+        source_root,
+        selected=frozenset({plan.engine}) if source_root != root else None,
+    )
     current_hashes = tuple((source.name, digest) for source, digest in packs[plan.engine])
     if current_hashes != plan.source_hashes:
         raise ValueError("source pack changed after activation planning")
@@ -918,6 +1001,7 @@ def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
         plan.engine,
         version=plan.target_config.engine_version,
         language=plan.target_config.language,
+        source_root=plan.source_root if plan.source_root != root else None,
     )
     if expected != plan:
         raise ValueError("invalid activation plan: paths or target configuration were modified")
@@ -973,7 +1057,11 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _atomic_write(root / ".codex/studio.toml", _serialize_config(plan.target_config))
             _write_journal(recovery, journal, "config-write")
             _checkpoint("config-write")
-            issues = validate_activation(root, _allow_current_transaction=True)
+            issues = validate_activation(
+                root,
+                source_root=plan.source_root if plan.source_root != root else None,
+                _allow_current_transaction=True,
+            )
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
             journal.update(_target_fields(_snapshot_live(root)))
@@ -997,7 +1085,11 @@ def _print_plan(root: Path, plan: ActivationPlan, stream: object = sys.stdout) -
     write: Callable[[str], object] = getattr(stream, "write")
     write(f"ENGINE {plan.engine}\n")
     for source in plan.install:
-        write(f"INSTALL {source.relative_to(root).as_posix()} -> .codex/agents/{source.name}\n")
+        if plan.source_root == root:
+            label = source.relative_to(root).as_posix()
+        else:
+            label = f"SOURCE {source.relative_to(plan.source_root).as_posix()}"
+        write(f"INSTALL {label} -> .codex/agents/{source.name}\n")
     for target in plan.remove:
         write(f"REMOVE {target.relative_to(root).as_posix()}\n")
     config = plan.target_config
@@ -1017,6 +1109,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--engine", choices=SUPPORTED_ENGINES)
     parser.add_argument("--version", default="")
     parser.add_argument("--language", default="")
+    parser.add_argument("--source-root", type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--apply", action="store_true")
@@ -1029,8 +1122,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = parser.parse_args(arguments)
     root = options.root
     if options.recover:
-        if options.engine or options.version or options.language:
-            parser.error("--recover does not accept --engine, --version, or --language")
+        if options.engine or options.version or options.language or options.source_root is not None:
+            parser.error("--recover does not accept --engine, --version, --language, or --source-root")
         try:
             recover_activation(root)
             print("Engine-pack recovery complete")
@@ -1042,11 +1135,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
         parser.error("--engine is required for --dry-run and --apply")
     try:
         _validate_target_values(options.engine, options.version, options.language, require_complete=options.apply)
-        plan = plan_activation(root, options.engine, version=options.version, language=options.language)
+        plan = plan_activation(
+            root, options.engine, version=options.version, language=options.language,
+            source_root=options.source_root,
+        )
         _print_plan(plan.root, plan)
         if options.apply:
             apply_activation(plan.root, plan)
-            issues = validate_activation(plan.root)
+            issues = validate_activation(
+                plan.root,
+                source_root=plan.source_root if plan.source_root != plan.root else None,
+            )
             if issues:
                 raise ValueError("post-apply validation failed: " + "; ".join(issues))
             print(f"Activated {options.engine} with 5 managed profiles")

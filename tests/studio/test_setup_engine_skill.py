@@ -22,7 +22,7 @@ class SetupEngineSkillTests(unittest.TestCase):
             "post-apply validation",
             "one decision per turn",
             "five active profiles",
-            "tools.codex_studio.validate --root . --phase final",
+            "--mode plugin-native",
         ):
             self.assertIn(required, text)
         self.assertNotIn("AskUserQuestion", text)  # enforcement-literal
@@ -55,12 +55,16 @@ class SetupEngineSkillTests(unittest.TestCase):
 
     def test_setup_engine_uses_same_exact_values_across_dry_run_approval_and_apply(self):
         text = (ROOT / ".agents/skills/setup-engine/SKILL.md").read_text(encoding="utf-8")
-        commands = re.findall(r"python3 -m tools\.codex_studio\.engine_pack[^\n]+", text)
+        commands = re.findall(r"python3 -B <resolved BUNDLE>/tools/codex_studio/engine_pack\.py[^\n]+", text)
         dry = next(command for command in commands if "--dry-run" in command)
         apply = next(command for command in commands if "--apply" in command)
         for token in ("<engine>", "<exact-version>", "<primary-language>"):
             self.assertIn(token, dry)
             self.assertIn(token, apply)
+        self.assertIn("--source-root <resolved BUNDLE>", dry)
+        self.assertNotIn("python3 -m tools.codex_studio.engine_pack", text)
+        self.assertIn("physical installed SKILL.md path", text)
+        self.assertIn("do not fall back to CWD", text)
         self.assertLess(text.index("complete activation plan"), text.index("explicit approval"))
         self.assertLess(text.index("explicit approval"), text.index("--apply"))
         self.assertIn("No project write is allowed before this approval", text)
