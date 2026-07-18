@@ -129,10 +129,36 @@ class InstalledValidationTests(unittest.TestCase):
         # Arrange
         target = Path(self.temporary.name).resolve() / "plugin-native-target"
         shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+        fixture_files = {
+            ".editorconfig": b"root = true\n",
+            ".gitattributes": b"* text=auto\n",
+            ".gitignore": b".godot/\n",
+            "project.godot": b"[application]\nconfig/name=\"Embermarch Fixture\"\n",
+        }
+        for relative, content in fixture_files.items():
+            (target / relative).write_bytes(content)
         bundle = PLUGIN / "assets/studio"
         engine_pack = bundle / "tools/codex_studio/engine_pack.py"
         validator = bundle / "tools/codex_studio/validate.py"
         before = snapshot_tree(target)
+        bundle_before = snapshot_tree(bundle)
+        source_fixture_before = snapshot_tree(
+            ROOT / "tests/studio/fixtures/engine-project"
+        )
+        godot_names = {
+            "godot-csharp-specialist.toml",
+            "godot-gdextension-specialist.toml",
+            "godot-gdscript-specialist.toml",
+            "godot-shader-specialist.toml",
+            "godot-specialist.toml",
+        }
+        unity_names = {
+            "unity-addressables-specialist.toml",
+            "unity-dots-specialist.toml",
+            "unity-shader-specialist.toml",
+            "unity-specialist.toml",
+            "unity-ui-specialist.toml",
+        }
 
         # Act
         dry_run = subprocess.run(
@@ -155,16 +181,75 @@ class InstalledValidationTests(unittest.TestCase):
             ], cwd=target, text=True, capture_output=True, check=False,
         )
         self.assertEqual(0, apply.returncode, apply.stderr)
-        self.assertFalse((target / ".codex/agent-packs").exists())
-        self.assertFalse((target / ".agents/skills").exists())
+        self.assertIn("Activated godot with 5 managed profiles", apply.stdout)
+        manifest = json.loads(
+            (target / ".codex/active-engine.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual("godot", manifest["engine"])
+        self.assertEqual(godot_names, set(manifest["generated"]))
+        for name, digest in manifest["generated"].items():
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            active = (target / ".codex/agents" / name).read_bytes()
+            source = (bundle / ".codex/agent-packs/godot" / name).read_bytes()
+            self.assertEqual(source, active)
+            self.assertEqual(digest, hashlib.sha256(active).hexdigest())
+
+        validator_result = subprocess.run(
+            [
+                sys.executable, "-B", str(validator), "--mode", "plugin-native",
+                "--root", str(target), "--source-root", str(bundle), "--phase", "final",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, validator_result.returncode, validator_result.stderr)
+        self.assertEqual("Codex Studio validation: PASS\n", validator_result.stdout)
+        self.assertEqual("", validator_result.stderr)
+
+        no_op = subprocess.run(
+            [
+                sys.executable, "-B", str(engine_pack), "--root", str(target),
+                "--source-root", str(bundle), "--engine", "godot", "--version", "4.6",
+                "--language", "gdscript", "--dry-run",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, no_op.returncode, no_op.stderr)
+        self.assertIn("NO-OP active pack and configuration already match", no_op.stdout)
+        self.assertNotIn("INSTALL ", no_op.stdout)
+
+        switched = subprocess.run(
+            [
+                sys.executable, "-B", str(engine_pack), "--root", str(target),
+                "--source-root", str(bundle), "--engine", "unity", "--version", "6000.1",
+                "--language", "csharp", "--apply",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, switched.returncode, switched.stderr)
+        self.assertIn("Activated unity with 5 managed profiles", switched.stdout)
+        switched_manifest = json.loads(
+            (target / ".codex/active-engine.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual("unity", switched_manifest["engine"])
+        self.assertEqual(unity_names, set(switched_manifest["generated"]))
+        self.assertEqual(unity_names, {path.name for path in (target / ".codex/agents").iterdir()})
+        switched_validation = subprocess.run(
+            [
+                sys.executable, "-B", str(validator), "--mode", "plugin-native",
+                "--root", str(target), "--source-root", str(bundle), "--phase", "final",
+            ], cwd=target, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(0, switched_validation.returncode, switched_validation.stderr)
+        self.assertEqual("Codex Studio validation: PASS\n", switched_validation.stdout)
+
+        for forbidden in (
+            ".agents/skills", ".codex/agent-packs", ".codex/engine-pack-recovery",
+            "tools", "docs/engine-reference", "references",
+        ):
+            self.assertFalse((target / forbidden).exists(), forbidden)
+        for relative, content in fixture_files.items():
+            self.assertEqual(content, (target / relative).read_bytes())
+        self.assertEqual(bundle_before, snapshot_tree(bundle))
         self.assertEqual(
-            0,
-            subprocess.run(
-                [
-                    sys.executable, "-B", str(validator), "--mode", "plugin-native",
-                    "--root", str(target), "--source-root", str(bundle), "--phase", "final",
-                ], cwd=target, text=True, capture_output=True, check=False,
-            ).returncode,
+            source_fixture_before,
+            snapshot_tree(ROOT / "tests/studio/fixtures/engine-project"),
         )
 
     def test_bundled_engine_pack_rejects_a_swapped_source_root_without_target_writes(self):
@@ -458,23 +543,48 @@ class InstalledValidationTests(unittest.TestCase):
                 pass
         self.assertCountEqual(api.opened_handles, api.closed)
 
-    def test_installed_validator_windows_rejects_final_path_or_identity_discontinuity(self):
-        # Arrange / Act / Assert
-        for mutation, message in (("final_path", "final path"), ("identity", "changed")):
-            with self.subTest(mutation=mutation):
-                api = FakeWindowsApi({
-                    "C:\\": windows_directory(1),
-                    "C:\\repo": windows_directory(2),
-                    "C:\\repo\\state.bin": windows_file(3, b"\x00\xffpayload"),
-                })
-                with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
-                    if mutation == "final_path":
-                        api.final_paths["C:\\repo\\state.bin"] = "C:\\outside\\state.bin"
-                    else:
-                        api.mutate_identity_after_read.add("C:\\repo\\state.bin")
-                    with self.assertRaisesRegex(OSError, message):
-                        secure.read("state.bin")
-                self.assertCountEqual(api.opened_handles, api.closed)
+    def test_installed_validator_windows_rejects_handle_final_path_substitution(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2),
+            "C:\\repo\\state.bin": windows_file(3, b"\x00\xffpayload"),
+        })
+
+        # Act / Assert
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            api.final_paths["C:\\repo\\state.bin"] = "C:\\outside\\state.bin"
+            with self.assertRaisesRegex(OSError, "final path|chain"):
+                secure.read("state.bin")
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_rejects_file_identity_substitution_during_read(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2),
+            "C:\\repo\\state.bin": windows_file(3, b"\x00\xffpayload"),
+        })
+        api.mutate_identity_after_read.add("C:\\repo\\state.bin")
+
+        # Act / Assert
+        with _SecureInstalledRoot(Path("C:/repo"), windows_api=api) as secure:
+            with self.assertRaisesRegex(OSError, "changed"):
+                secure.read("state.bin")
+        self.assertCountEqual(api.opened_handles, api.closed)
+
+    def test_installed_validator_windows_rejects_root_directory_identity_substitution(self):
+        # Arrange
+        api = FakeWindowsApi({
+            "C:\\": windows_directory(1),
+            "C:\\repo": windows_directory(2),
+        })
+
+        # Act / Assert
+        with self.assertRaisesRegex(OSError, "changed"):
+            with _SecureInstalledRoot(Path("C:/repo"), windows_api=api):
+                api.entries["C:\\repo"]["identity"] = (7, 2002)
+        self.assertCountEqual(api.opened_handles, api.closed)
 
     def test_installed_validator_windows_accepts_canonical_alias_chain_but_rejects_escape(self):
         # Arrange

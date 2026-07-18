@@ -878,6 +878,111 @@ class PluginNativeEnginePackTests(unittest.TestCase):
             apply_activation(self.target, plan)
         self.assertEqual(before, tree_bytes(self.target))
 
+    def test_plugin_native_plan_rejects_source_a_to_b_to_a_at_same_path(self):
+        # Arrange
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript",
+            source_root=self.source,
+        )
+        source_a = Path(self.temp.name) / "source-a"
+        source_b = Path(self.temp.name) / "source-b"
+        shutil.copytree(self.source, source_b)
+        self.source.rename(source_a)
+        source_b.rename(self.source)
+        self.source.rename(source_b)
+        source_a.rename(self.source)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_source_root_rejects_linked_ancestor_component(self):
+        # Arrange
+        linked_parent = Path(self.temp.name) / "linked-parent"
+        linked_parent.symlink_to(self.source.parent, target_is_directory=True)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "ancestor.*symlink|symlink.*ancestor"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=linked_parent / self.source.name,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_source_pack_replacement_during_apply_rolls_back(self):
+        # Arrange
+        from tools.codex_studio import engine_pack
+
+        plan = plan_activation(
+            self.target, "godot", version="4.6", language="gdscript",
+            source_root=self.source,
+        )
+        pack = self.source / ".codex/agent-packs/godot"
+        replacement = Path(self.temp.name) / "replacement-pack"
+        shutil.copytree(pack, replacement)
+        retired = Path(self.temp.name) / "retired-pack"
+        before = tree_bytes(self.target)
+        original_write = engine_pack._exclusive_profile_write
+        swapped = False
+
+        def replace_after_first_profile(agents: Path, name: str, raw: bytes) -> None:
+            nonlocal swapped
+            original_write(agents, name, raw)
+            if not swapped:
+                pack.rename(retired)
+                replacement.rename(pack)
+                swapped = True
+
+        # Act / Assert
+        with mock.patch.object(
+            engine_pack, "_exclusive_profile_write",
+            side_effect=replace_after_first_profile,
+        ):
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                apply_activation(self.target, plan)
+        self.assertTrue(swapped)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_engine_switch_reads_only_current_and_selected_packs(self):
+        # Arrange
+        shutil.rmtree(self.source / ".codex/agent-packs/unreal")
+        apply_activation(
+            self.target,
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            ),
+        )
+
+        # Act
+        apply_activation(
+            self.target,
+            plan_activation(
+                self.target, "unity", version="6000.1", language="csharp",
+                source_root=self.source,
+            ),
+        )
+
+        # Assert
+        self.assertEqual([], validate_activation(self.target, source_root=self.source))
+        self.assertEqual("unity", load_studio_config(self.target).engine)
+
+    def test_plugin_native_external_pack_rejects_missing_canonical_profile_before_writes(self):
+        # Arrange
+        (self.source / ".codex/agent-packs/godot/godot-specialist.toml").unlink()
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "exactly five"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
     def test_plugin_native_external_pack_rejects_arbitrary_profile_names_before_writes(self):
         # Arrange
         profile = self.source / ".codex/agent-packs/godot/godot-specialist.toml"
@@ -889,6 +994,39 @@ class PluginNativeEnginePackTests(unittest.TestCase):
         # Act / Assert
         with self.assertRaisesRegex(ValueError, "canonical five"):
             plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_unexpected_sixth_profile_before_writes(self):
+        # Arrange
+        extra = self.source / ".codex/agent-packs/godot/unexpected.toml"
+        extra.write_text('name = "unexpected"\n', encoding="utf-8")
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "exactly five"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_internal_name_mismatch_before_writes(self):
+        # Arrange
+        profile = self.source / ".codex/agent-packs/godot/godot-specialist.toml"
+        profile.write_text(
+            profile.read_text(encoding="utf-8").replace(
+                'name = "godot-specialist"', 'name = "wrong-specialist"'
+            ),
+            encoding="utf-8",
+        )
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "name must match filename"):
+            plan_activation(
+                self.target, "godot", version="4.6", language="gdscript",
+                source_root=self.source,
+            )
         self.assertEqual(before, tree_bytes(self.target))
 
 

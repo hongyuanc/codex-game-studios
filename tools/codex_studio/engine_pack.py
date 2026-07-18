@@ -315,9 +315,12 @@ def _validate_packs(
         raise ValueError("invalid selected engine-pack set")
     packs_root = _control_directory(root) / "agent-packs"
     _require_directory(packs_root, "engine packs directory")
-    entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
-    if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
-        raise ValueError("engine packs must contain exactly godot, unity, and unreal")
+    if external:
+        entries = [packs_root / name for name in sorted(selected)]
+    else:
+        entries = sorted(packs_root.iterdir(), key=lambda path: path.name)
+        if [entry.name for entry in entries] != list(SUPPORTED_ENGINES):
+            raise ValueError("engine packs must contain exactly godot, unity, and unreal")
     result: dict[str, tuple[tuple[Path, str], ...]] = {}
     for directory in entries:
         _require_directory(directory, f"{directory.name} engine pack")
@@ -379,6 +382,8 @@ def _load_manifest(
     generated = data.get("generated")
     if engine not in SUPPORTED_ENGINES or not isinstance(generated, dict):
         raise ValueError("invalid active-engine manifest engine or generated map")
+    if engine not in packs:
+        raise ValueError("active-engine manifest is inconsistent with unconfigured studio state")
     normalized: dict[str, str] = {}
     for raw_name, raw_hash in generated.items():
         name = _safe_filename(raw_name)
