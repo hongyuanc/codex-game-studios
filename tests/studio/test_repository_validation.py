@@ -110,6 +110,24 @@ class RepositoryValidationTests(unittest.TestCase):
             # Assert
             self.assertEqual(2, raised.exception.code)
 
+    def test_plugin_native_validator_rejects_invalid_authority_and_accepts_unconfigured(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            shutil.copytree(ROOT / "tests/studio/fixtures/engine-project", target)
+            self.assertEqual([], validate_module.validate_plugin_native_project(target, source_root=ROOT))
+            apply_activation(target, plan_activation(target, "godot", version="4.6", language="gdscript", source_root=ROOT))
+            studio = target / ".codex/studio.toml"
+
+            # Act / Assert
+            for old, new in (("4.6", ""), ("gdscript", "python"), ("phase-gated", "bogus"), ("balanced", "bogus")):
+                original = studio.read_text(encoding="utf-8")
+                studio.write_text(original.replace(old, new), encoding="utf-8")
+                self.assertTrue(validate_module.validate_plugin_native_project(target, source_root=ROOT))
+                studio.write_text(original, encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                main(["--mode", "plugin-native", "--phase", "pre-cleanup", "--root", str(target), "--source-root", str(ROOT)])
+
     def test_final_repository_validation_accepts_each_configured_engine_pack(self):
         targets = {
             "godot": ("4.6", "gdscript"),

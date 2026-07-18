@@ -863,6 +863,34 @@ class PluginNativeEnginePackTests(unittest.TestCase):
             apply_activation(self.target, plan)
         self.assertEqual(before, tree_bytes(self.target))
 
+    def test_plugin_native_plan_rejects_byte_identical_source_root_substitution(self):
+        # Arrange
+        plan = plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        replacement = Path(self.temp.name) / "replacement"
+        shutil.copytree(self.source, replacement)
+        retired = Path(self.temp.name) / "retired"
+        self.source.rename(retired)
+        replacement.rename(self.source)
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "identity changed"):
+            apply_activation(self.target, plan)
+        self.assertEqual(before, tree_bytes(self.target))
+
+    def test_plugin_native_external_pack_rejects_arbitrary_profile_names_before_writes(self):
+        # Arrange
+        profile = self.source / ".codex/agent-packs/godot/godot-specialist.toml"
+        renamed = profile.with_name("arbitrary-profile.toml")
+        renamed.write_text(profile.read_text(encoding="utf-8").replace('name = "godot-specialist"', 'name = "arbitrary-profile"'), encoding="utf-8")
+        profile.unlink()
+        before = tree_bytes(self.target)
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "canonical five"):
+            plan_activation(self.target, "godot", version="4.6", language="gdscript", source_root=self.source)
+        self.assertEqual(before, tree_bytes(self.target))
+
 
 class EnginePackCliTests(unittest.TestCase):
     def setUp(self):
