@@ -8,9 +8,11 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
+import venv
 from unittest import mock
 
 from tests.plugin.helpers import (
@@ -407,6 +409,53 @@ class LegacyMigrationTests(unittest.TestCase):
             self.assertIs(module, after[name])
         self.assertEqual(before_path, tuple(sys.path))
         self.assertEqual(before_bytecode_policy, sys.dont_write_bytecode)
+
+    def test_legacy_validator_child_disables_site_and_rejects_shadow_tools_package(self):
+        # Arrange: give the selected interpreter a regular site-packages `tools`
+        # package that would outrank the authenticated snapshot namespace package.
+        venv_root = Path(self.temporary.name) / "hostile-python"
+        venv.EnvBuilder(with_pip=False).create(venv_root)
+        if os.name == "nt":
+            executable = venv_root / "Scripts/python.exe"
+            site_packages = venv_root / "Lib/site-packages"
+        else:
+            executable = venv_root / "bin/python"
+            site_packages = next(venv_root.glob("lib/python*/site-packages"))
+        marker = Path(self.temporary.name) / "shadow-tools-imported"
+        shadow = site_packages / "tools"
+        shadow.mkdir()
+        shadow.joinpath("__init__.py").write_text(
+            "import pathlib, sys\n"
+            f"pathlib.Path({str(marker)!r}).write_text(str(sys.flags.no_site))\n"
+            "raise RuntimeError('unauthenticated tools shadow imported')\n",
+            encoding="utf-8",
+        )
+        observed_commands: list[tuple[str, ...]] = []
+        real_run = subprocess.run
+
+        def observe(command, *args, **kwargs):
+            observed_commands.append(tuple(command))
+            return real_run(command, *args, **kwargs)
+
+        # Act
+        validation_error = None
+        with mock.patch(
+            "studio_manager.subprocess.run", side_effect=observe
+        ), mock.patch.object(studio_manager.sys, "executable", str(executable)):
+            try:
+                findings = studio_manager.validate_installed_read_only(
+                    self.repo, PLUGIN
+                )
+            except studio_manager.ManagerError as error:
+                validation_error = error
+                findings = []
+
+        # Assert
+        self.assertIsNone(validation_error)
+        self.assertEqual([], findings)
+        self.assertEqual(1, len(observed_commands))
+        self.assertEqual(("-I", "-S", "-B"), observed_commands[0][1:4])
+        self.assertFalse(marker.exists())
 
     def test_legacy_repair_and_uninstall_apply_through_authenticated_snapshot(self):
         # Arrange: damage one authenticated legacy file, then repair it.

@@ -222,6 +222,8 @@ def emit(document):
     ) + "\n")
 
 try:
+    if sys.flags.no_site != 1:
+        raise RuntimeError("isolated validator requires disabled site initialization")
     source = sys.stdin.buffer.read()
     studio_root = arguments.validator.resolve(strict=True).parents[2]
     sys.path.insert(0, str(studio_root))
@@ -2002,6 +2004,7 @@ def _validate_installed_against_payload(
                     [
                         sys.executable,
                         "-I",
+                        "-S",
                         "-B",
                         "-c",
                         _ISOLATED_VALIDATOR_RUNNER,
