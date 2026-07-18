@@ -1341,7 +1341,7 @@ _MIGRATION_STATE_KEYS = {
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 516
-_INSTALLED_INVENTORY_SHA256 = "d3e6c74513601362329baf3516aa1e31997ba1eee17a58eebe766cd5aec34837"
+_INSTALLED_INVENTORY_SHA256 = "7b7c19880816b4031d8259c62afe03d1436cf678980e8a580393f8e83f0dfee7"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -2223,6 +2223,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-root", type=pathlib.Path)
     args = parser.parse_args(argv)
     if args.skill_file is not None:
+        if args.mode != "source" or args.source_root is not None:
+            parser.error("--skill-file cannot be combined with --mode or --source-root")
         issues = validate_skill(args.skill_file)
         for issue in issues:
             print(f"{issue.severity.upper()} {issue.path}: {issue.message}")
@@ -2234,6 +2236,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "plugin-native":
         if args.source_root is None:
             parser.error("--mode plugin-native requires --source-root")
+        if args.phase != "final":
+            parser.error("--mode plugin-native requires --phase final")
         issues = validate_plugin_native_project(args.root, source_root=args.source_root)
     else:
         if args.source_root is not None:

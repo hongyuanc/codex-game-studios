@@ -26,6 +26,7 @@ from typing import Callable, Iterator, Sequence
 import unicodedata
 import uuid
 
+
 try:  # POSIX advisory locking.
     import fcntl  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - exercised on Windows.
@@ -42,6 +43,13 @@ ALLOWED_LANGUAGES = {
     "godot": frozenset({"gdscript", "csharp"}),
     "unity": frozenset({"csharp"}),
     "unreal": frozenset({"cpp", "blueprint", "cpp-blueprint"}),
+}
+VALID_REVIEW_MODES = frozenset({"full", "phase-gated", "solo"})
+VALID_MODEL_POLICIES = frozenset({"balanced"})
+EXPECTED_PACK_FILENAMES = {
+    "godot": frozenset({"godot-csharp-specialist.toml", "godot-gdextension-specialist.toml", "godot-gdscript-specialist.toml", "godot-shader-specialist.toml", "godot-specialist.toml"}),
+    "unity": frozenset({"unity-addressables-specialist.toml", "unity-dots-specialist.toml", "unity-shader-specialist.toml", "unity-specialist.toml", "unity-ui-specialist.toml"}),
+    "unreal": frozenset({"ue-blueprint-specialist.toml", "ue-gas-specialist.toml", "ue-replication-specialist.toml", "ue-umg-specialist.toml", "unreal-specialist.toml"}),
 }
 STUDIO_KEYS = (
     "engine",
@@ -86,6 +94,8 @@ class ActivationPlan:
 
     root: Path
     source_root: Path
+    source_root_identity: tuple[int, int, int]
+    source_pack_identity: tuple[int, int, int]
     engine: str
     install: tuple[Path, ...]
     remove: tuple[Path, ...]
@@ -156,11 +166,22 @@ def _normalize_source_root(source_root: Path | None, target_root: Path) -> Path:
     if source_root is None:
         return target_root
     candidate = Path(source_root).absolute()
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current = current / part
+        if current == Path("/var"):
+            continue  # macOS system alias; final root identity remains pinned.
+        _require_directory(current, "engine pack source root ancestor")
     _require_directory(candidate, "engine pack source root")
     normalized = candidate.resolve()
     if normalized == target_root:
         raise ValueError("engine pack source root must differ from project root when explicitly supplied")
     return normalized
+
+
+def _directory_identity(path: Path, label: str) -> tuple[int, int, int]:
+    metadata = _require_directory(path, label)
+    return (int(metadata.st_dev), int(metadata.st_ino), int(metadata.st_ctime_ns))
 
 
 def _executing_bundled_studio_root() -> Path | None:
@@ -268,19 +289,24 @@ def load_studio_config(root: Path) -> StudioConfig:
         raise ValueError(f"invalid studio config engine: {config.engine}")
     if config.active_engine_pack not in (*SUPPORTED_ENGINES, "none"):
         raise ValueError(f"invalid studio config active_engine_pack: {config.active_engine_pack}")
-    if config.engine == "unconfigured" and config.active_engine_pack != "none":
-        raise ValueError("invalid studio config: unconfigured engine requires active_engine_pack = none")
+    if config.engine == "unconfigured":
+        if config.active_engine_pack != "none" or config.engine_version or config.language:
+            raise ValueError("invalid studio config: unconfigured engine requires empty version/language and active_engine_pack = none")
     if config.engine in SUPPORTED_ENGINES and config.active_engine_pack != config.engine:
         raise ValueError("invalid studio config: engine and active_engine_pack differ")
     if config.engine in SUPPORTED_ENGINES:
-        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=False)
+        _validate_target_values(config.engine, config.engine_version, config.language, require_complete=True)
     _validate_text(config.review_mode, "review mode", required=True)
     _validate_text(config.model_policy, "model policy", required=True)
+    if config.review_mode not in VALID_REVIEW_MODES:
+        raise ValueError("invalid studio config review mode")
+    if config.model_policy not in VALID_MODEL_POLICIES:
+        raise ValueError("invalid studio config model policy")
     return config
 
 
 def _validate_packs(
-    root: Path, *, selected: frozenset[str] | None = None,
+    root: Path, *, selected: frozenset[str] | None = None, external: bool = False,
 ) -> dict[str, tuple[tuple[Path, str], ...]]:
     """Validate all local packs or only the immutable packs needed by a plan."""
 
@@ -311,6 +337,10 @@ def _validate_packs(
             profiles.append((source, _sha256(raw)))
         if len(profiles) != 5:
             raise ValueError(f"engine pack {directory.name} must contain exactly five profiles")
+        if external:
+            expected = EXPECTED_PACK_FILENAMES[directory.name]
+            if {source.name for source, _digest in profiles} != expected:
+                raise ValueError(f"engine pack {directory.name} must contain exactly its canonical five profiles")
         result[directory.name] = tuple(profiles)
     return result
 
@@ -593,11 +623,20 @@ def plan_activation(
     packs = _validate_packs(
         source_root,
         selected=_source_pack_selection(source_root, root, config, engine),
+        external=source_root != root,
     )
     manifest = _load_manifest(root, config, packs)
     managed = _validate_managed_profiles(root, manifest)
     selected = packs[engine]
     selected_hashes = tuple((source.name, digest) for source, digest in selected)
+    source_root_identity = (
+        _directory_identity(source_root, "engine pack source root")
+        if source_root != root else (0, 0, 0)
+    )
+    source_pack_identity = (
+        _directory_identity(source_root / ".codex/agent-packs" / engine, "selected engine pack")
+        if source_root != root else (0, 0, 0)
+    )
     agents = _agents_directory(root)
     for source, _digest in selected:
         target = agents / source.name
@@ -617,6 +656,8 @@ def plan_activation(
     return ActivationPlan(
         root=root,
         source_root=source_root,
+        source_root_identity=source_root_identity,
+        source_pack_identity=source_pack_identity,
         engine=engine,
         install=install,
         remove=remove,
@@ -962,9 +1003,12 @@ def validate_activation(
             elif not _allow_current_transaction:
                 raise ValueError("incomplete engine-pack recovery transaction is pending")
         config = load_studio_config(root)
-        packs = _validate_packs(
-            source_root,
-            selected=_source_pack_selection(source_root, root, config, None),
+        packs = (
+            {} if source_root != root and config.engine == "unconfigured" else _validate_packs(
+                source_root,
+                selected=_source_pack_selection(source_root, root, config, None),
+                external=source_root != root,
+            )
         )
         manifest = _load_manifest(root, config, packs)
         managed = _validate_managed_profiles(root, manifest)
@@ -987,9 +1031,14 @@ def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
     if source_root != plan.source_root:
         raise ValueError("invalid activation plan source root")
     _require_trusted_bundle_source(source_root)
+    if source_root != root and _directory_identity(source_root, "engine pack source root") != plan.source_root_identity:
+        raise ValueError("source root identity changed after activation planning (concurrent source replacement)")
+    if source_root != root and _directory_identity(source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != plan.source_pack_identity:
+        raise ValueError("selected source pack identity changed after activation planning")
     packs = _validate_packs(
         source_root,
         selected=frozenset({plan.engine}) if source_root != root else None,
+        external=source_root != root,
     )
     current_hashes = tuple((source.name, digest) for source, digest in packs[plan.engine])
     if current_hashes != plan.source_hashes:
@@ -1004,7 +1053,7 @@ def _assert_plan_current(root: Path, plan: ActivationPlan) -> None:
         source_root=plan.source_root if plan.source_root != root else None,
     )
     if expected != plan:
-        raise ValueError("invalid activation plan: paths or target configuration were modified")
+        raise ValueError("invalid activation plan: paths or target configuration were modified concurrently")
 
 
 def apply_activation(root: Path, plan: ActivationPlan) -> None:
@@ -1043,10 +1092,14 @@ def apply_activation(root: Path, plan: ActivationPlan) -> None:
             _checkpoint("remove")
             expected_hashes = dict(plan.source_hashes)
             for source in plan.install:
+                if plan.source_root != root and _directory_identity(plan.source_root / ".codex/agent-packs" / plan.engine, "selected engine pack") != plan.source_pack_identity:
+                    raise ValueError("selected source pack identity changed during activation")
                 raw = _secure_read(source, "engine pack source profile")
                 if _sha256(raw) != expected_hashes[source.name]:
                     raise ValueError("source pack changed during activation")
                 _exclusive_profile_write(agents, source.name, raw)
+            if plan.source_root != root and _directory_identity(plan.source_root, "engine pack source root") != plan.source_root_identity:
+                raise ValueError("source root identity changed during activation")
             _write_journal(recovery, journal, "copy")
             _checkpoint("copy")
             if plan.install or plan.remove:
