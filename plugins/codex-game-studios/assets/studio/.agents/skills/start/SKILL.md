@@ -80,6 +80,30 @@ repair changeset and stop without writing until the user approves it.
 
 ---
 
+## Legacy installation routing
+
+Before plugin-native first-run handling, inspect repository-root
+`.codex/codex-game-studios/installation.json` read-only. If it is canonical
+schema 1 state for the supported legacy installation, offer exactly these four
+choices:
+
+- `verify legacy installation`
+- `repair legacy installation`
+- `migrate to plugin-native`
+- `uninstall legacy installation`
+
+Never migrate automatically. Verification, repair, migration, and uninstall
+must use the authenticated legacy payload capsule. For every mutating choice,
+present the complete digest-bound manager plan, including all actions,
+preservations, conflicts, target observations, result observations, state
+digest, approval-context commitment, and final plan digest, before asking for
+approval. Apply only that exact approved plan. A schema 2 migration state uses
+plugin-native validation; its repair is a validated no-op when healthy, and its
+uninstall removes only the migration state while preserving every project path
+and recorded remnant.
+
+---
+
 ## Phase 1: Detect Project State
 
 Before asking anything, silently gather context so you can tailor your guidance.

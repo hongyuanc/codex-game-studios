@@ -1830,6 +1830,7 @@ def apply_transaction(
             ordinary_actions = tuple(
                 action for action in plan.actions if action.kind != "state-write"
             )
+            first_remove_completed = False
             for action in ordinary_actions:
                 repository_lock.verify()
                 expected = expected_by_path.get(
@@ -1914,6 +1915,9 @@ def apply_transaction(
                         ),
                     )
                     trigger("action-applied")
+                    if action.kind == "remove" and not first_remove_completed:
+                        first_remove_completed = True
+                        trigger("after-first-remove")
                     verify_transaction_scaffold()
             repository_lock.verify()
             _verify_complete_generation(filesystem, authority, journal_path, journal)

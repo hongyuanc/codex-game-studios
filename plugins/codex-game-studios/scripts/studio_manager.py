@@ -29,6 +29,7 @@ from models import (
     Conflict,
     InstallationState,
     ManagedPath,
+    MigrationState,
     OperationPlan,
     PayloadEntry,
     PayloadError,
@@ -39,6 +40,7 @@ from models import (
     normalize_relative_path,
     plan_with_digest,
 )
+from legacy_payload import SUPPORTED_LEGACY_VERSIONS, verified_legacy_snapshot
 from payload import load_manifest, load_verified_manifest, verify_manifest_snapshot
 from safe_fs import (
     copy_file_secure,
@@ -53,8 +55,9 @@ from safe_fs import (
 
 
 STATE_SCHEMA_VERSION = 1
+MIGRATION_STATE_SCHEMA_VERSION = 2
 STATE_RELATIVE_PATH = ".codex/codex-game-studios/installation.json"
-OPERATIONS = frozenset({"install", "update", "verify", "repair", "uninstall"})
+OPERATIONS = frozenset({"install", "update", "verify", "repair", "uninstall", "migrate"})
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _STATE_KEYS = {
     "schema_version",
@@ -69,6 +72,30 @@ _STATE_KEYS = {
     "checksum",
 }
 _MANAGED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
+_MIGRATION_STATE_KEYS = {
+    "schema_version",
+    "plugin_version",
+    "legacy_version",
+    "legacy_state_checksum",
+    "preserved_paths",
+    "migrated_at",
+    "checksum",
+}
+PERSISTENT_PROJECT_PATHS = frozenset({
+    ".codex/studio.toml",
+    ".codex/docs/technical-preferences.md",
+    ".codex/config.toml",
+    "AGENTS.md",
+    ".gitignore",
+})
+_REDUNDANT_LEGACY_PREFIXES = (
+    ".agents/skills",
+    ".codex/agents",
+    ".codex/agent-packs",
+    ".codex/hooks",
+    "Codex Studio Testing Framework",
+    "docs/engine-reference",
+)
 _TOML_KEYS = ("agents.max_depth", "agents.max_threads", "features.hooks")
 _DECISION_OUTCOMES = {"adopt", "merge"}
 _COLLISION_REASONS = {
@@ -284,6 +311,86 @@ def write_state_document(state: InstallationState) -> bytes:
     return canonical_json(document)
 
 
+def _migration_state_body(state: MigrationState) -> dict[str, object]:
+    return {
+        "schema_version": state.schema_version,
+        "plugin_version": state.plugin_version,
+        "legacy_version": state.legacy_version,
+        "legacy_state_checksum": state.legacy_state_checksum,
+        "preserved_paths": list(state.preserved_paths),
+        "migrated_at": state.migrated_at,
+    }
+
+
+def _canonical_preserved_paths(paths: object) -> tuple[str, ...]:
+    if not isinstance(paths, (list, tuple)):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "preserved_paths must be a list"
+        )
+    canonical: list[str] = []
+    aliases: set[str] = set()
+    for raw in paths:
+        try:
+            path = normalize_relative_path(raw)
+        except PayloadError as error:
+            raise ManagerError(
+                "INVALID_INSTALLATION_STATE", "preserved path is unsafe"
+            ) from error
+        alias = path.casefold()
+        if alias in aliases:
+            raise ManagerError(
+                "INVALID_INSTALLATION_STATE", "preserved paths are duplicated"
+            )
+        aliases.add(alias)
+        canonical.append(path)
+    result = tuple(canonical)
+    if result != tuple(sorted(result)):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "preserved paths are not sorted"
+        )
+    return result
+
+
+def migration_state_with_checksum(state: MigrationState) -> MigrationState:
+    """Return a canonical schema-2 migration state with a current checksum."""
+
+    if state.schema_version != MIGRATION_STATE_SCHEMA_VERSION:
+        raise ManagerError("INVALID_INSTALLATION_STATE", "unsupported schema version")
+    if not state.plugin_version or not state.legacy_version:
+        raise ManagerError("INVALID_INSTALLATION_STATE", "malformed migration version")
+    if not _valid_hash(state.legacy_state_checksum):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "malformed legacy state checksum"
+        )
+    _canonical_preserved_paths(state.preserved_paths)
+    if not isinstance(state.migrated_at, str) or not _RFC3339_UTC.fullmatch(
+        state.migrated_at
+    ):
+        raise ManagerError("INVALID_INSTALLATION_STATE", "malformed migrated_at")
+    try:
+        datetime.strptime(state.migrated_at, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "malformed migrated_at"
+        ) from error
+    return dataclasses.replace(
+        state, checksum=digest_document(_migration_state_body(state))
+    )
+
+
+def write_migration_state_document(state: MigrationState) -> bytes:
+    """Serialize one fully validated schema-2 migration state canonically."""
+
+    canonical = migration_state_with_checksum(state)
+    if canonical != state:
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "migration state checksum is not current"
+        )
+    document = _migration_state_body(state)
+    document["checksum"] = state.checksum
+    return canonical_json(document)
+
+
 def _valid_hash(value: object, *, optional: bool = False) -> bool:
     return (optional and value is None) or (
         isinstance(value, str) and _HASH.fullmatch(value) is not None
@@ -362,15 +469,57 @@ def _parse_decisions(value: object) -> tuple[dict[str, object], ...]:
     return tuple(decisions)
 
 
-def _parse_state(raw: bytes) -> InstallationState:
+def _parse_migration_state(
+    raw: bytes, document: Mapping[str, object]
+) -> MigrationState:
+    if set(document) != _MIGRATION_STATE_KEYS:
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "migration state fields are missing or extra"
+        )
+    for key in ("plugin_version", "legacy_version", "migrated_at"):
+        if not isinstance(document[key], str) or not document[key]:
+            raise ManagerError("INVALID_INSTALLATION_STATE", f"malformed {key}")
+    if not _valid_hash(document["legacy_state_checksum"]) or not _valid_hash(
+        document["checksum"]
+    ):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "malformed migration checksum"
+        )
+    preserved = _canonical_preserved_paths(document["preserved_paths"])
+    state = MigrationState(
+        MIGRATION_STATE_SCHEMA_VERSION,
+        str(document["plugin_version"]),
+        str(document["legacy_version"]),
+        str(document["legacy_state_checksum"]),
+        preserved,
+        str(document["migrated_at"]),
+        str(document["checksum"]),
+    )
+    canonical = migration_state_with_checksum(dataclasses.replace(state, checksum=""))
+    if state.checksum != canonical.checksum:
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "migration state checksum mismatch"
+        )
+    if raw != write_migration_state_document(state):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "migration state is not canonical JSON"
+        )
+    return state
+
+
+def _parse_state(raw: bytes) -> InstallationState | MigrationState:
     try:
         document = json.loads(raw.decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as error:
         raise ManagerError("INVALID_INSTALLATION_STATE", "state is not valid UTF-8 JSON") from error
-    if not isinstance(document, dict) or set(document) != _STATE_KEYS:
-        raise ManagerError("INVALID_INSTALLATION_STATE", "state fields are missing or extra")
-    if type(document["schema_version"]) is not int:
+    if not isinstance(document, dict):
+        raise ManagerError("INVALID_INSTALLATION_STATE", "state must be an object")
+    if type(document.get("schema_version")) is not int:
         raise ManagerError("INVALID_INSTALLATION_STATE", "malformed schema version")
+    if document["schema_version"] == MIGRATION_STATE_SCHEMA_VERSION:
+        return _parse_migration_state(raw, document)
+    if set(document) != _STATE_KEYS:
+        raise ManagerError("INVALID_INSTALLATION_STATE", "state fields are missing or extra")
     if document["schema_version"] != STATE_SCHEMA_VERSION:
         raise ManagerError("INVALID_INSTALLATION_STATE", "unsupported schema version")
     for key in ("plugin_version", "transaction_id", "installed_at", "validator_version"):
@@ -473,7 +622,7 @@ def _parse_state(raw: bytes) -> InstallationState:
     return state
 
 
-def load_installation_state(path: Path | str) -> InstallationState:
+def load_installation_state(path: Path | str) -> InstallationState | MigrationState:
     """Read and strictly validate one installation state document."""
 
     try:
@@ -609,7 +758,7 @@ def _observe(root: Path, relative: str) -> _Observed:
     )
 
 
-def _load_optional_state(root: Path) -> InstallationState | None:
+def _load_optional_state(root: Path) -> InstallationState | MigrationState | None:
     observed = _observe(root, STATE_RELATIVE_PATH)
     if observed.kind == "missing":
         return None
@@ -1146,6 +1295,308 @@ def _prospective_state(
     ))
 
 
+def _is_redundant_legacy_path(path: str) -> bool:
+    return any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in _REDUNDANT_LEGACY_PREFIXES
+    )
+
+
+def _migration_preserve_action(
+    path: str, observed: _Observed, reason: str
+) -> Action:
+    mode = "none" if observed.mode is None else f"{observed.mode:04o}"
+    return _action(
+        "preserve",
+        path,
+        observed.digest,
+        observed.digest,
+        f"{reason}; observed-kind={observed.kind}; observed-mode={mode}",
+    )
+
+
+def _expand_migration_observations(
+    root: Path,
+    observed: dict[str, _Observed],
+) -> tuple[str, ...]:
+    """Bind every unexpected descendant below an authenticated legacy directory."""
+
+    queue = [
+        path for path, item in observed.items() if item.kind == "directory"
+    ]
+    unexpected: list[str] = []
+    while queue:
+        parent = queue.pop(0)
+        for name, _kind in observed[parent].children:
+            path = f"{parent}/{name}"
+            if path in {
+                STATE_RELATIVE_PATH,
+                f"{_TRANSACTION_CONTROL_DIRECTORY}/manager.lock",
+                f"{_TRANSACTION_CONTROL_DIRECTORY}/recovery",
+            }:
+                continue
+            if path in observed:
+                continue
+            current = _observe(root, path)
+            observed[path] = current
+            unexpected.append(path)
+            if current.kind == "directory":
+                queue.append(path)
+    return tuple(sorted(unexpected))
+
+
+def _plan_migration_at_root(
+    target_root: Path,
+    current_manifest: PayloadManifest,
+    legacy_manifest: PayloadManifest,
+    state: InstallationState,
+    approval_context: ApprovalContext | None,
+) -> OperationPlan:
+    """Plan removal of only authenticated, unchanged redundant legacy entries."""
+
+    if (
+        state.plugin_version != legacy_manifest.version
+        or state.payload_digest != legacy_manifest.digest
+    ):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE",
+            "legacy state does not name the authenticated legacy payload",
+        )
+    _validate_state_manifest_parity(state, legacy_manifest)
+    entries = {item.path: item for item in legacy_manifest.entries}
+    records = {item.path: item for item in state.managed_paths}
+    observed = {path: _observe(target_root, path) for path in sorted(records)}
+    unexpected_paths = _expand_migration_observations(target_root, observed)
+    target_hashes = {path: item.digest for path, item in observed.items()}
+    shared_hashes = {
+        path: observed[path].digest
+        for path, entry in entries.items()
+        if entry.ownership == "shared"
+    }
+    actions: list[Action] = []
+    removable: set[str] = set()
+
+    for path, record in sorted(records.items()):
+        entry = entries[path]
+        current = observed[path]
+        if entry.entry_type == "directory":
+            continue
+        authenticated = (
+            current.kind == "file"
+            and current.digest == entry.sha256
+            and modes_match(current.mode, entry.mode)
+            and record.ownership == "dedicated"
+            and record.installed_hash == entry.sha256
+        )
+        if (
+            path not in PERSISTENT_PROJECT_PATHS
+            and _is_redundant_legacy_path(path)
+            and authenticated
+        ):
+            actions.extend((
+                _action(
+                    "backup", path, current.digest, current.digest,
+                    "snapshot authenticated legacy target before migration removal",
+                ),
+                _action(
+                    "remove", path, current.digest, None,
+                    "remove unchanged redundant authenticated legacy file",
+                ),
+            ))
+            removable.add(path)
+        else:
+            actions.append(_migration_preserve_action(
+                path, current,
+                "preserve persistent, customized, or nonredundant legacy file",
+            ))
+
+    directories = [
+        (path, records[path], entries[path], observed[path])
+        for path in records
+        if entries[path].entry_type == "directory"
+    ]
+    for path, record, entry, current in sorted(
+        directories,
+        key=lambda item: (-len(PurePosixPath(item[0]).parts), item[0]),
+    ):
+        children = {
+            f"{path}/{name}" for name, _kind in current.children
+        } if current.kind == "directory" else set()
+        authenticated = (
+            current.kind == "directory"
+            and modes_match(current.mode, entry.mode)
+            and record.ownership == "dedicated"
+            and record.installed_hash is None
+        )
+        if (
+            path not in PERSISTENT_PROJECT_PATHS
+            and _is_redundant_legacy_path(path)
+            and authenticated
+            and children.issubset(removable)
+        ):
+            actions.extend((
+                _action(
+                    "backup", path, current.digest, current.digest,
+                    "record authenticated legacy directory before removal",
+                ),
+                _action(
+                    "remove", path, current.digest, None,
+                    "conditionally remove empty managed directory",
+                ),
+            ))
+            removable.add(path)
+        else:
+            actions.append(_migration_preserve_action(
+                path, current,
+                "preserve persistent, customized, nonredundant, or nonempty legacy directory",
+            ))
+
+    for path in unexpected_paths:
+        actions.append(_migration_preserve_action(
+            path,
+            observed[path],
+            "preserve unexpected user-owned legacy descendant",
+        ))
+
+    context_digest = (
+        approval_context_digest(approval_context)
+        if approval_context is not None else None
+    )
+    preserved_paths = tuple(sorted(
+        action.path
+        for action in actions
+        if action.kind == "preserve" and observed[action.path].kind != "missing"
+    ))
+    migrated_at = (
+        approval_context.installed_at
+        if approval_context is not None else "2026-07-12T00:00:00Z"
+    )
+    migration_state = migration_state_with_checksum(MigrationState(
+        MIGRATION_STATE_SCHEMA_VERSION,
+        current_manifest.version,
+        legacy_manifest.version,
+        state.checksum,
+        preserved_paths,
+        migrated_at,
+        "",
+    ))
+    state_bytes = write_migration_state_document(migration_state)
+    state_observation = _observe(target_root, STATE_RELATIVE_PATH)
+    observed[STATE_RELATIVE_PATH] = state_observation
+    state_action = _action(
+        "state-write",
+        STATE_RELATIVE_PATH,
+        state_observation.digest,
+        hashlib.sha256(state_bytes).hexdigest(),
+        "persist validated plugin-native migration state",
+    )
+    return _make_plan(
+        "migrate",
+        current_manifest.version,
+        current_manifest.digest,
+        state.checksum,
+        [*actions, state_action],
+        [],
+        target_hashes,
+        shared_hashes,
+        observed,
+        entries,
+        context_digest,
+    )
+
+
+def _plan_migrated_state_at_root(
+    operation: str,
+    target_root: Path,
+    manifest: PayloadManifest,
+    state: MigrationState,
+    approval_context: ApprovalContext | None,
+) -> OperationPlan:
+    """Plan conservative lifecycle behavior for plugin-native schema-2 state."""
+
+    if (
+        state.plugin_version != manifest.version
+        or state.legacy_version not in SUPPORTED_LEGACY_VERSIONS
+    ):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "migration provenance is unsupported"
+        )
+    paths = tuple(state.preserved_paths)
+    observed = {path: _observe(target_root, path) for path in paths}
+    target_hashes = {path: item.digest for path, item in observed.items()}
+    actions: list[Action] = []
+    conflicts: list[Conflict] = []
+    for path in paths:
+        current = observed[path]
+        if current.kind in {"missing", "blocked"}:
+            actions.append(_action(
+                "diagnostic", path, current.digest, None,
+                "recorded preserved migration path is unavailable",
+            ))
+            conflicts.append(Conflict(
+                "INVALID_INSTALLATION_STATE", path,
+                "recorded preserved migration path is unavailable",
+            ))
+        else:
+            actions.append(_migration_preserve_action(
+                path, current,
+                "preserve plugin-native project path or migrated remnant",
+            ))
+    context_digest = (
+        approval_context_digest(approval_context)
+        if approval_context is not None else None
+    )
+    if operation == "migrate":
+        conflicts.append(Conflict(
+            "ALREADY_MIGRATED", STATE_RELATIVE_PATH,
+            "installation already has plugin-native migration state",
+        ))
+    elif operation == "install":
+        conflicts.append(Conflict(
+            "ALREADY_INSTALLED", STATE_RELATIVE_PATH,
+            "valid migration state already exists",
+        ))
+    elif operation == "update":
+        conflicts.append(Conflict(
+            "PLUGIN_NATIVE_STATE", STATE_RELATIVE_PATH,
+            "plugin-native state has no repository payload to update",
+        ))
+    base = _make_plan(
+        operation,
+        manifest.version,
+        manifest.digest,
+        state.checksum,
+        actions,
+        conflicts,
+        target_hashes,
+        {},
+        observed,
+        {},
+        context_digest,
+    )
+    if operation != "uninstall" or base.conflicts:
+        return base
+    state_observation = _observe(target_root, STATE_RELATIVE_PATH)
+    observed[STATE_RELATIVE_PATH] = state_observation
+    state_action = _action(
+        "state-write", STATE_RELATIVE_PATH, state_observation.digest, None,
+        "remove plugin-native migration state after validation",
+    )
+    return _make_plan(
+        operation,
+        manifest.version,
+        manifest.digest,
+        state.checksum,
+        [*actions, state_action],
+        [],
+        target_hashes,
+        {},
+        observed,
+        {},
+        context_digest,
+    )
+
+
 def _plan_operation_at_root(
     operation: str,
     target_root: Path,
@@ -1158,6 +1609,10 @@ def _plan_operation_at_root(
         if approval_context is not None else None
     )
     state = _load_optional_state(target_root)
+    if isinstance(state, MigrationState):
+        raise ManagerError(
+            "INVALID_INSTALLATION_STATE", "schema-2 state requires plugin-native routing"
+        )
     if state is not None:
         _validate_state_manifest_parity(state, manifest)
     records = {item.path: item for item in state.managed_paths} if state else {}
@@ -1388,10 +1843,49 @@ def plan_operation(
             try:
                 with pin_root(plugin) as plugin_pinned:
                     manifest = load_verified_manifest(plugin_pinned.root)
-                    plan = _plan_operation_at_root(
-                        operation, target_root, plugin_pinned.root, manifest,
-                        approval_context,
-                    )
+                    state = _load_optional_state(target_root)
+                    if isinstance(state, MigrationState):
+                        plan = _plan_migrated_state_at_root(
+                            operation,
+                            target_root,
+                            manifest,
+                            state,
+                            approval_context,
+                        )
+                    elif (
+                        isinstance(state, InstallationState)
+                        and state.plugin_version == "1.0.0"
+                        and operation in {"verify", "repair", "uninstall", "migrate"}
+                    ):
+                        with verified_legacy_snapshot(
+                            plugin_pinned.root, state.plugin_version
+                        ) as (legacy_plugin, legacy_manifest):
+                            if operation == "migrate":
+                                plan = _plan_migration_at_root(
+                                    target_root,
+                                    manifest,
+                                    legacy_manifest,
+                                    state,
+                                    approval_context,
+                                )
+                            else:
+                                plan = _plan_operation_at_root(
+                                    operation,
+                                    target_root,
+                                    legacy_plugin,
+                                    legacy_manifest,
+                                    approval_context,
+                                )
+                    elif operation == "migrate" and state is not None:
+                        raise ManagerError(
+                            "INVALID_INSTALLATION_STATE",
+                            "migration requires authenticated 1.0.0 state",
+                        )
+                    else:
+                        plan = _plan_operation_at_root(
+                            operation, target_root, plugin_pinned.root, manifest,
+                            approval_context,
+                        )
                     verify_manifest_snapshot(plugin_pinned.root, manifest)
                     plugin_pinned.verify()
             except PayloadError as error:
@@ -1404,19 +1898,33 @@ def plan_operation(
         raise _manager_error_from_expected(error) from error
 
 
-def validate_installed_read_only(root: Path | str, plugin_root: Path | str) -> list[object]:
+def _validate_installed_against_payload(
+    root: Path | str,
+    plugin_root: Path | str,
+    *,
+    authenticated_manifest: PayloadManifest | None = None,
+) -> list[object]:
     """Run the embedded installed validator without writing bytecode to the target."""
 
     try:
-        for requested in (Path(root).absolute(), Path(plugin_root).absolute()):
+        plugin_request = Path(plugin_root)
+        if authenticated_manifest is not None:
+            plugin_request = plugin_request.resolve(strict=True)
+        for requested in (Path(root).absolute(), plugin_request.absolute()):
             current = Path(requested.anchor)
             for part in requested.parts[1:]:
                 current /= part
                 metadata = current.lstat()
                 if stat.S_ISLNK(metadata.st_mode) or is_reparse_point(metadata):
                     raise ManagerError("UNSAFE_PATH", f"root ancestor is a link or reparse point: {current}")
-        with pin_root(root) as target_pin, pin_root(plugin_root) as plugin_pin:
-            manifest = load_verified_manifest(plugin_pin.root)
+        with pin_root(root) as target_pin, pin_root(plugin_request) as plugin_pin:
+            manifest = (
+                authenticated_manifest
+                if authenticated_manifest is not None
+                else load_verified_manifest(plugin_pin.root)
+            )
+            if authenticated_manifest is not None:
+                verify_manifest_snapshot(plugin_pin.root, authenticated_manifest)
             entry = next((item for item in manifest.entries if item.path == "tools/codex_studio/validate.py"), None)
             if entry is None or entry.sha256 is None:
                 raise ManagerError("INVALID_PAYLOAD", "installed validator is absent from payload")
@@ -1438,12 +1946,22 @@ def validate_installed_read_only(root: Path | str, plugin_root: Path | str) -> l
                 if state_raw is None:
                     raise ManagerError("INVALID_INSTALLATION_STATE", "installation state could not be read securely")
                 state = _parse_state(state_raw)
-                if state.payload_digest != manifest.digest or state.plugin_version != manifest.version:
+                if isinstance(state, MigrationState):
+                    if (
+                        state.plugin_version != manifest.version
+                        or state.legacy_version not in SUPPORTED_LEGACY_VERSIONS
+                    ):
+                        raise ManagerError(
+                            "INVALID_INSTALLATION_STATE",
+                            "migration provenance does not match the current plugin",
+                        )
+                elif state.payload_digest != manifest.digest or state.plugin_version != manifest.version:
                     raise ManagerError(
                         "INVALID_INSTALLATION_STATE",
                         "installed payload provenance does not match the current embedded payload",
                     )
-                _validate_state_manifest_parity(state, manifest)
+                else:
+                    _validate_state_manifest_parity(state, manifest)
                 target_pin.verify()
                 plugin_pin.verify()
                 return result
@@ -1454,6 +1972,35 @@ def validate_installed_read_only(root: Path | str, plugin_root: Path | str) -> l
                 sys.dont_write_bytecode = previous
     except PayloadError:
         raise
+
+
+def validate_installed_read_only(
+    root: Path | str, plugin_root: Path | str
+) -> list[object]:
+    """Route validation through authenticated legacy or plugin-native payloads."""
+
+    state = _load_optional_state(Path(root))
+    if (
+        isinstance(state, InstallationState)
+        and state.plugin_version in SUPPORTED_LEGACY_VERSIONS
+    ):
+        try:
+            with verified_legacy_snapshot(
+                Path(plugin_root), state.plugin_version
+            ) as (legacy_plugin, legacy_manifest):
+                if state.payload_digest != legacy_manifest.digest:
+                    raise ManagerError(
+                        "INVALID_INSTALLATION_STATE",
+                        "legacy state does not match authenticated legacy payload",
+                    )
+                return _validate_installed_against_payload(
+                    root,
+                    legacy_plugin,
+                    authenticated_manifest=legacy_manifest,
+                )
+        except PayloadError as error:
+            raise ManagerError("INVALID_PAYLOAD", str(error)) from error
+    return _validate_installed_against_payload(root, plugin_root)
 
 
 def _plan_document(plan: OperationPlan) -> dict[str, object]:
@@ -1613,12 +2160,34 @@ def _apply_lifecycle_action(
 def _prospective_state_bytes(
     plan: OperationPlan,
     plugin: Path,
-    state: InstallationState | None,
+    state: InstallationState | MigrationState | None,
     approval_context: ApprovalContext | None = None,
     *,
     manifest: PayloadManifest | None = None,
     entries: Mapping[str, PayloadEntry] | None = None,
 ) -> bytes:
+    if plan.operation == "migrate":
+        if not isinstance(state, InstallationState) or approval_context is None:
+            raise ManagerError(
+                "INVALID_INSTALLATION_STATE",
+                "migration state requires authenticated legacy authority and approval",
+            )
+        preserved_paths = tuple(sorted(
+            action.path
+            for action in plan.actions
+            if action.kind == "preserve"
+            and action.before_hash is not None
+        ))
+        migration = migration_state_with_checksum(MigrationState(
+            MIGRATION_STATE_SCHEMA_VERSION,
+            plan.plugin_version,
+            state.plugin_version,
+            state.checksum,
+            preserved_paths,
+            approval_context.installed_at,
+            "",
+        ))
+        return write_migration_state_document(migration)
     if manifest is None:
         manifest = load_verified_manifest(plugin)
     if entries is None:
@@ -1701,6 +2270,101 @@ def _validate_uninstall_read_only(
     return findings
 
 
+def _validate_migration_transition_read_only(
+    root: Path,
+    plan: OperationPlan,
+    state: InstallationState | MigrationState,
+) -> list[str]:
+    """Validate approved migration/uninstall results before the final state write."""
+
+    findings: list[str] = []
+    try:
+        if _load_optional_state(root) != state:
+            findings.append("installation state changed before transition validation")
+        results = {item.path: item for item in plan.target_results}
+        changing_paths = {
+            action.path
+            for action in plan.actions
+            if action.kind in {"remove", "create", "merge", "update", "state-write"}
+        }
+        dispositions = {
+            action.path: action
+            for action in plan.actions
+            if action.kind in {
+                "preserve", "remove", "create", "merge", "update", "state-write"
+            }
+        }
+
+        def preserve_projection(action: Action) -> tuple[str, int | None]:
+            match = re.search(
+                r"; observed-kind=(missing|file|directory|blocked); "
+                r"observed-mode=(none|[0-7]{4})\Z",
+                action.detail,
+            )
+            if match is None:
+                raise ManagerError(
+                    "INVALID_PAYLOAD", "migration preserve projection is malformed"
+                )
+            return (
+                match.group(1),
+                None if match.group(2) == "none" else int(match.group(2), 8),
+            )
+
+        for action in plan.actions:
+            if action.kind in {"remove", "create", "merge", "update"}:
+                expected = results[action.path]
+                current = _observe(root, action.path)
+                if (
+                    current.kind != expected.entry_type
+                    or not modes_match(current.mode, expected.mode)
+                    or current.digest != expected.digest
+                ):
+                    findings.append(f"approved transition result mismatch: {action.path}")
+            elif action.kind == "preserve":
+                current = _observe(root, action.path)
+                expected_kind, expected_mode = preserve_projection(action)
+                if (
+                    current.kind != expected_kind
+                    or not modes_match(current.mode, expected_mode)
+                ):
+                    findings.append(
+                        f"preserved transition path type or mode changed: {action.path}"
+                    )
+                    continue
+                descendant_changes = any(
+                    path.startswith(f"{action.path}/") for path in changing_paths
+                )
+                if current.kind != "directory" or not descendant_changes:
+                    if current.digest != action.after_hash:
+                        findings.append(
+                            f"preserved transition path changed: {action.path}"
+                        )
+                    continue
+                expected_children: set[tuple[str, str]] = set()
+                parent = PurePosixPath(action.path)
+                for child_path, child_action in dispositions.items():
+                    child = PurePosixPath(child_path)
+                    if child.parent != parent or child_action.kind == "remove":
+                        continue
+                    if child_action.kind == "preserve":
+                        child_kind, _mode = preserve_projection(child_action)
+                    elif child_action.kind == "state-write":
+                        # State mutation is deliberately deferred until after this validation.
+                        child_kind = "file"
+                    else:
+                        child_kind = results[child_path].entry_type
+                    if child_kind != "missing":
+                        expected_children.add((child.name, child_kind))
+                actual_children = set(current.children)
+                if action.path == _TRANSACTION_CONTROL_DIRECTORY:
+                    actual_children.discard(("recovery", "directory"))
+                if actual_children != expected_children:
+                    findings.append(f"preserved transition path changed: {action.path}")
+    except ManagerError as error:
+        findings.append(f"transition validation could not inspect safely: {error.code}")
+    return findings
+
+
 def _prospective_shadow_ignore(
     root: Path,
 ) -> Callable[[str, Sequence[str]], tuple[str, ...]]:
@@ -1729,12 +2393,19 @@ def _validate_prospective(
     root: Path,
     plugin: Path,
     plan: OperationPlan,
-    state: InstallationState | None,
+    state: InstallationState | MigrationState | None,
     approval_context: ApprovalContext | None = None,
+    manifest: PayloadManifest | None = None,
 ) -> list[object]:
+    if plan.operation == "migrate":
+        if not isinstance(state, InstallationState):
+            return ["authenticated legacy state is absent during migration validation"]
+        return _validate_migration_transition_read_only(root, plan, state)
     if plan.operation == "uninstall":
         if state is None:
             return ["installation state is absent during uninstall validation"]
+        if isinstance(state, MigrationState):
+            return _validate_migration_transition_read_only(root, plan, state)
         return _validate_uninstall_read_only(root, plan, state)
     temporary_parent = Path(tempfile.gettempdir()).resolve()
     with tempfile.TemporaryDirectory(dir=temporary_parent) as temporary:
@@ -1748,8 +2419,19 @@ def _validate_prospective(
         state_path = shadow / STATE_RELATIVE_PATH
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state_path.write_bytes(_prospective_state_bytes(
-            plan, plugin, state, approval_context
+            plan, plugin, state, approval_context, manifest=manifest
         ))
+        if (
+            isinstance(state, InstallationState)
+            and state.plugin_version in SUPPORTED_LEGACY_VERSIONS
+        ):
+            if manifest is None:
+                raise ManagerError(
+                    "INVALID_PAYLOAD", "authenticated legacy manifest is unavailable"
+                )
+            return _validate_installed_against_payload(
+                shadow, plugin, authenticated_manifest=manifest
+            )
         return validate_installed_read_only(shadow, plugin)
 
 
@@ -1821,6 +2503,54 @@ def _verified_apply_payload_snapshot(
         ) from last_error
 
 
+@contextlib.contextmanager
+def _verified_operation_payload_snapshot(
+    plugin: Path,
+    plan: OperationPlan,
+    state: InstallationState | MigrationState | None,
+):
+    """Yield action payload plus the plugin identity manifest for an approved plan."""
+
+    if (
+        isinstance(state, InstallationState)
+        and state.plugin_version in SUPPORTED_LEGACY_VERSIONS
+        and plan.operation in {"repair", "uninstall", "migrate"}
+    ):
+        with verified_legacy_snapshot(
+            plugin, state.plugin_version
+        ) as (legacy_plugin, legacy_manifest):
+            if (
+                state.payload_digest != legacy_manifest.digest
+                or state.plugin_version != legacy_manifest.version
+            ):
+                raise ManagerError(
+                    "INVALID_INSTALLATION_STATE",
+                    "legacy state does not match authenticated legacy payload",
+                    failure_phase="payload-snapshot",
+                )
+            if plan.operation == "migrate":
+                with _verified_apply_payload_snapshot(
+                    plugin, plan.payload_digest
+                ) as (_current_plugin, current_manifest):
+                    yield legacy_plugin, legacy_manifest, current_manifest
+            else:
+                if (
+                    plan.payload_digest != legacy_manifest.digest
+                    or plan.plugin_version != legacy_manifest.version
+                ):
+                    raise ManagerError(
+                        "STALE_PLAN",
+                        "legacy payload differs from the approved plan",
+                        failure_phase="payload-snapshot",
+                    )
+                yield legacy_plugin, legacy_manifest, legacy_manifest
+        return
+    with _verified_apply_payload_snapshot(
+        plugin, plan.payload_digest
+    ) as (active_plugin, manifest):
+        yield active_plugin, manifest, manifest
+
+
 def apply_operation(
     plan: OperationPlan,
     root: Path,
@@ -1839,17 +2569,19 @@ def apply_operation(
 
     failure_phase = "payload-snapshot"
     try:
-        with _verified_apply_payload_snapshot(
-            Path(plugin),
-            plan.payload_digest,
-        ) as (active_plugin, manifest):
+        state = _load_optional_state(root)
+        with _verified_operation_payload_snapshot(
+            Path(plugin), plan, state
+        ) as (active_plugin, manifest, identity_manifest):
             failure_phase = "state-render"
             entries = {item.path: item for item in manifest.entries}
-            if manifest.version != plan.plugin_version:
+            if (
+                identity_manifest.version != plan.plugin_version
+                or identity_manifest.digest != plan.payload_digest
+            ):
                 raise ManagerError(
                     "STALE_PLAN", "verified payload does not match approved plan"
                 )
-            state = _load_optional_state(root)
             try:
                 state_bytes = (
                     None
@@ -1859,7 +2591,7 @@ def apply_operation(
                         active_plugin,
                         state,
                         approval_context,
-                        manifest=manifest,
+                        manifest=identity_manifest,
                         entries=entries,
                     )
                 )
@@ -1904,6 +2636,7 @@ def apply_operation(
                         plan,
                         state,
                         approval_context,
+                        manifest,
                     )
                 except ManagerError as error:
                     raise _attach_failure_phase(
@@ -1916,16 +2649,41 @@ def apply_operation(
                         "installed-validation",
                     ) from error
 
+            def replan() -> OperationPlan:
+                current_state = _load_optional_state(root)
+                if plan.operation == "migrate":
+                    if not isinstance(current_state, InstallationState):
+                        raise ManagerError(
+                            "STALE_PLAN", "legacy state changed before migration"
+                        )
+                    return _plan_migration_at_root(
+                        Path(root),
+                        identity_manifest,
+                        manifest,
+                        current_state,
+                        approval_context,
+                    )
+                if isinstance(current_state, MigrationState):
+                    return _plan_migrated_state_at_root(
+                        plan.operation,
+                        Path(root),
+                        identity_manifest,
+                        current_state,
+                        approval_context,
+                    )
+                return _plan_operation_at_root(
+                    plan.operation,
+                    Path(root),
+                    active_plugin,
+                    manifest,
+                    approval_context,
+                )
+
             failure_phase = "transaction"
             return apply_transaction(
                 plan,
                 root,
-                lambda: plan_operation(
-                    plan.operation,
-                    root,
-                    active_plugin,
-                    approval_context,
-                ),
+                replan,
                 apply_action,
                 validate,
                 persist_state=persist,
@@ -1989,6 +2747,27 @@ def main(argv: list[str] | None = None) -> int:
                 next_action="resolve conflicts and run a new read-only plan",
             )).decode("utf-8"), end="")
             return 1
+        changing = {
+            "create", "merge", "update", "remove", "state-write"
+        }
+        if arguments.operation == "repair" and not any(
+            action.kind in changing for action in plan.actions
+        ):
+            boundary = "installed-validation"
+            findings = validate_installed_read_only(
+                arguments.root, arguments.plugin_root
+            )
+            status = "success" if not findings else "VALIDATION_FAILED"
+            print(canonical_json(_result_document(
+                plan,
+                status=status,
+                wrote=False,
+                next_action=(
+                    "none" if not findings else "reconcile reported findings"
+                ),
+                findings=_finding_documents(findings),
+            )).decode("utf-8"), end="")
+            return 0 if not findings else 1
         if arguments.approve_digest is None:
             print(canonical_json(_result_document(
                 plan, status="awaiting-approval", wrote=False,

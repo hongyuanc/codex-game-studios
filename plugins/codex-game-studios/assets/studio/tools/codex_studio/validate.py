@@ -1334,10 +1334,14 @@ _INSTALLED_STATE_KEYS = {
     "installed_at", "managed_paths", "decisions", "validator_version",
     "journal_status", "checksum",
 }
+_MIGRATION_STATE_KEYS = {
+    "schema_version", "plugin_version", "legacy_version",
+    "legacy_state_checksum", "preserved_paths", "migrated_at", "checksum",
+}
 _INSTALLED_PATH_KEYS = {"path", "installed_hash", "ownership", "merge", "block_hash"}
 # payload-inventory-attestation:start
 _INSTALLED_INVENTORY_ENTRY_COUNT = 516
-_INSTALLED_INVENTORY_SHA256 = "0b55eb8de60862d46a0e43e9656b81fdf5f7397fd7d5c640d45338667e881122"
+_INSTALLED_INVENTORY_SHA256 = "9b13765ebe9115d8d7024c5a0adb292dc1cb643ff339cb295fdde16a9590fcd8"
 # payload-inventory-attestation:end
 _INSTALLED_VERSION = "2.0.0"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -1842,7 +1846,12 @@ def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[Va
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("installation state must be a JSON object")
-        if set(document) != _INSTALLED_STATE_KEYS:
+        schema_version = document.get("schema_version")
+        expected_keys = (
+            _MIGRATION_STATE_KEYS
+            if schema_version == 2 else _INSTALLED_STATE_KEYS
+        )
+        if set(document) != expected_keys:
             raise ValueError("installation state schema has missing or unknown fields")
         checksum = document.get("checksum")
         body = dict(document)
@@ -1853,7 +1862,29 @@ def _load_installed_state(raw: bytes) -> tuple[dict[str, object] | None, list[Va
         complete = (json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
         if raw != complete:
             raise ValueError("installation state is not canonical JSON")
-        if document.get("schema_version") != 1:
+        if schema_version == 2:
+            if document.get("plugin_version") != _INSTALLED_VERSION:
+                raise ValueError("unsupported migrated plugin version")
+            if document.get("legacy_version") != "1.0.0":
+                raise ValueError("unsupported migrated legacy version")
+            if not _HASH.fullmatch(str(document.get("legacy_state_checksum", ""))):
+                raise ValueError("invalid legacy state checksum")
+            migrated_at = document.get("migrated_at")
+            if not isinstance(migrated_at, str):
+                raise ValueError("malformed migrated_at")
+            timestamp = datetime.fromisoformat(migrated_at.replace("Z", "+00:00"))
+            if timestamp.tzinfo is None:
+                raise ValueError("malformed migrated_at")
+            preserved = document.get("preserved_paths")
+            if not isinstance(preserved, list):
+                raise ValueError("preserved paths are malformed")
+            normalized = [_normalize_installed_path(path) for path in preserved]
+            if normalized != sorted(normalized) or len(normalized) != len(
+                {path.casefold() for path in normalized}
+            ):
+                raise ValueError("preserved paths are unsorted or duplicated")
+            return document, []
+        if schema_version != 1:
             raise ValueError("unsupported installation state schema")
         if document.get("plugin_version") != _INSTALLED_VERSION:
             raise ValueError("unsupported installed plugin version")
@@ -1994,6 +2025,20 @@ def _validate_installed_repository_secure(root: pathlib.Path) -> tuple[list[Vali
             state, state_issues = _load_installed_state(state_raw)
             if state is None:
                 return state_issues, state_raw
+            if state.get("schema_version") == 2:
+                preserved = state["preserved_paths"]
+                assert isinstance(preserved, list)
+                for path in preserved:
+                    try:
+                        secure.kind(str(path))
+                    except OSError as error:
+                        issues.append(_installed_issue(
+                            str(path), f"recorded preserved path is unavailable: {error}"
+                        ))
+                secure.verify()
+                return sorted(
+                    issues, key=lambda issue: (issue.path, issue.message)
+                ), state_raw
             records = state["managed_paths"]
             decisions = state["decisions"]
             assert isinstance(records, list) and isinstance(decisions, list)

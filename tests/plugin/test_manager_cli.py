@@ -762,15 +762,13 @@ class ManagerCliTests(unittest.TestCase):
         source = manager.read_text(encoding="utf-8")
         marker = (
             ") -> bytes:\n"
-            "    if manifest is None:\n"
-            "        manifest = load_verified_manifest(plugin)"
+            "    if plan.operation == \"migrate\":"
         )
         replacement = (
             ") -> bytes:\n"
             "    if '--approve-digest' in sys.argv:\n"
             "        raise OSError('/private/apply-secret')\n"
-            "    if manifest is None:\n"
-            "        manifest = load_verified_manifest(plugin)"
+            "    if plan.operation == \"migrate\":"
         )
         self.assertIn(marker, source)
         manager.write_text(source.replace(marker, replacement, 1), encoding="utf-8")
