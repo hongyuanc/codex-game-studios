@@ -25,7 +25,7 @@ from tools.codex_studio.engine_pack import SUPPORTED_ENGINES, load_studio_config
 ROLE_FIELDS = frozenset(
     {"name", "description", "developer_instructions", "model", "model_reasoning_effort"}
 )
-ALLOWED_MODELS = frozenset({"gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"})
+ALLOWED_MODELS = frozenset({"gpt-6-astra", "gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"})
 ALLOWED_REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh"})
 CORE_ROLE_NAMES = frozenset(
     """accessibility-specialist ai-programmer analytics-engineer art-director

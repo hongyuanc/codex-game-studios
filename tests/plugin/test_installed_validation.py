@@ -70,7 +70,7 @@ class InstalledValidationTests(unittest.TestCase):
         def state_raw(*, legacy_checksum: object, migrated_at: str) -> bytes:
             body = {
                 "schema_version": 2,
-                "plugin_version": "2.0.0",
+                "plugin_version": "2.0.1",
                 "legacy_version": "1.0.0",
                 "legacy_state_checksum": legacy_checksum,
                 "preserved_paths": [],

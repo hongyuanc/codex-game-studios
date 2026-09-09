@@ -123,6 +123,11 @@ community, visit the
 | Skills | 73 | Immediately available design, architecture, delivery, QA, operations, and release workflows |
 | Plugin resources | — | Templates, guidance, and selected-engine references read on demand |
 
+GPT-6 Astra (`gpt-6-astra`) is also supported as an explicit role-model choice.
+Set the selected source role TOML’s `model` field and rebuild the plugin payload
+with `python3 tools/codex_studio/build_plugin_payload.py`. Host model availability
+is checked before default-agent launch.
+
 The balanced model policy routes 3 Sol roles (`gpt-5.6`), 44 Terra roles
 (`gpt-5.6-terra`), and 2 Luna roles (`gpt-5.6-luna`). Only the selected
 engine pack is activated; the other two stay in `.codex/agent-packs/`.

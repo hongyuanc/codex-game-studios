@@ -670,7 +670,7 @@ class PayloadGenerationTests(unittest.TestCase):
         manifest = build_payload(ROOT, PLUGIN, check=True)
 
         # Assert
-        self.assertEqual("2.0.0", manifest.version)
+        self.assertEqual("2.0.1", manifest.version)
 
     def test_payload_build_rejects_extra_or_unsafe_legacy_inventory(self):
         # Arrange / Act / Assert

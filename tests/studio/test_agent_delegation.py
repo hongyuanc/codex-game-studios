@@ -250,6 +250,40 @@ class RoleResolverTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         delegation.resolve_role(fixture, project, "qa-tester")
 
+    def test_resolver_astra_contract_reaches_default_request(self):
+        # Arrange
+        delegation = _delegation_module(self)
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "studio"
+            shutil.copytree(ROOT / ".codex", fixture / ".codex")
+            project = Path(directory) / "project"
+            project.mkdir()
+            _write_studio_config(project)
+            profile = fixture / ".codex/agents/technical-director.toml"
+            profile.write_text(profile.read_text().replace(
+                'model = "gpt-5.6"', 'model = "gpt-6-astra"'
+            ))
+            task = delegation.BoundedTask(
+                objective="Review architecture", owned_paths=("docs/architecture",),
+                inputs=("approved design",), acceptance_criteria=("report findings",),
+                required_evidence=("review report",), prohibited_actions=("do not edit",),
+            )
+            # Act
+            contract = delegation.resolve_role(fixture, project, "technical-director")
+            request = delegation.build_default_agent_request(
+                contract, task, supported_models={"gpt-6-astra"},
+                supported_reasoning_efforts={"high"},
+            )
+            # Assert
+            self.assertEqual("gpt-6-astra", request["model"])
+            self.assertEqual("high", request["reasoning_effort"])
+            self.assertEqual("none", request["fork_turns"])
+            with self.assertRaises(ValueError):
+                delegation.build_default_agent_request(
+                    contract, task, supported_models={"gpt-5.6"},
+                    supported_reasoning_efforts={"high"},
+                )
+
     def test_resolver_rejects_ambiguous_core_and_active_pack_candidate(self):
         delegation = _delegation_module(self)
         with tempfile.TemporaryDirectory() as directory:

@@ -25,7 +25,12 @@ portable workflow instructions and do not select models in frontmatter.
 
 Sol is reserved for `creative-director`, `technical-director`, and `producer`.
 Luna is reserved for `qa-tester` and `community-manager`. All other profiles use
-Terra. If a configured model is unavailable, report it and ask before selecting a
+Terra under the balanced defaults. GPT-6 Astra (`gpt-6-astra`) is also supported
+as an explicit role-model choice for demanding tasks. Set the selected source
+role TOML model field and rebuild the plugin payload. Preserve the role contract
+and select reasoning supported by the host.
+
+If a configured model is unavailable, report it and ask before selecting a
 supported fallback; never silently change the tier.
 
 ## Phase-Gated Autonomy

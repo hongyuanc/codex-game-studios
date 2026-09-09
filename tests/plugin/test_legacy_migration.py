@@ -126,7 +126,7 @@ class LegacyMigrationTests(unittest.TestCase):
         # Arrange
         state = MigrationState(
             schema_version=2,
-            plugin_version="2.0.0",
+            plugin_version="2.0.1",
             legacy_version="1.0.0",
             legacy_state_checksum="a" * 64,
             preserved_paths=("z/path", "a/path"),
@@ -189,7 +189,7 @@ class LegacyMigrationTests(unittest.TestCase):
         self.assertIsInstance(state, MigrationState)
         self.assertEqual(2, state.schema_version)
         self.assertEqual("1.0.0", state.legacy_version)
-        self.assertEqual("2.0.0", state.plugin_version)
+        self.assertEqual("2.0.1", state.plugin_version)
 
     def test_migrate_failure_after_first_remove_rolls_back_exactly(self):
         # Arrange

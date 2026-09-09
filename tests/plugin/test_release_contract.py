@@ -217,7 +217,7 @@ class ReleaseContractTests(unittest.TestCase):
         )
         rejected = (
             "v1.0.1",
-            "v2.0.0-rc.1",
+            "v2.0.1-rc.1",
             "v1.0.0-rc.01",
             "v1.0.0-rc.",
             "v1.0.0-rc..1",
@@ -423,7 +423,7 @@ class ReleaseContractTests(unittest.TestCase):
                     (cache / "forbidden.pyc").symlink_to("../README.md")
                     output = root / "dist"
                     output.mkdir()
-                    stale_archive = output / "codex-game-studios-2.0.0.zip"
+                    stale_archive = output / "codex-game-studios-2.0.1.zip"
                     stale_checksum = output / f"{stale_archive.name}.sha256"
                     stale_archive.write_bytes(b"stale")
                     stale_checksum.write_bytes(b"stale")
@@ -513,7 +513,7 @@ class ReleaseContractTests(unittest.TestCase):
             attacker = root / "attacker-file"
             attacker.write_bytes(attacker_bytes)
             output = root / "dist"
-            archive = output / "codex-game-studios-2.0.0.zip"
+            archive = output / "codex-game-studios-2.0.1.zip"
             checksum = output / f"{archive.name}.sha256"
             original_manager_api = packager._manager_api
             api = original_manager_api(root / "plugins/codex-game-studios")
@@ -656,7 +656,7 @@ class ReleaseContractTests(unittest.TestCase):
             shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
             output = root / "dist"
             output.mkdir()
-            archive = output / "codex-game-studios-2.0.0.zip"
+            archive = output / "codex-game-studios-2.0.1.zip"
             checksum = output / f"{archive.name}.sha256"
             archive.write_bytes(b"stale archive")
             checksum.write_bytes(b"stale checksum")
@@ -684,17 +684,17 @@ class ReleaseContractTests(unittest.TestCase):
                 output = root / "dist"
                 output.mkdir()
                 stale = (
-                    output / "codex-game-studios-2.0.0.zip",
-                    output / "codex-game-studios-2.0.0.zip.sha256",
-                    output / ".codex-game-studios-2.0.0.zip.deadbeef.tmp",
-                    output / ".codex-game-studios-2.0.0.zip.sha256.deadbeef.tmp",
+                    output / "codex-game-studios-2.0.1.zip",
+                    output / "codex-game-studios-2.0.1.zip.sha256",
+                    output / ".codex-game-studios-2.0.1.zip.deadbeef.tmp",
+                    output / ".codex-game-studios-2.0.1.zip.sha256.deadbeef.tmp",
                 )
                 for path in stale:
                     path.write_bytes(b"stale")
                 unrelated = {
                     output / "other-plugin-1.0.0.zip": b"other plugin",
                     output / "codex-game-studios-not-an-archive.txt": b"notes",
-                    output / "codex-game-studios-2.0.0.zip.backup": b"backup",
+                    output / "codex-game-studios-2.0.1.zip.backup": b"backup",
                 }
                 for path, contents in unrelated.items():
                     path.write_bytes(contents)
@@ -734,8 +734,8 @@ class ReleaseContractTests(unittest.TestCase):
             output.mkdir()
             outside = root / "outside.zip"
             outside.write_bytes(b"must survive")
-            archive = output / "codex-game-studios-2.0.0.zip"
-            checksum = output / "codex-game-studios-2.0.0.zip.sha256"
+            archive = output / "codex-game-studios-2.0.1.zip"
+            checksum = output / "codex-game-studios-2.0.1.zip.sha256"
             archive.symlink_to(outside)
             os.mkfifo(checksum)
             manifest = root / "plugins/codex-game-studios/.codex-plugin/plugin.json"
@@ -757,7 +757,7 @@ class ReleaseContractTests(unittest.TestCase):
             shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "dist"))
             output = root / "dist"
             output.mkdir()
-            archive = output / "codex-game-studios-2.0.0.zip"
+            archive = output / "codex-game-studios-2.0.1.zip"
             archive.write_bytes(b"stale")
             manifest = root / "plugins/codex-game-studios/.codex-plugin/plugin.json"
             manifest.write_text("{malformed", encoding="utf-8")
@@ -799,7 +799,7 @@ class ReleaseContractTests(unittest.TestCase):
         import tools.codex_studio.package_plugin as packager
 
         output = self.output.resolve()
-        archive = output / "codex-game-studios-2.0.0.zip"
+        archive = output / "codex-game-studios-2.0.1.zip"
         checksum = output / f"{archive.name}.sha256"
         real_replace = os.replace
 
@@ -827,7 +827,7 @@ class ReleaseContractTests(unittest.TestCase):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "dist"
                 output.mkdir()
-                archive = output / "codex-game-studios-2.0.0.zip"
+                archive = output / "codex-game-studios-2.0.1.zip"
                 checksum = output / f"{archive.name}.sha256"
                 attacked_final = archive if target == "archive" else checksum
                 unrelated = output / "release-notes.txt"
@@ -912,8 +912,8 @@ class ReleaseContractTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
-            temporary = output / ".codex-game-studios-2.0.0.zip.deadbeef.tmp"
-            final = output / "codex-game-studios-2.0.0.zip"
+            temporary = output / ".codex-game-studios-2.0.1.zip.deadbeef.tmp"
+            final = output / "codex-game-studios-2.0.1.zip"
             approved_bytes = b"approved archive"
             temporary.write_bytes(approved_bytes)
             written = temporary.lstat()
@@ -970,7 +970,7 @@ class ReleaseContractTests(unittest.TestCase):
             unrelated = output / "release-notes.txt"
             output.mkdir()
             unrelated.write_bytes(b"preserve me")
-            archive = output / "codex-game-studios-2.0.0.zip"
+            archive = output / "codex-game-studios-2.0.1.zip"
             checksum = output / f"{archive.name}.sha256"
             real_replace_temporary = packager._replace_temporary
             attacked = False
@@ -1133,7 +1133,7 @@ class ReleaseContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "directory substitution"):
                     packager._new_temporary(
                         output,
-                        "codex-game-studios-2.0.0.zip",
+                        "codex-game-studios-2.0.1.zip",
                         filesystem,
                     )
             self.assertEqual(2, filesystem.checks)
@@ -1197,9 +1197,9 @@ class ReleaseContractTests(unittest.TestCase):
                     output.mkdir()
                     victims = {
                         output / temporary.name: b"attacker temp victim",
-                        output / "codex-game-studios-2.0.0.zip": b"attacker zip victim",
+                        output / "codex-game-studios-2.0.1.zip": b"attacker zip victim",
                         output
-                        / "codex-game-studios-2.0.0.zip.sha256": b"attacker checksum victim",
+                        / "codex-game-studios-2.0.1.zip.sha256": b"attacker checksum victim",
                     }
                     for path, contents in victims.items():
                         path.write_bytes(contents)
@@ -1324,8 +1324,8 @@ class ReleaseContractTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual(
             [
-                str(output.resolve() / "codex-game-studios-2.0.0.zip"),
-                str(output.resolve() / "codex-game-studios-2.0.0.zip.sha256"),
+                str(output.resolve() / "codex-game-studios-2.0.1.zip"),
+                str(output.resolve() / "codex-game-studios-2.0.1.zip.sha256"),
             ],
             completed.stdout.splitlines(),
         )
