@@ -138,7 +138,7 @@ KNOWN_GIT_SUBCOMMANDS = {
     "credential-cache", "credential-cache--daemon", "credential-store",
     "describe", "diagnose", "diff", "diff-files", "diff-index", "diff-pairs", "diff-tree", "difftool",
     "fast-export", "fast-import", "fetch", "fetch-pack", "filter-branch", "fmt-merge-msg",
-    "for-each-ref", "for-each-repo", "format-patch", "fsck", "fsck-objects", "fsmonitor--daemon",
+    "for-each-ref", "for-each-repo", "format-patch", "format-rev", "fsck", "fsck-objects", "fsmonitor--daemon",
     "gc", "get-tar-commit-id", "grep", "hash-object", "help", "history", "hook",
     "index-pack", "init", "init-db", "interpret-trailers", "last-modified", "log", "ls-files", "ls-remote",
     "ls-tree", "mailinfo", "mailsplit", "maintenance", "merge", "merge-base", "merge-file",
@@ -153,7 +153,7 @@ KNOWN_GIT_SUBCOMMANDS = {
     "show", "show-branch", "show-index", "show-ref",
     "sparse-checkout", "stage", "stash", "status", "stripspace", "submodule", "submodule--helper", "switch",
     "symbolic-ref", "tag", "unpack-file", "unpack-objects", "update-index", "update-ref",
-    "update-server-info", "upload-archive", "upload-archive--writer", "upload-pack", "var",
+    "update-server-info", "url-parse", "upload-archive", "upload-archive--writer", "upload-pack", "var",
     "verify-commit", "verify-pack", "verify-tag", "version", "whatchanged", "worktree", "write-tree",
 }
 ENV_VALUE_OPTIONS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}

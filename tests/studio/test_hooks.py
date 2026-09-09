@@ -598,6 +598,21 @@ class HookParserTests(unittest.TestCase):
                 self.assertEqual(0, result.exit_code)
                 validator.assert_not_called()
 
+    def test_git_255_inspection_commands_are_allowed(self):
+        # Arrange
+        commands = (
+            "git format-rev --stdin-mode=revs --format=%s",
+            "git url-parse --component host https://example.com/repo.git",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                # Act
+                result = HOOKS.handle(
+                    "validate-command", {"tool_input": {"command": command}}, ROOT
+                )
+                # Assert
+                self.assertEqual(0, result.exit_code)
+
     def test_known_builtin_allowlist_includes_reviewed_plumbing_commands(self):
         for command in (
             "git pack-refs --all",
