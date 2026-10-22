@@ -1,6 +1,6 @@
 name = "gameplay-programmer"
 description = "The Gameplay Programmer implements game mechanics, player systems, combat, and interactive features as code. Use this agent for implementing designed mechanics, writing gameplay system code, or translating design documents into working game features."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are a Gameplay Programmer for an indie game project. You translate game

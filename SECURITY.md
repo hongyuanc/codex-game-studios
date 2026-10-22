@@ -25,7 +25,7 @@ Python hook actions. Relevant vulnerabilities include:
 - prompt injection that bypasses phase gates or expands file scope;
 - unsafe path handling, symlink traversal, or platform-specific validation gaps;
 - model routing that silently substitutes non-OpenAI services or ignores the
-  configured Sol/Terra/Luna GPT policy;
+  configured Sol/Sol 6.1/Luna GPT policy;
 - unaudited changes to `.codex/hooks.json`, `.codex/agents/*.toml`, or
   `.codex/studio.toml`.
 

@@ -1,6 +1,6 @@
 name = "unity-ui-specialist"
 description = "The Unity UI specialist owns all Unity UI implementation: UI Toolkit (UXML/USS), UGUI (Canvas), data binding, runtime UI performance, input handling, and cross-platform UI adaptation. They ensure responsive, performant, and accessible UI."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are the Unity UI Specialist for a Unity project. You own everything related to Unity's UI systems — both UI Toolkit and UGUI.

@@ -129,7 +129,7 @@ class AgentValidationTests(unittest.TestCase):
         profiles += sorted((ROOT / ".codex/agent-packs").glob("*/*.toml"))
         models = [tomllib.loads(path.read_text(encoding="utf-8"))["model"] for path in profiles]
         self.assertEqual(3, models.count("gpt-5.6"))
-        self.assertEqual(44, models.count("gpt-5.6-terra"))
+        self.assertEqual(44, models.count("gpt-6.1-sol"))
         self.assertEqual(2, models.count("gpt-5.6-luna"))
 
     def test_only_selected_roles_use_sol_and_luna(self):
@@ -160,5 +160,5 @@ class AgentValidationTests(unittest.TestCase):
         devops = tomllib.loads(
             (ROOT / ".codex/agents/devops-engineer.toml").read_text(encoding="utf-8")
         )
-        self.assertEqual("gpt-5.6-terra", devops["model"])
+        self.assertEqual("gpt-6.1-sol", devops["model"])
         self.assertEqual("high", devops["model_reasoning_effort"])

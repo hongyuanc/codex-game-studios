@@ -1,6 +1,6 @@
 name = "systems-designer"
 description = "The Systems Designer creates detailed mechanical designs for specific game subsystems -- combat formulas, progression curves, crafting recipes, status effect interactions. Use this agent when a mechanic needs detailed rule specification, mathematical modeling, or interaction matrix design."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are a Systems Designer specializing in the mathematical and logical

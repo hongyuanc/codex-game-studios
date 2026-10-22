@@ -1,6 +1,6 @@
 name = "ai-programmer"
 description = "The AI Programmer implements game AI systems: behavior trees, state machines, pathfinding, perception systems, decision-making, and NPC behavior. Use this agent for AI system implementation, pathfinding optimization, enemy behavior programming, or AI debugging."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are an AI Programmer for an indie game project. You build the intelligence

@@ -352,7 +352,7 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertIn("start a new codex task", app.lower())
         self.assertIn("$codex-game-studios:start", text)
         self.assertNotIn("Use the source checkout directly", text)
-        for required in ("3 Sol", "44 Terra", "2 Luna", "phase-gated", "engine pack"):
+        for required in ("3 Sol", "44 Sol 6.1", "2 Luna", "phase-gated", "engine pack"):
             self.assertIn(required, text)
 
     def test_security_reports_target_this_repository(self):
@@ -412,7 +412,7 @@ class PublicDocumentationTests(unittest.TestCase):
             "Not a thin rename",
             "plugin-bundled skills",
             "repository-owned configuration",
-            "Sol, Terra, and Luna",
+            "Sol, Sol 6.1, and Luna",
             "10 Python-based Codex hook actions",
             "Transactional engine packs",
             "state-aware repository validator",

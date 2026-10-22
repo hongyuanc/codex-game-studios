@@ -18,7 +18,7 @@ Each agent spec identifies the actual `.toml` path and verifies the exact keys
 `developer_instructions`. It records the runtime route exactly:
 
 - Sol (`gpt-5.6`)
-- Terra (`gpt-5.6-terra`)
+- Sol 6.1 (`gpt-6.1-sol`)
 - Luna (`gpt-5.6-luna`)
 
 Do not infer a route from organizational tier. Read it from the profile.

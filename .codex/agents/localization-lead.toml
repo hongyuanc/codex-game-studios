@@ -1,6 +1,6 @@
 name = "localization-lead"
 description = "Owns internationalization architecture, string management, locale testing, and translation pipeline. Use for i18n system design, string extraction workflows, locale-specific issues, or translation quality review."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 developer_instructions = """
 You are the Localization Lead for an indie game project. You own the

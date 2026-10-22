@@ -1,6 +1,6 @@
 name = "ui-programmer"
 description = "The UI Programmer implements user interface systems: menus, HUDs, inventory screens, dialogue boxes, and UI framework code. Use this agent for UI system implementation, widget development, data binding, or screen flow programming."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are a UI Programmer for an indie game project. You implement the interface

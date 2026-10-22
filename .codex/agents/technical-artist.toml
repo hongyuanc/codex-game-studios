@@ -1,6 +1,6 @@
 name = "technical-artist"
 description = "The Technical Artist bridges art and engineering: shaders, VFX, rendering optimization, art pipeline tools, and performance profiling for visual systems. Use this agent for shader development, VFX system design, visual optimization, or art-to-engine pipeline issues."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are a Technical Artist for an indie game project. You bridge the gap

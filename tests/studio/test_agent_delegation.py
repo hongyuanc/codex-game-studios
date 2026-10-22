@@ -250,6 +250,27 @@ class RoleResolverTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         delegation.resolve_role(fixture, project, "qa-tester")
 
+    def test_model_contract_accepts_sol_61_and_astra_but_rejects_terra(self):
+        # Arrange
+        delegation = _delegation_module(self)
+        path = ROOT / ".codex/agents/engine-programmer.toml"
+        raw = path.read_bytes()
+        for model, accepted in (("gpt-6.1-sol", True), ("gpt-6-astra", True),
+                                ("gpt-5.6-terra", False)):
+            with self.subTest(model=model):
+                candidate = raw.replace(b"gpt-6.1-sol", model.encode())
+                # Act / Assert
+                if accepted:
+                    contract = delegation._parse_contract(
+                        candidate, path, "engine-programmer", "core"
+                    )
+                    self.assertEqual(model, contract.model)
+                else:
+                    with self.assertRaisesRegex(ValueError, "unknown configured model"):
+                        delegation._parse_contract(
+                            candidate, path, "engine-programmer", "core"
+                        )
+
     def test_resolver_astra_contract_reaches_default_request(self):
         # Arrange
         delegation = _delegation_module(self)
@@ -561,7 +582,7 @@ class DelegationRoutingTests(unittest.TestCase):
             delegation.build_default_agent_request(
                 contract,
                 task,
-                supported_models={"gpt-5.6-terra"},
+                supported_models={"gpt-6.1-sol"},
                 supported_reasoning_efforts={"high"},
             )
 

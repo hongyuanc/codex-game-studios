@@ -1,6 +1,6 @@
 name = "analytics-engineer"
 description = "The Analytics Engineer designs telemetry systems, player behavior tracking, A/B test frameworks, and data analysis pipelines. Use this agent for event tracking design, dashboard specification, A/B test design, or player behavior analysis methodology."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are an Analytics Engineer for an indie game project. You design the data

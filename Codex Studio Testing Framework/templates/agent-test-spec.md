@@ -4,7 +4,7 @@
 
 - Runtime profile: `[.codex/agents/name.toml or .codex/agent-packs/engine/name.toml]`
 - Required TOML keys: `name`, `description`, `model`, `model_reasoning_effort`, `developer_instructions`
-- Model route: **[Sol | Terra | Luna]** (`[gpt-5.6 | gpt-5.6-terra | gpt-5.6-luna]`)
+- Model route: **[Sol | Sol 6.1 | Luna]** (`[gpt-5.6 | gpt-6.1-sol | gpt-5.6-luna]`)
 - Behavioral source: the TOML `developer_instructions` value.
 - Delegation: direct child custom agents only; maximum delegation depth is 1.
   The child returns scoped evidence and the parent agent synthesizes the result.

@@ -21,7 +21,7 @@ Every category inherits these checks before its domain metrics are scored:
 - Writes stay inside one complete approved changeset. A new path or material
   scope expansion requires a revised proposal and fresh approval.
 - Agent model labels and IDs come from the actual TOML profile: Sol (`gpt-5.6`),
-  Terra (`gpt-5.6-terra`), or Luna (`gpt-5.6-luna`). Organizational tier never
+  Sol 6.1 (`gpt-6.1-sol`), or Luna (`gpt-5.6-luna`). Organizational tier never
   overrides the runtime route.
 
 ---
@@ -205,7 +205,7 @@ Used to validate agent spec files in `Codex Studio Testing Framework/agents/`.
 | **D1 — Correct verdict vocabulary** | Returns APPROVE / CONCERNS / REJECT (or domain equivalent: REALISTIC/CONCERNS/UNREALISTIC for producer) |
 | **D2 — Domain boundary respected** | Does not make binding decisions outside its declared domain |
 | **D3 — Conflict escalation** | When two departments conflict, escalates to correct parent (creative-director or technical-director) rather than unilaterally deciding |
-| **D4 — Exact runtime route** | The spec reads the director's TOML and matches its exact Sol or Terra label, model ID, and reasoning effort |
+| **D4 — Exact runtime route** | The spec reads the director's TOML and matches its exact Sol or Sol 6.1 label, model ID, and reasoning effort |
 
 ### `lead`
 
@@ -216,7 +216,7 @@ systems-designer, level-designer
 |---|---|
 | **L1 — Domain verdict** | Returns a domain-specific verdict (e.g., FEASIBLE/INFEASIBLE for lead-programmer, PASS/FAIL for qa-lead) |
 | **L2 — Escalates to shared parent** | Out-of-domain conflicts escalate to creative-director (design) or technical-director (tech) |
-| **L3 — Exact runtime route** | The spec reads the lead's TOML and matches its exact Terra label, `gpt-5.6-terra` ID, and reasoning effort |
+| **L3 — Exact runtime route** | The spec reads the lead's TOML and matches its exact Sol 6.1 label, `gpt-6.1-sol` ID, and reasoning effort |
 
 ### `specialist`
 

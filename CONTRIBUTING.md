@@ -29,7 +29,7 @@ scope decisions.
 - Define engine specialists in `.codex/agent-packs/<engine>/*.toml`; only the
   pack selected in `.codex/studio.toml` may be active.
 - Include a clear `description`, bounded `developer_instructions`, the intended
-  Sol/Terra/Luna GPT model, reasoning effort, and sandbox policy.
+  Sol/Sol 6.1/Luna GPT model, reasoning effort, and sandbox policy.
 - Do not cross a profile's documented ownership boundary without delegation.
 
 ### Hooks

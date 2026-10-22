@@ -126,7 +126,7 @@ class TestingFrameworkTests(unittest.TestCase):
 
         labels = {
             "gpt-5.6": "Sol",
-            "gpt-5.6-terra": "Terra",
+            "gpt-6.1-sol": "Sol 6.1",
             "gpt-5.6-luna": "Luna",
         }
         required_keys = {
@@ -512,7 +512,7 @@ class TestingFrameworkTests(unittest.TestCase):
             for name in ("README.md", "AGENTS.md", "quality-rubric.md")
         )
         self.assertIn("Sol (`gpt-5.6`)", combined)
-        self.assertIn("Terra (`gpt-5.6-terra`)", combined)
+        self.assertIn("Sol 6.1 (`gpt-6.1-sol`)", combined)
         self.assertIn("Luna (`gpt-5.6-luna`)", combined)
         self.assertIn("maximum delegation depth is 1", combined)
         self.assertIn("parent agent synthesizes", combined)

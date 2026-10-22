@@ -79,7 +79,7 @@ phase-gating contract, then reapply the project's domain-specific behavior.
 - Skills are invoked as `$skill-name` and discovered under `.agents/skills/`.
 - Custom agents are TOML profiles under `.codex/agents/`; engine profiles live
   in `.codex/agent-packs/`.
-- Sol, Terra, and Luna route exclusively to OpenAI GPT models.
+- Sol, Sol 6.1, and Luna route exclusively to OpenAI GPT models.
 - Hooks are registered in `.codex/hooks.json` and dispatched through one Python
   runner with 10 actions.
 - Approval is phase-gated. An approved story changeset can be implemented and

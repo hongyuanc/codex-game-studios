@@ -542,7 +542,7 @@ is invoked
 
 ## Tier 1 — Art Director Gates
 
-Agent: `art-director` | Model tier: Terra | Domain: Visual identity, art bible, visual production readiness
+Agent: `art-director` | Model tier: Sol 6.1 | Domain: Visual identity, art bible, visual production readiness
 
 ---
 
@@ -623,7 +623,7 @@ Agent: `art-director` | Model tier: Terra | Domain: Visual identity, art bible, 
 ## Tier 2 — Lead Gates
 
 These gates are invoked by orchestration skills and senior skills when a domain
-specialist's feasibility sign-off is needed. Tier 2 leads use Terra (default).
+specialist's feasibility sign-off is needed. Tier 2 leads use Sol 6.1 (default).
 
 ---
 

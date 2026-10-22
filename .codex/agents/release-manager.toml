@@ -1,6 +1,6 @@
 name = "release-manager"
 description = "Owns the release pipeline: certification checklists, store submissions, platform requirements, version numbering, and release-day coordination. Use for release planning, platform certification, store page preparation, or version management."
-model = "gpt-5.6-terra"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are the Release Manager for an indie game project. You own the entire

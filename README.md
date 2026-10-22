@@ -95,7 +95,7 @@ community, visit the
 
 - **Native Codex surfaces:** 73 plugin-bundled skills, durable project guidance,
   and small repository-owned configuration created only when needed.
-- **GPT studio routing:** the 49 roles are organized as Sol, Terra, and Luna
+- **GPT studio routing:** the 49 roles are organized as Sol, Sol 6.1, and Luna
   profiles with explicit model, reasoning, sandbox, and delegation policies.
 - **Native workflow semantics:** marketplace-installed workflows use explicit
   `$codex-game-studios:<skill>` invocations, phase-gated collaboration, and
@@ -128,8 +128,8 @@ Set the selected source role TOML’s `model` field and rebuild the plugin paylo
 with `python3 tools/codex_studio/build_plugin_payload.py`. Host model availability
 is checked before default-agent launch.
 
-The balanced model policy routes 3 Sol roles (`gpt-5.6`), 44 Terra roles
-(`gpt-5.6-terra`), and 2 Luna roles (`gpt-5.6-luna`). Only the selected
+The balanced model policy routes 3 Sol roles (`gpt-5.6`), 44 Sol 6.1 roles
+(`gpt-6.1-sol`), and 2 Luna roles (`gpt-5.6-luna`). Only the selected
 engine pack is activated; the other two stay in `.codex/agent-packs/`.
 
 ## How collaboration works

@@ -19,7 +19,7 @@ dependency checks.
   reference, phase, and coverage functions did not exist. The pre-cleanup gate
   now composes agent, skill, hook, inventory, reference, and coverage validation.
 - Minor hardening added exact 34/15 and 3×5 agent assertions,
-  `devops-engineer` Terra/high routing, forbidden `agent:` and `maxTurns:`
+  `devops-engineer` Sol 6.1/high routing, forbidden `agent:` and `maxTurns:`
   skill metadata, an exact 29-skill design inventory assertion, native
   `$skill-test` framework behavior, and corrected `$team-ui` quick-reference
   wording.
@@ -396,7 +396,7 @@ same filenames.
   complete preserve/merge/verify/rollback method while confining legacy names
   to historical migration context.
 - All 49 agent specifications now assert their exact TOML path, schema, and
-  Sol/Terra/Luna route. All 73 skill specifications now assert runtime
+  Sol/Sol 6.1/Luna route. All 73 skill specifications now assert runtime
   discovery, `$skill` invocation, one decision per turn, native question
   cardinality, bounded delegation, parent synthesis, and five behavioral cases.
   The `vertical-slice` extension contains the same complete protocol.

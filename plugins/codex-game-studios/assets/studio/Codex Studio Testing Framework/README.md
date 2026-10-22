@@ -16,7 +16,7 @@ Agent specs verify the five required TOML keys: `name`, `description`, `model`,
 `model_reasoning_effort`, and `developer_instructions`. Model aliases are:
 
 - Sol (`gpt-5.6`) for studio-wide synthesis and high-stakes leadership.
-- Terra (`gpt-5.6-terra`) for most discipline and implementation work.
+- Sol 6.1 (`gpt-6.1-sol`) for most discipline and implementation work.
 - Luna (`gpt-5.6-luna`) for fast, bounded QA or community work.
 
 The matching TOML profile is the source of truth for each spec. Engine profiles

@@ -20,12 +20,12 @@ portable workflow instructions and do not select models in frontmatter.
 | Tier | Model | When to use |
 |------|-------|-------------|
 | **Sol** | `gpt-5.6` | Creative direction, technical direction, production arbitration, and high-stakes cross-system decisions |
-| **Terra** | `gpt-5.6-terra` | Design, implementation, review, engine specialization, and most production work |
+| **Sol 6.1** | `gpt-6.1-sol` | Design, implementation, review, engine specialization, and most production work |
 | **Luna** | `gpt-5.6-luna` | Bounded routine QA and community operations with low or medium reasoning |
 
 Sol is reserved for `creative-director`, `technical-director`, and `producer`.
 Luna is reserved for `qa-tester` and `community-manager`. All other profiles use
-Terra under the balanced defaults. GPT-6 Astra (`gpt-6-astra`) is also supported
+Sol 6.1 under the balanced defaults. GPT-6 Astra (`gpt-6-astra`) is also supported
 as an explicit role-model choice for demanding tasks. Set the selected source
 role TOML model field and rebuild the plugin payload. Preserve the role contract
 and select reasoning supported by the host.
